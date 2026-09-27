@@ -3,7 +3,7 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray  # noqa: kept for legacy compatibility
 from cv_bridge import CvBridge
 import numpy as np
 import tf2_ros
@@ -67,6 +67,7 @@ class PickupApproximateNode(Node):
         # Máquina de estados: IDLE, INIT_RAISE, WAIT, APPROACH, GRASP, LIFT
         self.state = 'IDLE'
         self.state_start_time = 0.0
+        self.last_published_gripper_state = None
         self.is_recording = False
 
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
@@ -183,9 +184,14 @@ class PickupApproximateNode(Node):
         
         self.action_pub.publish(target_pose)
         
-        gripper_msg = Float64MultiArray()
-        gripper_msg.data = [gripper_state]
-        self.gripper_pub.publish(gripper_msg)
+
+        if self.last_published_gripper_state != gripper_state:
+            gripper_msg = Float64MultiArray()
+            gripper_msg.data = [gripper_state]
+            self.gripper_pub.publish(gripper_msg)
+            self.last_published_gripper_state = gripper_state
+            self.get_logger().info(f"Gripper command enviado: {gripper_state}")
+
         
         self.latest_action = np.array([
             target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,

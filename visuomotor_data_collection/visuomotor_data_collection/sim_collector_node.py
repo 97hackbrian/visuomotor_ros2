@@ -47,6 +47,7 @@ class SimCollectorNode(Node):
         self.storage = ZarrStorage(storage_path)
         
         self.is_recording = False
+        self.last_published_gripper_state = None
         self.buffer = []
         self.latest_img = None
         self.latest_state = None
@@ -151,9 +152,13 @@ class SimCollectorNode(Node):
         
         gripper_state = gripper_closed_pos if (self.is_recording and dist < goal_tolerance) else gripper_open_pos
         
-        gripper_msg = Float64MultiArray()
-        gripper_msg.data = [gripper_state]
-        self.gripper_pub.publish(gripper_msg)
+
+        if self.last_published_gripper_state != gripper_state:
+            gripper_msg = Float64MultiArray()
+            gripper_msg.data = [gripper_state]
+            self.gripper_pub.publish(gripper_msg)
+            self.last_published_gripper_state = gripper_state
+
         
         self.latest_action = np.array([
             target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
@@ -183,6 +188,7 @@ class SimCollectorNode(Node):
             res.message = "Muestreo sincrónico iniciado."
         elif req.command == "SAVE":
             self.is_recording = False
+            self.last_published_gripper_state = None
             if len(self.buffer) < 15:
                 res.success = False
                 res.message = "Secuencia insuficiente. Episodio descartado."
@@ -193,6 +199,7 @@ class SimCollectorNode(Node):
             self.buffer.clear()
         elif req.command == "DISCARD":
             self.is_recording = False
+            self.last_published_gripper_state = None
             self.buffer.clear()
             res.success = True
             res.message = "Búfer volátil liberado."
