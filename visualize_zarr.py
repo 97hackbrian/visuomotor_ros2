@@ -59,35 +59,35 @@ def visualize_episode(zarr_path, episode_id=None):
     ax = fig.add_subplot(111, projection='3d')
     
     # Plotear Action (PID Target)
-    ax.plot(ax_x, ax_y, ax_z, color='gray', alpha=0.5, linewidth=2, label='PID Target (Action)')
+    ax.plot(ax_x, ax_y, ax_z, color='gray', alpha=0.5, linewidth=1, label='PID Target (Action)')
     
     # Plotear State (Real Physical Pose)
     if states.shape[1] >= 3:
-        ax.plot(sx_x, sx_y, sx_z, color='green', alpha=0.8, linestyle='dashed', linewidth=2, label='Real EE Pose (State)')
+        ax.plot(sx_x, sx_y, sx_z, color='green', alpha=0.8, linestyle='dashed', linewidth=1, label='Real EE Pose (State)')
     
     # Encontrar índices donde el gripper cambia de estado
     gripper_closed = gripper < -0.005 # umbral para -0.01
     
     # Puntos normales (gripper abierto)
     open_idx = ~gripper_closed
-    ax.scatter(ax_x[open_idx], ax_y[open_idx], ax_z[open_idx], color='blue', s=10, alpha=0.3, label='Gripper Abierto (0.0)')
+    ax.scatter(ax_x[open_idx], ax_y[open_idx], ax_z[open_idx], color='blue', s=2, alpha=0.4, label='Gripper Abierto (0.0)')
     
     # Puntos de agarre (gripper cerrado)
     close_idx = gripper_closed
     if np.any(close_idx):
-        ax.scatter(ax_x[close_idx], ax_y[close_idx], ax_z[close_idx], color='red', s=20, alpha=0.8, label='Gripper Cerrado (-0.01)')
+        ax.scatter(ax_x[close_idx], ax_y[close_idx], ax_z[close_idx], color='red', s=5, alpha=0.8, label='Gripper Cerrado (-0.01)')
         
         diff = np.diff(gripper_closed.astype(int))
         activations = np.where(diff == 1)[0] + 1
         deactivations = np.where(diff == -1)[0] + 1
         
         if len(activations) > 0:
-            ax.scatter(ax_x[activations], ax_y[activations], ax_z[activations], color='magenta', s=100, marker='*', edgecolor='black', label='Activación (Cierra)')
+            ax.scatter(ax_x[activations], ax_y[activations], ax_z[activations], color='magenta', s=60, marker='*', edgecolor='black', label='Activación (Cierra)')
         if len(deactivations) > 0:
-            ax.scatter(ax_x[deactivations], ax_y[deactivations], ax_z[deactivations], color='cyan', s=100, marker='X', edgecolor='black', label='Desactivación (Abre)')
+            ax.scatter(ax_x[deactivations], ax_y[deactivations], ax_z[deactivations], color='cyan', s=60, marker='X', edgecolor='black', label='Desactivación (Abre)')
 
-    ax.scatter(ax_x[0], ax_y[0], ax_z[0], color='green', s=150, marker='^', edgecolor='black', label='Inicio')
-    ax.scatter(ax_x[-1], ax_y[-1], ax_z[-1], color='orange', s=150, marker='v', edgecolor='black', label='Fin')
+    ax.scatter(ax_x[0], ax_y[0], ax_z[0], color='green', s=60, marker='^', edgecolor='black', label='Inicio')
+    ax.scatter(ax_x[-1], ax_y[-1], ax_z[-1], color='orange', s=60, marker='v', edgecolor='black', label='Fin')
     
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
@@ -108,6 +108,11 @@ def visualize_episode(zarr_path, episode_id=None):
     
     ax.set_title(f'Trayectoria 3D - {episode_name}')
     ax.legend()
+    
+    # Cambiar la proyección a ortográfica para eliminar la ilusión óptica de la perspectiva 3D
+    ax.set_proj_type('ortho')
+    # Ajustar un poco el ángulo de vista para mejor claridad
+    ax.view_init(elev=20, azim=-45)
     
     plot_file = f"{episode_name}_trajectory.png"
     plt.savefig(plot_file)
