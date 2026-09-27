@@ -26,8 +26,11 @@
     init_y: 0.0               # Posición inicial oficial en Y (metros)
     init_z_height: 0.40       # Altura inicial para enfocar con la cámara (metros)
     wait_time_s: 5.0          # Segundos de espera en la altura inicial
-    grasp_wait_time_s: 3.0    # Segundos de espera para que cierre el gripper
-    lift_z_offset: 0.20       # Altura a la que sube el objeto después de agarrarlo (metros)
+    hover_z_offset: 0.10      # Altura extra sobre el objeto durante ALIGN (metros)
+    grasp_wait_time_s: 3.0    # Segundos esperando que el gripper cierre físicamente
+    settle_time_s: 1.5        # Segundos de espera inmóvil en el objetivo antes de cerrar
+    approach_timeout_s: 30.0  # Timeout máximo por fase (segundos)
+    lift_z_offset: 0.25       # Altura a la que sube el objeto después de agarrarlo (metros)
 
     # Parámetros avanzados de Control y Tolerancias
     control_rate_hz: 100.0    # Frecuencia del bucle de control interno (Hz)

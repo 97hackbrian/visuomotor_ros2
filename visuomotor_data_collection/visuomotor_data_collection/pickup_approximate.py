@@ -35,7 +35,10 @@ class PickupApproximateNode(Node):
         self.declare_parameter('init_y', 0.0)         # Posición inicial oficial en Y
         self.declare_parameter('init_z_height', 0.40) # Altura a la que sube para enfocar
         self.declare_parameter('wait_time_s', 2.0)    # Tiempo de espera arriba
-        self.declare_parameter('grasp_wait_time_s', 1.0) # Tiempo esperando que cierre
+        self.declare_parameter('grasp_wait_time_s', 3.0) # Tiempo esperando que cierre
+        self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
+        self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
+        self.declare_parameter('hover_z_offset', 0.10) # Altura extra sobre el objeto al alinearse (metros)
         self.declare_parameter('lift_z_offset', 0.35) # Altura final de levantamiento
         
         # Parámetros avanzados de Control y Tolerancias
@@ -63,8 +66,9 @@ class PickupApproximateNode(Node):
         self.pid = CartesianPID(sampling_rate_hz=self.get_parameter('control_rate_hz').value)
         
         self.fixed_orientation = None
+        self.grasp_position = None  # Posición XYZ exacta donde se cierra el gripper
         
-        # Máquina de estados: IDLE, INIT_RAISE, WAIT, APPROACH, GRASP, LIFT
+        # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT
         self.state = 'IDLE'
         self.state_start_time = 0.0
         self.last_published_gripper_state = None
@@ -98,65 +102,126 @@ class PickupApproximateNode(Node):
         except TransformException as ex:
             return
             
-        kp = self.get_parameter('kp').value
-        ki = self.get_parameter('ki').value
-        kd = self.get_parameter('kd').value
         tcp_offset_z = self.get_parameter('tcp_offset_z').value
+        hover_z_offset = self.get_parameter('hover_z_offset').value
         
-        target_x = t_obj.transform.translation.x
-        target_y = t_obj.transform.translation.y
-        target_z = t_obj.transform.translation.z
-        
-        gripper_open_pos = self.get_parameter('gripper_open_pos').value
+        obj_x = t_obj.transform.translation.x
+        obj_y = t_obj.transform.translation.y
+        obj_z = t_obj.transform.translation.z
+        ee_x  = t_ee.transform.translation.x
+        ee_y  = t_ee.transform.translation.y
+        ee_z  = t_ee.transform.translation.z
+
+        gripper_open_pos   = self.get_parameter('gripper_open_pos').value
         gripper_closed_pos = self.get_parameter('gripper_closed_pos').value
-        goal_tolerance = self.get_parameter('goal_tolerance_m').value
-        
+        goal_tolerance     = self.get_parameter('goal_tolerance_m').value
+
+        # ── Determinar target según estado ──────────────────────────────────
         gripper_state = gripper_open_pos
-        if self.state == 'IDLE' or self.state == 'WAIT':
+
+        if self.state in ('IDLE', 'WAIT'):
+            # Posición de reposo / inicio
             target_x = self.get_parameter('init_x').value
             target_y = self.get_parameter('init_y').value
             target_z = self.get_parameter('init_z_height').value
-        elif self.state == 'APPROACH':
-            target_z = t_obj.transform.translation.z + tcp_offset_z
+
+        elif self.state == 'ALIGN':
+            # Fase 1: moverse en X,Y sobre el objeto, manteniendo la altura actual del EE
+            target_x = obj_x
+            target_y = obj_y
+            target_z = obj_z + tcp_offset_z + hover_z_offset  # altura segura sobre el objeto
+
+        elif self.state == 'DESCEND':
+            # Fase 2: bajar verticalmente (X,Y ya están alineados)
+            target_x = obj_x
+            target_y = obj_y
+            target_z = obj_z + tcp_offset_z  # altura de agarre
+
+        elif self.state == 'SETTLE':
+            # Brazo inmóvil en el punto de agarre grabado
+            if self.grasp_position is not None:
+                target_x, target_y, target_z = self.grasp_position
+            else:
+                target_x, target_y, target_z = ee_x, ee_y, ee_z
+
         elif self.state == 'GRASP':
-            target_z = t_obj.transform.translation.z + tcp_offset_z
+            # Brazo completamente inmóvil mientras cierra el gripper
+            if self.grasp_position is not None:
+                target_x, target_y, target_z = self.grasp_position
+            else:
+                target_x, target_y, target_z = ee_x, ee_y, ee_z
             gripper_state = gripper_closed_pos
+
         elif self.state == 'LIFT':
-            target_z = t_obj.transform.translation.z + self.get_parameter('lift_z_offset').value
+            target_x = obj_x
+            target_y = obj_y
+            target_z = obj_z + self.get_parameter('lift_z_offset').value
             gripper_state = gripper_closed_pos
-            
-        error = np.array([
-            target_x - t_ee.transform.translation.x,
-            target_y - t_ee.transform.translation.y,
-            target_z - t_ee.transform.translation.z
-        ])
-        
-        dist = np.linalg.norm(error)
-        
-        now = time.time()
+
+        else:
+            target_x, target_y, target_z = ee_x, ee_y, ee_z
+
+        # ── Error 3D y distancias parciales ────────────────────────────────
+        error = np.array([target_x - ee_x, target_y - ee_y, target_z - ee_z])
+        dist  = np.linalg.norm(error)
+        dist_xy = np.linalg.norm(error[:2])   # solo plano horizontal
+
+        # ── Transiciones de estado ─────────────────────────────────────────
+        now     = time.time()
+        timeout = self.get_parameter('approach_timeout_s').value
+
         if self.state == 'WAIT':
             if now - self.state_start_time > self.get_parameter('wait_time_s').value:
-                self.state = 'APPROACH'
-                self.get_logger().info("Iniciando APPROACH y GRABACIÓN.")
+                self.state = 'ALIGN'
+                self.state_start_time = now
+                self.get_logger().info("WAIT terminado → ALIGN: alineando sobre el objeto.")
                 self.buffer.clear()
                 self.is_recording = True
-        elif self.state == 'APPROACH':
-            if dist < goal_tolerance:
+
+        elif self.state == 'ALIGN':
+            dist_z = abs(target_z - ee_z)
+            # Usar tolerancia independiente para XY y Z, dando más margen a XY por si el objeto tiembla
+            if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance) or now - self.state_start_time > timeout:
+                self.state = 'DESCEND'
+                self.state_start_time = now
+                self.get_logger().info(
+                    f"ALIGN completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m) → DESCEND: bajando verticalmente.")
+
+        elif self.state == 'DESCEND':
+            dist_z = abs(target_z - ee_z)
+            if dist_z < goal_tolerance or now - self.state_start_time > timeout:
+                self.state = 'SETTLE'
+                self.state_start_time = now
+                # ¡CRÍTICO! Guardar el TARGET ideal, no la posición actual del brazo.
+                # Así, si el robot entra a SETTLE estando a 2.9cm del objetivo,
+                # el PID lo seguirá moviendo esos últimos centímetros hasta el objeto real.
+                self.grasp_position = (target_x, target_y, target_z)
+                self.get_logger().info(
+                    f"DESCEND en tolerancia (err_z={dist_z:.4f}m) → SETTLE: asimilando error restante.")
+
+        elif self.state == 'SETTLE':
+            if now - self.state_start_time > self.get_parameter('settle_time_s').value:
                 self.state = 'GRASP'
                 self.state_start_time = now
-                self.get_logger().info("Objetivo alcanzado. Cerrando gripper...")
+                self.get_logger().info("SETTLE completo → GRASP: cerrando gripper (brazo inmóvil).")
+
         elif self.state == 'GRASP':
             if now - self.state_start_time > self.get_parameter('grasp_wait_time_s').value:
                 self.state = 'LIFT'
-                self.get_logger().info("Gripper cerrado. Levantando objeto...")
+                self.get_logger().info("GRASP completo → LIFT: levantando objeto.")
+
         elif self.state == 'LIFT':
             if dist < goal_tolerance:
-                self.get_logger().info("Objeto levantado. Finalizando episodio y guardando...")
+                self.get_logger().info("LIFT completo. Guardando episodio.")
                 self._save_episode()
                 self.state = 'IDLE'
 
+
         max_speed_m_s = self.get_parameter('max_speed_m_s').value
-        control_rate = self.get_parameter('control_rate_hz').value
+        control_rate  = self.get_parameter('control_rate_hz').value
+        kp = self.get_parameter('kp').value
+        ki = self.get_parameter('ki').value
+        kd = self.get_parameter('kd').value
         self.pid.sampling_rate_hz = control_rate
         self.pid.update_params(kp, ki, kd, max_speed_m_s)
         
@@ -221,6 +286,7 @@ class PickupApproximateNode(Node):
         if req.command == "START":
             self.pid.reset()
             self.fixed_orientation = None
+            self.grasp_position = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
