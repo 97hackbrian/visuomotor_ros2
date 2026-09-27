@@ -40,8 +40,8 @@ class SimCollectorNode(Node):
         # Parámetros avanzados de Control y Tolerancias
         self.declare_parameter('control_rate_hz', 100.0)
         self.declare_parameter('goal_tolerance_m', 0.03)
-        self.declare_parameter('gripper_open_pos', 0.85)
-        self.declare_parameter('gripper_closed_pos', 0.0)
+        self.declare_parameter('gripper_open_pos', 0.0)
+        self.declare_parameter('gripper_closed_pos', -0.01)
         
         storage_path = self.get_parameter('dataset_path').value
         self.storage = ZarrStorage(storage_path)

@@ -31,6 +31,6 @@
 
     # Parámetros avanzados de Control y Tolerancias
     control_rate_hz: 100.0    # Frecuencia del bucle de control interno (Hz)
-    goal_tolerance_m: 0.001    # Distancia al objetivo para considerar que se llegó (metros)
-    gripper_open_pos: 0.85    # Posición del gripper abierto
-    gripper_closed_pos: 0.0   # Posición del gripper cerrado
+    goal_tolerance_m: 0.03    # Distancia al objetivo para considerar que se llegó (metros)
+    gripper_open_pos: 0.0    # Posición del gripper abierto
+    gripper_closed_pos: -0.01   # Posición del gripper cerrado
