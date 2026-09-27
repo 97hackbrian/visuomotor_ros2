@@ -13,7 +13,7 @@
     ee_frame: "gripper_base_link"
     
     # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
-    tcp_offset_z: 0.075
+    tcp_offset_z: 0.0735
     
     # Ganancias y límites del controlador PID Cartesiano
     kp: 1.0

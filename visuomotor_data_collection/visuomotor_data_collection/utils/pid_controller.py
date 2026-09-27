@@ -49,8 +49,8 @@ class CartesianPID:
         Interpola suavemente la orientación actual hacia la deseada.
         current_quat, target_quat: [x, y, z, w]
         """
-        if self.virtual_setpoint is None:
-            # Si el PID de posición no ha iniciado, no hacemos rotación
+        if self.virtual_setpoint is None or target_quat is None:
+            # Si el PID no ha iniciado o no hay target explícito, no rotamos
             return current_quat
             
         # Determinar velocidad angular máxima basada en max_speed
