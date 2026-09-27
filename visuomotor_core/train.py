@@ -20,7 +20,7 @@ def main(root, epoch, batch_size):
     import matplotlib.pyplot as plt
     from datetime import datetime
 
-    output_directory = Path("imitation/outputs/train")
+    output_directory = Path("outputs/train")
     output_directory.mkdir(parents=True, exist_ok=True)
 
     torch.set_float32_matmul_precision('high')
@@ -119,7 +119,7 @@ def main(root, epoch, batch_size):
     plt.legend()
 
     time_now = datetime.now()
-    loss_path = 'imitation/outputs/losses/'
+    loss_path = 'outputs/losses/'
     if not os.path.exists(loss_path):
         os.mkdir(loss_path)
 
