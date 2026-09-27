@@ -90,3 +90,19 @@ Durante las fases de integración (especialmente simulando con Omniverse Isaac S
 4. **Bug de Compilación "option --uninstall not recognized":**
    - *El Problema:* Las versiones modernas de `setuptools` (>=77) que instala PyTorch deprecian comandos antiguos usados por el gestor `colcon` al ejecutar `colcon build`.
    - *La Solución:* Frente a este error, nunca intentar degradar dependencias de PyTorch. La solución nativa es realizar una limpieza total de caché ejecutando `rm -rf build/ install/ log/ && colcon build`.
+
+5. **Condicionamiento del U-Net (Ceguera del Estado Físico):**
+   - *El Problema:* Durante las primeras pruebas, el modelo generaba trayectorias rectas que ignoraban la posición física del brazo, provocando un colapso en la inferencia si el robot se desviaba del camino. Esto sucedía porque la variable `state` estaba silenciada en el código del `global_cond`.
+   - *La Solución:* Se reconectó la inyección de `observation.state` en la red neuronal (`diffusion_policy.py`). La red ahora asimila vectores de 8 Dimensiones `[X, Y, Z, Qx, Qy, Qz, Qw, Gripper]` como condicionamiento global, aprendiendo la relación exacta entre "dónde estoy ahora" y "hacia dónde debe moverse el PID".
+
+6. **Bucle Infinito de Respawn (Físicas de Isaac Sim trabadas):**
+   - *El Problema:* Al enviar comandos aleatorios vía `/respawn` (Twist) al Script Node de Isaac Sim, el nodo Python de OmniGraph ejecutaba la orden 60 veces por segundo. Esto congelaba el objeto en el aire o en la mesa, imposibilitando que el brazo pudiera levantarlo.
+   - *La Solución:* Se rediseñó el Script Node implementando un patrón de caché (`last_lin_processed`), asegurando que la posición del objeto (`xformOp:translate`) se modifique estrictamente **una sola vez** por cada nuevo mensaje ROS recibido, liberando al objeto para que el motor PhysX lo procese libremente.
+
+7. **Conflicto de Teletransporte vs Gripper (Timing de Recolección de Datos):**
+   - *El Problema:* Teletransportar el objeto exactamente al terminar de grabar la fase `LIFT` causaba que Isaac Sim anulara el teletransporte, ya que el objeto seguía amarrado físicamente por la fuerza de fricción del gripper cerrado.
+   - *La Solución:* Se rediseñó la máquina de estados en `pickup_approximate.py`. El respawn se inyecta exactamente en la mitad del estado `WAIT` (ej. al 1.0s de un wait de 2.0s). Esto le da tiempo mecánico al robot para abrir el gripper y soltar el objeto, teletransportándolo libremente mientras cae, y dándole el resto del tiempo de `WAIT` para asentar sus físicas en la mesa antes de que comience a grabar la cámara.
+
+8. **Visualización de Zarr (Proyecciones Ortográficas):**
+   - *El Problema:* Al plotear trayectorias 3D (X, Y, Z) con `matplotlib`, la perspectiva estándar deformaba la percepción visual de la altura Z y la alineación (efecto "ojo de pez" e ilusiones de inclinación en L).
+   - *La Solución:* En `visualize_zarr.py`, se implementó estrictamente una proyección ortográfica (`ax.set_proj_type('ortho')`) con límites dinámicos (`set_box_aspect(1,1,1)`), garantizando que las líneas dibujadas coincidan 1:1 con los movimientos reales físicos que experimenta el robot.

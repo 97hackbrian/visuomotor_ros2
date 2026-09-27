@@ -76,7 +76,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('spawn_x_max', 0.32)
         self.declare_parameter('spawn_y_min', -0.64)
         self.declare_parameter('spawn_y_max', -1.0)
-        self.declare_parameter('spawn_z', 0.52)
+        self.declare_parameter('spawn_z', 0.48)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
