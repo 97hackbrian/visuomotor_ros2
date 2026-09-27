@@ -28,6 +28,9 @@ class SimCollectorNode(Node):
         self.declare_parameter('object_frame', 'object_link')
         self.declare_parameter('ee_frame', 'link_tcp')
         self.declare_parameter('tcp_offset_z', 0.17) # Offset en metros para la longitud del gripper
+        self.declare_parameter('init_x', 0.25)
+        self.declare_parameter('init_y', 0.0)
+        self.declare_parameter('init_z_height', 0.40) # Altura inicial segura
         self.declare_parameter('kp', 1.0)
         self.declare_parameter('ki', 0.0)
         self.declare_parameter('kd', 0.05)
@@ -104,14 +107,22 @@ class SimCollectorNode(Node):
         ki = self.get_parameter('ki').value
         kd = self.get_parameter('kd').value
         
-        # Obtenemos el offset del TCP para no chocar contra el suelo (la base del gripper debe estar encima del objeto)
+        # Obtenemos el offset del TCP para no chocar contra el suelo
         tcp_offset_z = self.get_parameter('tcp_offset_z').value
+        init_x = self.get_parameter('init_x').value
+        init_y = self.get_parameter('init_y').value
+        init_z_height = self.get_parameter('init_z_height').value
+        
+        # Si no estamos grabando, nos posicionamos en la pose "oficial inicial y fija"
+        target_x = t_obj.transform.translation.x if self.is_recording else init_x
+        target_y = t_obj.transform.translation.y if self.is_recording else init_y
+        target_z = (t_obj.transform.translation.z + tcp_offset_z) if self.is_recording else init_z_height
         
         # Error en posición (en el marco base_link)
         error = np.array([
-            t_obj.transform.translation.x - t_ee.transform.translation.x,
-            t_obj.transform.translation.y - t_ee.transform.translation.y,
-            (t_obj.transform.translation.z + tcp_offset_z) - t_ee.transform.translation.z
+            target_x - t_ee.transform.translation.x,
+            target_y - t_ee.transform.translation.y,
+            target_z - t_ee.transform.translation.z
         ])
         
         self.pid_integral += error
@@ -140,9 +151,9 @@ class SimCollectorNode(Node):
         self.action_pub.publish(target_pose)
         
         # Lógica autónoma del Gripper
-        # Si estamos a menos de 3 cm del objetivo, cerramos el gripper (0.0), de lo contrario abierto (1.0)
+        # Si estamos a menos de 3 cm del objetivo y estamos grabando (bajando), cerramos el gripper
         dist = np.linalg.norm(error)
-        gripper_state = 0.0 if dist < 0.03 else 0.85 # 0.85 es el max apertura tipico de xarm
+        gripper_state = 0.0 if (self.is_recording and dist < 0.03) else 0.85 # 0.85 abierto
         
         # Enviar comando físico al controlador del gripper
         gripper_msg = Float64MultiArray()
