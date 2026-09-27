@@ -60,3 +60,6 @@ docker_ros2.sh
 .sudo_as_admin_successful
 .config/
 .rviz2/
+
+*.pdf
+*.gv

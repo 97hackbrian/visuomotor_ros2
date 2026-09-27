@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped, TransformStamped
+from std_msgs.msg import Float64MultiArray
 from cv_bridge import CvBridge
 import numpy as np
 
@@ -47,7 +48,8 @@ class SimCollectorNode(Node):
         self.enable_auto_pid = self.get_parameter('enable_auto_pid').value
         if self.enable_auto_pid:
             # Si el PID está activo, generamos las acciones y las publicamos
-            self.action_pub = self.create_publisher(PoseStamped, 'target_pid_pose', 10)
+            self.action_pub = self.create_publisher(PoseStamped, 'target_frame', 10)
+            self.gripper_pub = self.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
             
             # TF Listener para leer poses de Isaac Sim
             self.tf_buffer = tf2_ros.Buffer()
@@ -58,7 +60,7 @@ class SimCollectorNode(Node):
             self.pid_prev_error = np.zeros(3)
         else:
             # Si el PID está desactivado, solo escuchamos las acciones que otro nodo genere (ej. teleoperación manual)
-            self.create_subscription(PoseStamped, 'target_pid_pose', self._action_cb, 10, callback_group=self.cbg)
+            self.create_subscription(PoseStamped, 'target_frame', self._action_cb, 10, callback_group=self.cbg)
 
         # Servicios de control de episodios
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
@@ -89,9 +91,9 @@ class SimCollectorNode(Node):
         ee_frame = self.get_parameter('ee_frame').value
         
         try:
-            # Obtenemos posiciones absolutas respecto al base_link para un control consistente
-            t_obj = self.tf_buffer.lookup_transform('base_link', obj_frame, rclpy.time.Time())
-            t_ee = self.tf_buffer.lookup_transform('base_link', ee_frame, rclpy.time.Time())
+            # Obtenemos posiciones absolutas respecto al link_base para un control consistente
+            t_obj = self.tf_buffer.lookup_transform('link_base', obj_frame, rclpy.time.Time())
+            t_ee = self.tf_buffer.lookup_transform('link_base', ee_frame, rclpy.time.Time())
         except TransformException as ex:
             self.get_logger().warn(f"No se pudo obtener la transformada: {ex}")
             return None
@@ -117,7 +119,7 @@ class SimCollectorNode(Node):
         # Construimos el PoseStamped de destino (acción)
         target_pose = PoseStamped()
         target_pose.header.stamp = self.get_clock().now().to_msg()
-        target_pose.header.frame_id = 'base_link'
+        target_pose.header.frame_id = 'link_base'
         
         target_pose.pose.position.x = t_ee.transform.translation.x + control_output[0]
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
@@ -131,8 +133,12 @@ class SimCollectorNode(Node):
         # Lógica autónoma del Gripper
         # Si estamos a menos de 3 cm del objetivo, cerramos el gripper (0.0), de lo contrario abierto (1.0)
         dist = np.linalg.norm(error)
-        gripper_state = 0.0 if dist < 0.03 else 1.0
+        gripper_state = 0.0 if dist < 0.03 else 0.85 # 0.85 es el max apertura tipico de xarm
         
+        # Enviar comando físico al controlador del gripper
+        gripper_msg = Float64MultiArray()
+        gripper_msg.data = [gripper_state]
+        self.gripper_pub.publish(gripper_msg)
         # Guardamos la acción para el Zarr (7DoF Pose + 1DoF Gripper)
         action_array = np.array([target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
                                  target_pose.pose.orientation.x, target_pose.pose.orientation.y, 

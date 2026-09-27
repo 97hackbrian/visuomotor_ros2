@@ -8,9 +8,9 @@ sim_collector_node:
     # Activar PID en modo automático para generar comandos hacia el objeto (True en Isaac Sim)
     enable_auto_pid: true
     # Marco de coordenadas del objeto a seguir (proporcionado por Isaac Sim)
-    object_frame: "object_link"
+    object_frame: "pick_target"
     # Marco de coordenadas del efector final del brazo
-    ee_frame: "link_tcp"
+    ee_frame: "gripper_base_link"
     
     # Ganancias del controlador PID Cartesiano
     kp: 1.0
