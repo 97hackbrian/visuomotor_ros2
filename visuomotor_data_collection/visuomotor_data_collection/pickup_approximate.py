@@ -72,11 +72,11 @@ class PickupApproximateNode(Node):
         
         # Parámetros para aleatorización del objeto (respawn)
         self.declare_parameter('random_spawn', True)
-        self.declare_parameter('spawn_x_min', 0.28)
-        self.declare_parameter('spawn_x_max', 0.32)
-        self.declare_parameter('spawn_y_min', -0.64)
-        self.declare_parameter('spawn_y_max', -1.0)
-        self.declare_parameter('spawn_z', 0.48)
+        self.declare_parameter('spawn_x_min', 0.25)
+        self.declare_parameter('spawn_x_max', 0.29)
+        self.declare_parameter('spawn_y_min', -0.645)
+        self.declare_parameter('spawn_y_max', -0.67)
+        self.declare_parameter('spawn_z', 0.49)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase

@@ -13,7 +13,7 @@
     ee_frame: "gripper_base_link"
     
     # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
-    tcp_offset_z: 0.0735
+    tcp_offset_z: 0.079
     
     # Ganancias y límites del controlador PID Cartesiano
     kp: 1.0
@@ -28,7 +28,7 @@
     wait_time_s: 5.5          # Segundos de espera en la altura inicial
     hover_z_offset: 0.05      # Altura extra sobre el objeto durante ALIGN (metros)
     grasp_wait_time_s: 2.0    # Segundos esperando que el gripper cierre físicamente
-    settle_time_s: 1.0        # Segundos de espera inmóvil en el objetivo antes de cerrar
+    settle_time_s: 2.5        # Segundos de espera inmóvil en el objetivo antes de cerrar
     approach_timeout_s: 60.0  # Timeout máximo por fase (segundos)
     lift_z_offset: 0.20       # Altura a la que sube el objeto después de agarrarlo (metros)
 
