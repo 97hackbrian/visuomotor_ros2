@@ -54,6 +54,7 @@ class PickupApproximateNode(Node):
         
         self.declare_parameter('dataset_path', 'demonstrations.zarr')
         self.declare_parameter('sampling_rate_hz', 20.0)
+        self.declare_parameter('camera_topic', '/rgb')
         self.declare_parameter('object_frame', 'pick_target')
         self.declare_parameter('ee_frame', 'gripper_base_link')
         self.declare_parameter('tcp_offset_z', 0.17)
@@ -86,9 +87,9 @@ class PickupApproximateNode(Node):
         self.latest_state = None
         self.latest_action = None
 
-        self.create_subscription(Image, 'camera/image_raw', self._img_cb, 10, callback_group=self.cbg)
+        camera_topic = self.get_parameter('camera_topic').value
+        self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
         self.create_subscription(JointState, 'joint_states', self._state_cb, 10, callback_group=self.cbg)
-        
         self.action_pub = self.create_publisher(PoseStamped, 'target_frame', 10)
         self.gripper_pub = self.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
         
@@ -357,17 +358,23 @@ class PickupApproximateNode(Node):
         ], dtype=np.float32)
 
     def _sample_step(self):
-        if self.is_recording and self.latest_img is not None and self.latest_state is not None and self.latest_action is not None:
-            self.buffer.append({
-                'image': self.latest_img.copy(),
-                'state': self.latest_state.copy(),
-                'action': self.latest_action.copy()
-            })
+        if not self.is_recording:
+            return
+            
+        if self.latest_img is None or self.latest_state is None or self.latest_action is None:
+            self.get_logger().warn(f"Faltan datos para grabar! img:{self.latest_img is not None}, state:{self.latest_state is not None}, action:{self.latest_action is not None}", throttle_duration_sec=1.0)
+            return
+            
+        self.buffer.append({
+            'image': self.latest_img.copy(),
+            'state': self.latest_state.copy(),
+            'action': self.latest_action.copy()
+        })
 
     def _save_episode(self):
         self.is_recording = False
         if len(self.buffer) < 15:
-            self.get_logger().warn("Secuencia insuficiente. Episodio descartado.")
+            self.get_logger().warn(f"Secuencia insuficiente ({len(self.buffer)} pasos guardados). Episodio descartado.")
         else:
             self.storage.append_episode(self.buffer)
             self.get_logger().info(f"Episodio guardado exitosamente: {len(self.buffer)} pasos.")

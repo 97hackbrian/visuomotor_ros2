@@ -23,6 +23,7 @@ class SimCollectorNode(Node):
         # Parámetros generales
         self.declare_parameter('dataset_path', 'demonstrations.zarr')
         self.declare_parameter('sampling_rate_hz', 20.0)
+        self.declare_parameter('camera_topic', '/rgb')
         
         # Parámetros para el PID automático (Demostrador en simulación)
         self.declare_parameter('enable_auto_pid', False)
@@ -54,7 +55,8 @@ class SimCollectorNode(Node):
         self.latest_action = None
 
         # Suscriptores de modalidades sensoriales
-        self.create_subscription(Image, 'camera/image_raw', self._img_cb, 10, callback_group=self.cbg)
+        camera_topic = self.get_parameter('camera_topic').value
+        self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
         self.create_subscription(JointState, 'joint_states', self._state_cb, 10, callback_group=self.cbg)
         
         # Dependiendo si somos auto-demostrador o solo recolector pasivo
