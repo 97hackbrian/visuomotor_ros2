@@ -68,3 +68,8 @@ patch*
 
 *.mp4
 *.png
+.local/
+.nv/
+
+*.pyc
+visuomotor_core/visuomotor_core/models/__pycache__/config.cpython-312.pyc
