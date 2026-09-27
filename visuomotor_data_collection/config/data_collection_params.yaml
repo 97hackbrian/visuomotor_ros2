@@ -1,4 +1,4 @@
-sim_collector_node:
+"**":
   ros__parameters:
     # Ruta del dataset en formato zarr
     dataset_path: "demonstrations.zarr"
@@ -15,10 +15,11 @@ sim_collector_node:
     # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
     tcp_offset_z: 0.08
     
-    # Ganancias del controlador PID Cartesiano
+    # Ganancias y límites del controlador PID Cartesiano
     kp: 1.0
     ki: 0.0
     kd: 0.05
+    max_speed_m_s: 0.07       # Límite de velocidad máxima permitida (metros por segundo)
     
     # Parámetros de la secuencia Pick up and Approximate
     init_x: 0.25              # Posición inicial oficial en X (metros)
@@ -26,4 +27,10 @@ sim_collector_node:
     init_z_height: 0.40       # Altura inicial para enfocar con la cámara (metros)
     wait_time_s: 5.0          # Segundos de espera en la altura inicial
     grasp_wait_time_s: 3.0    # Segundos de espera para que cierre el gripper
-    lift_z_offset: 0.35       # Altura a la que sube el objeto después de agarrarlo (metros)
+    lift_z_offset: 0.20       # Altura a la que sube el objeto después de agarrarlo (metros)
+
+    # Parámetros avanzados de Control y Tolerancias
+    control_rate_hz: 100.0    # Frecuencia del bucle de control interno (Hz)
+    goal_tolerance_m: 0.001    # Distancia al objetivo para considerar que se llegó (metros)
+    gripper_open_pos: 0.85    # Posición del gripper abierto
+    gripper_closed_pos: 0.0   # Posición del gripper cerrado

@@ -12,6 +12,7 @@ import time
 
 from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
+from visuomotor_data_collection.utils.pid_controller import CartesianPID
 
 class PickupApproximateNode(Node):
     def __init__(self):
@@ -27,6 +28,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('kp', 1.0)
         self.declare_parameter('ki', 0.0)
         self.declare_parameter('kd', 0.05)
+        self.declare_parameter('max_speed_m_s', 0.15) # Límite de velocidad
         
         # Nuevos parámetros de la secuencia
         self.declare_parameter('init_x', 0.25)        # Posición inicial oficial en X
@@ -34,7 +36,13 @@ class PickupApproximateNode(Node):
         self.declare_parameter('init_z_height', 0.40) # Altura a la que sube para enfocar
         self.declare_parameter('wait_time_s', 2.0)    # Tiempo de espera arriba
         self.declare_parameter('grasp_wait_time_s', 1.0) # Tiempo esperando que cierre
-        self.declare_parameter('lift_z_offset', 0.35) # Altura a la que levanta el objeto
+        self.declare_parameter('lift_z_offset', 0.35) # Altura final de levantamiento
+        
+        # Parámetros avanzados de Control y Tolerancias
+        self.declare_parameter('control_rate_hz', 100.0)
+        self.declare_parameter('goal_tolerance_m', 0.03)
+        self.declare_parameter('gripper_open_pos', 0.85)
+        self.declare_parameter('gripper_closed_pos', 0.0)
         
         self.storage = ZarrStorage(self.get_parameter('dataset_path').value)
         
@@ -52,8 +60,8 @@ class PickupApproximateNode(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         
-        self.pid_integral = np.zeros(3)
-        self.pid_prev_error = np.zeros(3)
+        self.pid = CartesianPID(sampling_rate_hz=self.get_parameter('control_rate_hz').value)
+        
         self.fixed_orientation = None
         
         # Máquina de estados: IDLE, INIT_RAISE, WAIT, APPROACH, GRASP, LIFT
@@ -63,9 +71,15 @@ class PickupApproximateNode(Node):
 
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
 
+        # Timer para el control a 100 Hz (frecuencia de FZI)
+        self.control_timer = self.create_timer(1.0 / self.get_parameter('control_rate_hz').value, self._control_step, callback_group=self.cbg)
+
+        # Timer para recolección de datos a 20 Hz
         rate = self.get_parameter('sampling_rate_hz').value
         self.timer = self.create_timer(1.0 / rate, self._sample_step, callback_group=self.cbg)
-        self.get_logger().info("Pickup & Approximate Sequence Node Inicializado.")
+        
+        max_speed = self.get_parameter('max_speed_m_s').value
+        self.get_logger().info(f"Pickup & Approximate Sequence Node Inicializado. Velocidad max: {max_speed} m/s")
 
     def _img_cb(self, msg):
         self.latest_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
@@ -73,7 +87,7 @@ class PickupApproximateNode(Node):
     def _state_cb(self, msg):
         self.latest_state = np.array(msg.position, dtype=np.float32)
 
-    def _compute_auto_pid_action(self):
+    def _control_step(self):
         obj_frame = self.get_parameter('object_frame').value
         ee_frame = self.get_parameter('ee_frame').value
         
@@ -81,24 +95,23 @@ class PickupApproximateNode(Node):
             t_obj = self.tf_buffer.lookup_transform('link_base', obj_frame, rclpy.time.Time())
             t_ee = self.tf_buffer.lookup_transform('link_base', ee_frame, rclpy.time.Time())
         except TransformException as ex:
-            return None
+            return
             
         kp = self.get_parameter('kp').value
         ki = self.get_parameter('ki').value
         kd = self.get_parameter('kd').value
         tcp_offset_z = self.get_parameter('tcp_offset_z').value
         
-        # Determinar Target XYZ y estado del gripper según la máquina de estados
         target_x = t_obj.transform.translation.x
         target_y = t_obj.transform.translation.y
         target_z = t_obj.transform.translation.z
         
-        gripper_state = 0.85 # Abierto por defecto
-        if self.state == 'IDLE':
-            target_x = self.get_parameter('init_x').value
-            target_y = self.get_parameter('init_y').value
-            target_z = self.get_parameter('init_z_height').value
-        elif self.state == 'WAIT':
+        gripper_open_pos = self.get_parameter('gripper_open_pos').value
+        gripper_closed_pos = self.get_parameter('gripper_closed_pos').value
+        goal_tolerance = self.get_parameter('goal_tolerance_m').value
+        
+        gripper_state = gripper_open_pos
+        if self.state == 'IDLE' or self.state == 'WAIT':
             target_x = self.get_parameter('init_x').value
             target_y = self.get_parameter('init_y').value
             target_z = self.get_parameter('init_z_height').value
@@ -106,10 +119,10 @@ class PickupApproximateNode(Node):
             target_z = t_obj.transform.translation.z + tcp_offset_z
         elif self.state == 'GRASP':
             target_z = t_obj.transform.translation.z + tcp_offset_z
-            gripper_state = 0.0 # Cerrado
+            gripper_state = gripper_closed_pos
         elif self.state == 'LIFT':
             target_z = t_obj.transform.translation.z + self.get_parameter('lift_z_offset').value
-            gripper_state = 0.0 # Mantener Cerrado
+            gripper_state = gripper_closed_pos
             
         error = np.array([
             target_x - t_ee.transform.translation.x,
@@ -119,7 +132,6 @@ class PickupApproximateNode(Node):
         
         dist = np.linalg.norm(error)
         
-        # Transiciones de la máquina de estados
         now = time.time()
         if self.state == 'WAIT':
             if now - self.state_start_time > self.get_parameter('wait_time_s').value:
@@ -128,7 +140,7 @@ class PickupApproximateNode(Node):
                 self.buffer.clear()
                 self.is_recording = True
         elif self.state == 'APPROACH':
-            if dist < 0.03:
+            if dist < goal_tolerance:
                 self.state = 'GRASP'
                 self.state_start_time = now
                 self.get_logger().info("Objetivo alcanzado. Cerrando gripper...")
@@ -137,17 +149,24 @@ class PickupApproximateNode(Node):
                 self.state = 'LIFT'
                 self.get_logger().info("Gripper cerrado. Levantando objeto...")
         elif self.state == 'LIFT':
-            if dist < 0.03:
+            if dist < goal_tolerance:
                 self.get_logger().info("Objeto levantado. Finalizando episodio y guardando...")
                 self._save_episode()
                 self.state = 'IDLE'
 
-        # PID
-        self.pid_integral += error
-        derivative = error - self.pid_prev_error
-        self.pid_prev_error = error
+        max_speed_m_s = self.get_parameter('max_speed_m_s').value
+        control_rate = self.get_parameter('control_rate_hz').value
+        self.pid.sampling_rate_hz = control_rate
+        self.pid.update_params(kp, ki, kd, max_speed_m_s)
         
-        control_output = kp * error + ki * self.pid_integral + kd * derivative
+        current_pos = np.array([
+            t_ee.transform.translation.x,
+            t_ee.transform.translation.y,
+            t_ee.transform.translation.z
+        ])
+        target_pos = np.array([target_x, target_y, target_z])
+        
+        control_output, _ = self.pid.compute(current_pos, target_pos)
         
         target_pose = PoseStamped()
         target_pose.header.stamp = self.get_clock().now().to_msg()
@@ -168,17 +187,14 @@ class PickupApproximateNode(Node):
         gripper_msg.data = [gripper_state]
         self.gripper_pub.publish(gripper_msg)
         
-        action_array = np.array([target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
-                                 target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
-                                 target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
-                                 gripper_state], dtype=np.float32)
-        return action_array
+        self.latest_action = np.array([
+            target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
+            target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
+            target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
+            gripper_state
+        ], dtype=np.float32)
 
     def _sample_step(self):
-        action = self._compute_auto_pid_action()
-        if action is not None:
-            self.latest_action = action
-                
         if self.is_recording and self.latest_img is not None and self.latest_state is not None and self.latest_action is not None:
             self.buffer.append({
                 'image': self.latest_img.copy(),
@@ -197,8 +213,7 @@ class PickupApproximateNode(Node):
 
     def _srv_trigger(self, req, res):
         if req.command == "START":
-            self.pid_integral = np.zeros(3)
-            self.pid_prev_error = np.zeros(3)
+            self.pid.reset()
             self.fixed_orientation = None
             self.is_recording = False
             self.buffer.clear()

@@ -12,6 +12,7 @@ from tf2_ros import TransformException
 
 from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
+from visuomotor_data_collection.utils.pid_controller import CartesianPID
 
 class SimCollectorNode(Node):
     def __init__(self):
@@ -34,6 +35,13 @@ class SimCollectorNode(Node):
         self.declare_parameter('kp', 1.0)
         self.declare_parameter('ki', 0.0)
         self.declare_parameter('kd', 0.05)
+        self.declare_parameter('max_speed_m_s', 0.15)
+        
+        # Parámetros avanzados de Control y Tolerancias
+        self.declare_parameter('control_rate_hz', 100.0)
+        self.declare_parameter('goal_tolerance_m', 0.03)
+        self.declare_parameter('gripper_open_pos', 0.85)
+        self.declare_parameter('gripper_closed_pos', 0.0)
         
         storage_path = self.get_parameter('dataset_path').value
         self.storage = ZarrStorage(storage_path)
@@ -51,18 +59,17 @@ class SimCollectorNode(Node):
         # Dependiendo si somos auto-demostrador o solo recolector pasivo
         self.enable_auto_pid = self.get_parameter('enable_auto_pid').value
         if self.enable_auto_pid:
-            # Si el PID está activo, generamos las acciones y las publicamos
             self.action_pub = self.create_publisher(PoseStamped, 'target_frame', 10)
             self.gripper_pub = self.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
             
-            # TF Listener para leer poses de Isaac Sim
             self.tf_buffer = tf2_ros.Buffer()
             self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
             
-            # Variables de estado del PID
-            self.pid_integral = np.zeros(3)
-            self.pid_prev_error = np.zeros(3)
+            self.pid = CartesianPID(sampling_rate_hz=self.get_parameter('control_rate_hz').value)
             self.fixed_orientation = None
+            
+            # Timer de control a 100Hz
+            self.control_timer = self.create_timer(1.0 / self.get_parameter('control_rate_hz').value, self._control_step, callback_group=self.cbg)
         else:
             # Si el PID está desactivado, solo escuchamos las acciones que otro nodo genere (ej. teleoperación manual)
             self.create_subscription(PoseStamped, 'target_frame', self._action_cb, 10, callback_group=self.cbg)
@@ -86,53 +93,42 @@ class SimCollectorNode(Node):
         self.latest_action = np.array([p.position.x, p.position.y, p.position.z,
                                        p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w], dtype=np.float32)
 
-    def _compute_auto_pid_action(self):
-        """
-        Calcula la siguiente acción (Pose target) para el end-effector
-        utilizando un controlador PID hacia la pose del objeto.
-        Las transformadas (TFs) provienen de Isaac Sim.
-        """
+    def _control_step(self):
         obj_frame = self.get_parameter('object_frame').value
         ee_frame = self.get_parameter('ee_frame').value
         
         try:
-            # Obtenemos posiciones absolutas respecto al link_base para un control consistente
             t_obj = self.tf_buffer.lookup_transform('link_base', obj_frame, rclpy.time.Time())
             t_ee = self.tf_buffer.lookup_transform('link_base', ee_frame, rclpy.time.Time())
         except TransformException as ex:
-            self.get_logger().warn(f"No se pudo obtener la transformada: {ex}")
-            return None
+            return
             
         kp = self.get_parameter('kp').value
         ki = self.get_parameter('ki').value
         kd = self.get_parameter('kd').value
+        max_speed_m_s = self.get_parameter('max_speed_m_s').value
         
-        # Obtenemos el offset del TCP para no chocar contra el suelo
+        self.pid.sampling_rate_hz = self.get_parameter('control_rate_hz').value
+        self.pid.update_params(kp, ki, kd, max_speed_m_s)
+        
         tcp_offset_z = self.get_parameter('tcp_offset_z').value
         init_x = self.get_parameter('init_x').value
         init_y = self.get_parameter('init_y').value
         init_z_height = self.get_parameter('init_z_height').value
         
-        # Si no estamos grabando, nos posicionamos en la pose "oficial inicial y fija"
         target_x = t_obj.transform.translation.x if self.is_recording else init_x
         target_y = t_obj.transform.translation.y if self.is_recording else init_y
         target_z = (t_obj.transform.translation.z + tcp_offset_z) if self.is_recording else init_z_height
         
-        # Error en posición (en el marco base_link)
-        error = np.array([
-            target_x - t_ee.transform.translation.x,
-            target_y - t_ee.transform.translation.y,
-            target_z - t_ee.transform.translation.z
+        current_pos = np.array([
+            t_ee.transform.translation.x,
+            t_ee.transform.translation.y,
+            t_ee.transform.translation.z
         ])
+        target_pos = np.array([target_x, target_y, target_z])
         
-        self.pid_integral += error
-        derivative = error - self.pid_prev_error
-        self.pid_prev_error = error
+        control_output, error = self.pid.compute(current_pos, target_pos)
         
-        # Salida del PID (delta de posición)
-        control_output = kp * error + ki * self.pid_integral + kd * derivative
-        
-        # Construimos el PoseStamped de destino (acción)
         target_pose = PoseStamped()
         target_pose.header.stamp = self.get_clock().now().to_msg()
         target_pose.header.frame_id = 'link_base'
@@ -141,39 +137,34 @@ class SimCollectorNode(Node):
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
         target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
         
-        # Mantenemos la orientación rígidamente fijada a su estado inicial
         if self.fixed_orientation is None:
             self.fixed_orientation = t_ee.transform.rotation
-            self.get_logger().info("Orientación del gripper bloqueada a su estado inicial.")
             
         target_pose.pose.orientation = self.fixed_orientation
-        
         self.action_pub.publish(target_pose)
         
-        # Lógica autónoma del Gripper
-        # Si estamos a menos de 3 cm del objetivo y estamos grabando (bajando), cerramos el gripper
         dist = np.linalg.norm(error)
-        gripper_state = 0.0 if (self.is_recording and dist < 0.03) else 0.85 # 0.85 abierto
         
-        # Enviar comando físico al controlador del gripper
+        gripper_open_pos = self.get_parameter('gripper_open_pos').value
+        gripper_closed_pos = self.get_parameter('gripper_closed_pos').value
+        goal_tolerance = self.get_parameter('goal_tolerance_m').value
+        
+        gripper_state = gripper_closed_pos if (self.is_recording and dist < goal_tolerance) else gripper_open_pos
+        
         gripper_msg = Float64MultiArray()
         gripper_msg.data = [gripper_state]
         self.gripper_pub.publish(gripper_msg)
-        # Guardamos la acción para el Zarr (7DoF Pose + 1DoF Gripper)
-        action_array = np.array([target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
-                                 target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
-                                 target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
-                                 gripper_state], dtype=np.float32)
-        return action_array
+        
+        self.latest_action = np.array([
+            target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
+            target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
+            target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
+            gripper_state
+        ], dtype=np.float32)
 
     def _sample_step(self):
         # Si somos el demostrador automático, generamos la acción
-        if self.enable_auto_pid:
-            action = self._compute_auto_pid_action()
-            if action is not None:
-                self.latest_action = action
-                
-        # Grabación del estado si el episodio está activo
+# Grabación del estado si el episodio está activo
         if self.is_recording and self.latest_img is not None and self.latest_state is not None and self.latest_action is not None:
             self.buffer.append({
                 'image': self.latest_img.copy(),
@@ -186,8 +177,7 @@ class SimCollectorNode(Node):
             self.buffer.clear()
             self.is_recording = True
             if self.enable_auto_pid:
-                self.pid_integral = np.zeros(3)
-                self.pid_prev_error = np.zeros(3)
+                self.pid.reset()
                 self.fixed_orientation = None
             res.success = True
             res.message = "Muestreo sincrónico iniciado."
