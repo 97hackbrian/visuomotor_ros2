@@ -57,7 +57,6 @@ class SimCollectorNode(Node):
         # Suscriptores de modalidades sensoriales
         camera_topic = self.get_parameter('camera_topic').value
         self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
-        self.create_subscription(JointState, 'joint_states', self._state_cb, 10, callback_group=self.cbg)
         
         # Dependiendo si somos auto-demostrador o solo recolector pasivo
         self.enable_auto_pid = self.get_parameter('enable_auto_pid').value
@@ -87,9 +86,6 @@ class SimCollectorNode(Node):
 
     def _img_cb(self, msg):
         self.latest_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-
-    def _state_cb(self, msg):
-        self.latest_state = np.array(msg.position, dtype=np.float32)
 
     def _action_cb(self, msg):
         p = msg.pose

@@ -89,7 +89,6 @@ class PickupApproximateNode(Node):
 
         camera_topic = self.get_parameter('camera_topic').value
         self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
-        self.create_subscription(JointState, 'joint_states', self._state_cb, 10, callback_group=self.cbg)
         self.action_pub = self.create_publisher(PoseStamped, 'target_frame', 10)
         self.gripper_pub = self.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
         
@@ -124,9 +123,6 @@ class PickupApproximateNode(Node):
 
     def _img_cb(self, msg):
         self.latest_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-
-    def _state_cb(self, msg):
-        self.latest_state = np.array(msg.position, dtype=np.float32)
 
     def _control_step(self):
         obj_frame = self.get_parameter('object_frame').value
@@ -354,6 +350,12 @@ class PickupApproximateNode(Node):
             target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
             target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
             target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
+            gripper_state
+        ], dtype=np.float32)
+        
+        self.latest_state = np.array([
+            ee_x, ee_y, ee_z,
+            current_quat[0], current_quat[1], current_quat[2], current_quat[3],
             gripper_state
         ], dtype=np.float32)
 

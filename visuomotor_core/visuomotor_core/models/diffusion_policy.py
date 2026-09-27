@@ -158,10 +158,10 @@ class DiffusionModel(nn.Module):
         self.config = config
 
         self.rgb_encoder = DiffusionRgbEncoder(config)
+        state_dim = config.input_shapes["observation.state"][0]
         self.unet = DiffusionConditionalUnet1d(
             config,
-            global_cond_dim=(self.rgb_encoder.feature_dim)
-            * config.n_obs_steps,
+            global_cond_dim=(self.rgb_encoder.feature_dim + state_dim) * config.n_obs_steps,
         )
 
         self.noise_scheduler = _make_noise_scheduler(
@@ -227,9 +227,10 @@ class DiffusionModel(nn.Module):
         # Separate batch and sequence dims.
         
         img_features = einops.rearrange(img_features, "(b n) ... -> b n ...", b=batch_size)
-        # Completely ignore state to prevent posterior collapse (state overfitting)
-        # The actions are relative deltas, so the image alone is sufficient.
-        global_cond = img_features.flatten(start_dim=1)
+        
+        # Ahora sí usamos el state (Pose Cartesiana Real) también en inferencia
+        state_features = batch["observation.state"].flatten(start_dim=1)
+        global_cond = torch.cat([img_features.flatten(start_dim=1), state_features], dim=-1)
 
         # run sampling
         sample = self.conditional_sample(batch_size, global_cond=global_cond)
@@ -266,8 +267,10 @@ class DiffusionModel(nn.Module):
         # breakpoint()
         # Separate batch and sequence dims.
         img_features = einops.rearrange(img_features, "(b n) ... -> b n ...", b=batch_size)
-        # Completely ignore state to prevent posterior collapse
-        global_cond = img_features.flatten(start_dim=1)
+        
+        # Ahora sí usamos el state (Pose Cartesiana Real)
+        state_features = batch["observation.state"].flatten(start_dim=1)
+        global_cond = torch.cat([img_features.flatten(start_dim=1), state_features], dim=-1)
 
         trajectory = batch["action"]
 

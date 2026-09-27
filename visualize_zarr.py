@@ -25,6 +25,7 @@ def visualize_episode(zarr_path, episode_id=None):
         
     images = root[episode_name]['image'][:]
     actions = root[episode_name]['action'][:]  # [x, y, z, qx, qy, qz, qw, gripper]
+    states = root[episode_name]['state'][:]    # [x, y, z, qx, qy, qz, qw, gripper]
     
     output_video = f"{episode_name}.mp4"
     print(f"Exportando {episode_name} ({len(images)} frames)...")
@@ -42,59 +43,70 @@ def visualize_episode(zarr_path, episode_id=None):
     print(f"¡Video guardado en {output_video}!")
     
     # 2. Generar el Plot 3D
-    x = actions[:, 0]
-    y = actions[:, 1]
-    z = actions[:, 2]
+    ax_x = actions[:, 0]
+    ax_y = actions[:, 1]
+    ax_z = actions[:, 2]
+    
+    # State: Real physical pose
+    if states.shape[1] >= 3:
+        sx_x = states[:, 0]
+        sx_y = states[:, 1]
+        sx_z = states[:, 2]
+    
     gripper = actions[:, 7]
     
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     
-    # Plotear toda la trayectoria en una línea gris tenue
-    ax.plot(x, y, z, color='gray', alpha=0.5, label='Trayectoria')
+    # Plotear Action (PID Target)
+    ax.plot(ax_x, ax_y, ax_z, color='gray', alpha=0.5, linewidth=2, label='PID Target (Action)')
+    
+    # Plotear State (Real Physical Pose)
+    if states.shape[1] >= 3:
+        ax.plot(sx_x, sx_y, sx_z, color='green', alpha=0.8, linestyle='dashed', linewidth=2, label='Real EE Pose (State)')
     
     # Encontrar índices donde el gripper cambia de estado
     gripper_closed = gripper < -0.005 # umbral para -0.01
     
     # Puntos normales (gripper abierto)
     open_idx = ~gripper_closed
-    ax.scatter(x[open_idx], y[open_idx], z[open_idx], color='blue', s=10, alpha=0.3, label='Gripper Abierto (0.0)')
+    ax.scatter(ax_x[open_idx], ax_y[open_idx], ax_z[open_idx], color='blue', s=10, alpha=0.3, label='Gripper Abierto (0.0)')
     
     # Puntos de agarre (gripper cerrado)
     close_idx = gripper_closed
     if np.any(close_idx):
-        ax.scatter(x[close_idx], y[close_idx], z[close_idx], color='red', s=20, alpha=0.8, label='Gripper Cerrado (-0.01)')
+        ax.scatter(ax_x[close_idx], ax_y[close_idx], ax_z[close_idx], color='red', s=20, alpha=0.8, label='Gripper Cerrado (-0.01)')
         
-        # Encontrar el punto exacto de activación (cierre)
         diff = np.diff(gripper_closed.astype(int))
         activations = np.where(diff == 1)[0] + 1
         deactivations = np.where(diff == -1)[0] + 1
         
         if len(activations) > 0:
-            ax.scatter(x[activations], y[activations], z[activations], color='magenta', s=100, marker='*', edgecolor='black', label='Activación (Cierra)')
+            ax.scatter(ax_x[activations], ax_y[activations], ax_z[activations], color='magenta', s=100, marker='*', edgecolor='black', label='Activación (Cierra)')
         if len(deactivations) > 0:
-            ax.scatter(x[deactivations], y[deactivations], z[deactivations], color='cyan', s=100, marker='X', edgecolor='black', label='Desactivación (Abre)')
+            ax.scatter(ax_x[deactivations], ax_y[deactivations], ax_z[deactivations], color='cyan', s=100, marker='X', edgecolor='black', label='Desactivación (Abre)')
 
-    # Punto de Inicio
-    ax.scatter(x[0], y[0], z[0], color='green', s=150, marker='^', edgecolor='black', label='Inicio')
-    
-    # Punto de Fin
-    ax.scatter(x[-1], y[-1], z[-1], color='orange', s=150, marker='v', edgecolor='black', label='Fin')
+    ax.scatter(ax_x[0], ax_y[0], ax_z[0], color='green', s=150, marker='^', edgecolor='black', label='Inicio')
+    ax.scatter(ax_x[-1], ax_y[-1], ax_z[-1], color='orange', s=150, marker='v', edgecolor='black', label='Fin')
     
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
     
-    # Forzar aspect ratio 1:1:1 para que no se deforme (evita el "efecto L")
-    max_range = np.array([x.max()-x.min(), y.max()-y.min(), z.max()-z.min()]).max()
-    mid_x = (x.max()+x.min()) * 0.5
-    mid_y = (y.max()+y.min()) * 0.5
-    mid_z = (z.max()+z.min()) * 0.5
+    # Calcular límites globales combinando actions y states
+    all_x = np.concatenate([ax_x, sx_x]) if states.shape[1] >= 3 else ax_x
+    all_y = np.concatenate([ax_y, sx_y]) if states.shape[1] >= 3 else ax_y
+    all_z = np.concatenate([ax_z, sx_z]) if states.shape[1] >= 3 else ax_z
+    
+    max_range = np.array([all_x.max()-all_x.min(), all_y.max()-all_y.min(), all_z.max()-all_z.min()]).max()
+    mid_x = (all_x.max()+all_x.min()) * 0.5
+    mid_y = (all_y.max()+all_y.min()) * 0.5
+    mid_z = (all_z.max()+all_z.min()) * 0.5
     ax.set_xlim(mid_x - max_range*0.5, mid_x + max_range*0.5)
     ax.set_ylim(mid_y - max_range*0.5, mid_y + max_range*0.5)
     ax.set_zlim(mid_z - max_range*0.5, mid_z + max_range*0.5)
     
-    ax.set_title(f'Trayectoria 3D del Efector Final - {episode_name}')
+    ax.set_title(f'Trayectoria 3D - {episode_name}')
     ax.legend()
     
     plot_file = f"{episode_name}_trajectory.png"
