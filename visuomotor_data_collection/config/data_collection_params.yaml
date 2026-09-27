@@ -1,0 +1,18 @@
+sim_collector_node:
+  ros__parameters:
+    # Ruta del dataset en formato zarr
+    dataset_path: "demonstrations.zarr"
+    # Frecuencia de recolección de los datos (Hz)
+    sampling_rate_hz: 20.0
+    
+    # Activar PID en modo automático para generar comandos hacia el objeto (True en Isaac Sim)
+    enable_auto_pid: true
+    # Marco de coordenadas del objeto a seguir (proporcionado por Isaac Sim)
+    object_frame: "object_link"
+    # Marco de coordenadas del efector final del brazo
+    ee_frame: "link_tcp"
+    
+    # Ganancias del controlador PID Cartesiano
+    kp: 1.0
+    ki: 0.0
+    kd: 0.05

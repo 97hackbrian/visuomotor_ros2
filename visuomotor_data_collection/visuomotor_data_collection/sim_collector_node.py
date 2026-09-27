@@ -1,0 +1,195 @@
+import rclpy
+from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
+from sensor_msgs.msg import Image, JointState
+from geometry_msgs.msg import PoseStamped, TransformStamped
+from cv_bridge import CvBridge
+import numpy as np
+
+import tf2_ros
+from tf2_ros import TransformException
+
+from visuomotor_msgs.srv import EpisodeTrigger
+from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
+
+class SimCollectorNode(Node):
+    def __init__(self):
+        super().__init__('sim_collector_node')
+        self.bridge = CvBridge()
+        self.cbg = ReentrantCallbackGroup()
+        
+        # Parámetros generales
+        self.declare_parameter('dataset_path', 'demonstrations.zarr')
+        self.declare_parameter('sampling_rate_hz', 20.0)
+        
+        # Parámetros para el PID automático (Demostrador en simulación)
+        self.declare_parameter('enable_auto_pid', False)
+        self.declare_parameter('object_frame', 'object_link')
+        self.declare_parameter('ee_frame', 'link_tcp')
+        self.declare_parameter('kp', 1.0)
+        self.declare_parameter('ki', 0.0)
+        self.declare_parameter('kd', 0.05)
+        
+        storage_path = self.get_parameter('dataset_path').value
+        self.storage = ZarrStorage(storage_path)
+        
+        self.is_recording = False
+        self.buffer = []
+        self.latest_img = None
+        self.latest_state = None
+        self.latest_action = None
+
+        # Suscriptores de modalidades sensoriales
+        self.create_subscription(Image, 'camera/image_raw', self._img_cb, 10, callback_group=self.cbg)
+        self.create_subscription(JointState, 'joint_states', self._state_cb, 10, callback_group=self.cbg)
+        
+        # Dependiendo si somos auto-demostrador o solo recolector pasivo
+        self.enable_auto_pid = self.get_parameter('enable_auto_pid').value
+        if self.enable_auto_pid:
+            # Si el PID está activo, generamos las acciones y las publicamos
+            self.action_pub = self.create_publisher(PoseStamped, 'target_pid_pose', 10)
+            
+            # TF Listener para leer poses de Isaac Sim
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+            
+            # Variables de estado del PID
+            self.pid_integral = np.zeros(3)
+            self.pid_prev_error = np.zeros(3)
+        else:
+            # Si el PID está desactivado, solo escuchamos las acciones que otro nodo genere (ej. teleoperación manual)
+            self.create_subscription(PoseStamped, 'target_pid_pose', self._action_cb, 10, callback_group=self.cbg)
+
+        # Servicios de control de episodios
+        self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
+
+        # Bucle principal de muestreo y control
+        rate = self.get_parameter('sampling_rate_hz').value
+        self.timer = self.create_timer(1.0 / rate, self._sample_step, callback_group=self.cbg)
+        self.get_logger().info("Nodo recolector inicializado. PID automático: {}".format(self.enable_auto_pid))
+
+    def _img_cb(self, msg):
+        self.latest_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+
+    def _state_cb(self, msg):
+        self.latest_state = np.array(msg.position, dtype=np.float32)
+
+    def _action_cb(self, msg):
+        p = msg.pose
+        self.latest_action = np.array([p.position.x, p.position.y, p.position.z,
+                                       p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w], dtype=np.float32)
+
+    def _compute_auto_pid_action(self):
+        """
+        Calcula la siguiente acción (Pose target) para el end-effector
+        utilizando un controlador PID hacia la pose del objeto.
+        Las transformadas (TFs) provienen de Isaac Sim.
+        """
+        obj_frame = self.get_parameter('object_frame').value
+        ee_frame = self.get_parameter('ee_frame').value
+        
+        try:
+            # Obtenemos posiciones absolutas respecto al base_link para un control consistente
+            t_obj = self.tf_buffer.lookup_transform('base_link', obj_frame, rclpy.time.Time())
+            t_ee = self.tf_buffer.lookup_transform('base_link', ee_frame, rclpy.time.Time())
+        except TransformException as ex:
+            self.get_logger().warn(f"No se pudo obtener la transformada: {ex}")
+            return None
+            
+        kp = self.get_parameter('kp').value
+        ki = self.get_parameter('ki').value
+        kd = self.get_parameter('kd').value
+        
+        # Error en posición (en el marco base_link)
+        error = np.array([
+            t_obj.transform.translation.x - t_ee.transform.translation.x,
+            t_obj.transform.translation.y - t_ee.transform.translation.y,
+            t_obj.transform.translation.z - t_ee.transform.translation.z
+        ])
+        
+        self.pid_integral += error
+        derivative = error - self.pid_prev_error
+        self.pid_prev_error = error
+        
+        # Salida del PID (delta de posición)
+        control_output = kp * error + ki * self.pid_integral + kd * derivative
+        
+        # Construimos el PoseStamped de destino (acción)
+        target_pose = PoseStamped()
+        target_pose.header.stamp = self.get_clock().now().to_msg()
+        target_pose.header.frame_id = 'base_link'
+        
+        target_pose.pose.position.x = t_ee.transform.translation.x + control_output[0]
+        target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
+        target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
+        
+        # Mantenemos la orientación del objeto
+        target_pose.pose.orientation = t_obj.transform.rotation
+        
+        self.action_pub.publish(target_pose)
+        
+        # Lógica autónoma del Gripper
+        # Si estamos a menos de 3 cm del objetivo, cerramos el gripper (0.0), de lo contrario abierto (1.0)
+        dist = np.linalg.norm(error)
+        gripper_state = 0.0 if dist < 0.03 else 1.0
+        
+        # Guardamos la acción para el Zarr (7DoF Pose + 1DoF Gripper)
+        action_array = np.array([target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
+                                 target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
+                                 target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
+                                 gripper_state], dtype=np.float32)
+        return action_array
+
+    def _sample_step(self):
+        # Si somos el demostrador automático, generamos la acción
+        if self.enable_auto_pid:
+            action = self._compute_auto_pid_action()
+            if action is not None:
+                self.latest_action = action
+                
+        # Grabación del estado si el episodio está activo
+        if self.is_recording and self.latest_img is not None and self.latest_state is not None and self.latest_action is not None:
+            self.buffer.append({
+                'image': self.latest_img.copy(),
+                'state': self.latest_state.copy(),
+                'action': self.latest_action.copy()
+            })
+
+    def _srv_trigger(self, req, res):
+        if req.command == "START":
+            self.buffer.clear()
+            self.is_recording = True
+            if self.enable_auto_pid:
+                self.pid_integral = np.zeros(3)
+                self.pid_prev_error = np.zeros(3)
+            res.success = True
+            res.message = "Muestreo sincrónico iniciado."
+        elif req.command == "SAVE":
+            self.is_recording = False
+            if len(self.buffer) < 15:
+                res.success = False
+                res.message = "Secuencia insuficiente. Episodio descartado."
+            else:
+                self.storage.append_episode(self.buffer)
+                res.success = True
+                res.message = f"Episodio registrado en Zarr ({len(self.buffer)} iteraciones temporales)."
+            self.buffer.clear()
+        elif req.command == "DISCARD":
+            self.is_recording = False
+            self.buffer.clear()
+            res.success = True
+            res.message = "Búfer volátil liberado."
+        else:
+            res.success = False
+            res.message = "Comando desconocido."
+        return res
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = SimCollectorNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,10 @@
+policy_node:
+  ros__parameters:
+    model_type: "diffusion" # or "flow_matching"
+    checkpoint_path: "policy.pth"
+    inference_hz: 10.0
+    h_obs: 2
+    h_act: 8
+    camera_topic: "/camera/image_raw"
+    joint_topic: "/joint_states"
+    action_topic: "/target_pid_pose"

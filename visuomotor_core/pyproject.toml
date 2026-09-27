@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visuomotor_core"
+version = "0.1.0"
+description = "Off-ROS core module for generative visuomotor policies"
+authors = [
+  { name = "Brayan Durán Toconás", email = "brayandurantoconas@gmail.com" },
+]
+license = { text = "Apache-2.0" }
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision",
+    "zarr",
+    "numpy",
+    "pyyaml"
+]

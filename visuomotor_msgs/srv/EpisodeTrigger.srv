@@ -1,0 +1,6 @@
+# EpisodeTrigger.srv
+# Inicia, guarda o descarta episodios de demostración.
+string command # "START", "SAVE", "DISCARD"
+---
+bool success
+string message

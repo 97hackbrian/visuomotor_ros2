@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://ros.org" schematypens="http://w3.org"?>
+<package format="3">
+  <name>visuomotor_bringup</name>
+  <version>0.1.0</version>
+  <description>Bringup package for specific hardware and simulation environments.</description>
+  <maintainer email="brayandurantoconas@gmail.com">Brayan Durán Toconás</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>visuomotor_ros2</exec_depend>
+  <exec_depend>visuomotor_data_collection</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
