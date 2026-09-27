@@ -29,6 +29,8 @@ Para garantizar que el entrenamiento de Machine Learning (ML) no dependa de comp
 3. **`visuomotor_data_collection`** (ament_python)
    - *Rol:* Ingesta de datos para conformar el Dataset experto.
    - *Características Especiales:* Posee un Demostrador PID Autónomo. En lugar de requerir scripts externos de cinemática inversa, el `sim_collector_node.py` escucha el árbol TF (usando `tf2_ros`) desde Isaac Sim (`object_frame` a `ee_frame`), calcula el error vectorial para aproximarse al objeto y registra las poses resultantes directamente al `.zarr`.
+     - *Estabilización Espacial:* Para evitar "drifting" (torcedura de la muñeca por acumulación de errores del IK iterativo), el nodo captura y congela rígidamente la rotación inicial del gripper. Solo persigue el objetivo de forma traslacional (X, Y, Z).
+     - *Offset Estructural:* Utiliza el parámetro `tcp_offset_z` para compensar la distancia física entre la base de la muñeca controlada (`link6`) y la punta de los dedos, previniendo colisiones contra el suelo.
 
 4. **`visuomotor_ros2`** (ament_python)
    - *Rol:* Runtime de Inferencia.
@@ -68,3 +70,23 @@ Si eres una Inteligencia Artificial operando sobre este repositorio en el futuro
 
 ---
 *Fin del Contexto. Mantén este archivo actualizado conforme la arquitectura VLA / Flow Matching crezca.*
+
+## 5. Lecciones Aprendidas y Troubleshooting Crítico (Knowledge Base)
+
+Durante las fases de integración (especialmente simulando con Omniverse Isaac Sim y usando ROS 2 Jazzy), se superaron barreras arquitectónicas importantes. Si el sistema falla, revisa obligatoriamente esta lista:
+
+1. **Middleware DDS (Ceguera de TFs y Tópicos):**
+   - *El Problema:* Isaac Sim utiliza **Eclipse CycloneDDS** por defecto. Si abres una nueva terminal y lanzas nodos de ROS 2 (como `visuomotor_data_collection`), estos usarán FastDDS y **no verán** los tópicos ni las TFs (ej. `pick_target`) publicadas por el simulador.
+   - *La Solución:* Siempre exportar el entorno antes de correr el launch: `export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` y `export ROS_DOMAIN_ID=0`. (O añadirlo al `~/.bashrc` del contenedor).
+
+2. **Incompatibilidad Fatal de NumPy 2.x con cv_bridge:**
+   - *El Problema:* El paquete `cv_bridge` precompilado en ROS 2 Jazzy depende estrictamente de NumPy 1.x. Al hacer `pip install` de librerías modernas de ML (como Zarr v3), pip actualiza silenciosamente a NumPy 2.0+, provocando que el nodo recolector colapse en tiempo de ejecución con un error de `ImportError: numpy.core.multiarray`.
+   - *La Solución:* Mantener rígidamente fijadas las dependencias a versiones anteriores: `pip install 'numpy<2' 'zarr<3' 'numcodecs<0.14'`.
+
+3. **Colisiones contra el Suelo y Torceduras de Muñeca (Auto-PID):**
+   - *Torcedura (Drifting Rotacional):* Si el PID en `sim_collector_node.py` actualiza continuamente su orientación objetivo basándose en el estado *actual* de la muñeca o copiando micro-inclinaciones del objeto, el solucionador IK (FZI Cartesian Controller) acumulará pequeños errores numéricos, haciendo que el brazo se tuerza. *Solución implementada:* El nodo ahora **congela rígidamente la orientación inicial** de la muñeca (apuntando hacia abajo) y solo controla X, Y, Z.
+   - *Colisión contra el suelo:* Si el controlador opera sobre el `link6` (base de la pinza), intentar llegar al centro del objeto provocará que los dedos físicos atraviesen la mesa. *Solución implementada:* Se añadió el parámetro `tcp_offset_z` (ej. 17 cm) en el archivo YAML para compensar la longitud estructural de la pinza, de modo que la base frene en el aire mientras los dedos abrazan el objeto.
+
+4. **Bug de Compilación "option --uninstall not recognized":**
+   - *El Problema:* Las versiones modernas de `setuptools` (>=77) que instala PyTorch deprecian comandos antiguos usados por el gestor `colcon` al ejecutar `colcon build`.
+   - *La Solución:* Frente a este error, nunca intentar degradar dependencias de PyTorch. La solución nativa es realizar una limpieza total de caché ejecutando `rm -rf build/ install/ log/ && colcon build`.
