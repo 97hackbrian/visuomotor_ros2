@@ -75,8 +75,8 @@ class PickupApproximateNode(Node):
         self.declare_parameter('spawn_x_min', 0.28)
         self.declare_parameter('spawn_x_max', 0.32)
         self.declare_parameter('spawn_y_min', -0.64)
-        self.declare_parameter('spawn_y_max', -0.66)
-        self.declare_parameter('spawn_z', 0.6)
+        self.declare_parameter('spawn_y_max', -1.0)
+        self.declare_parameter('spawn_z', 0.52)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
@@ -118,6 +118,7 @@ class PickupApproximateNode(Node):
         self.remaining_repetitions = 0
         self.target_orientation_quat = None
         self.initial_ee_quat = None
+        self.has_respawned_this_wait = False
 
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
 
@@ -251,6 +252,11 @@ class PickupApproximateNode(Node):
         timeout = self.get_parameter('approach_timeout_s').value
 
         if self.state == 'WAIT':
+            # Teletransportar el objeto a mitad del WAIT (da 1 segundo para soltar, y N segundos para asentar)
+            if now - self.state_start_time > 1.0 and not self.has_respawned_this_wait:
+                self._respawn_object()
+                self.has_respawned_this_wait = True
+                
             if now - self.state_start_time > self.get_parameter('wait_time_s').value:
                 self.state = 'ALIGN'
                 self.state_start_time = now
@@ -293,13 +299,13 @@ class PickupApproximateNode(Node):
             if dist < goal_tolerance:
                 self.get_logger().info("LIFT completo. Guardando episodio. [END RECORDING]")
                 self._save_episode()
-                self._respawn_object()
                 
                 if self.remaining_repetitions > 0:
                     self.remaining_repetitions -= 1
                     self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
                     self.state = 'WAIT'
                     self.state_start_time = time.time()
+                    self.has_respawned_this_wait = False
                     self.grasp_position = None
                     self.target_orientation_quat = None
                     self.initial_ee_quat = None
@@ -426,11 +432,10 @@ class PickupApproximateNode(Node):
             self.buffer.clear()
             self.state = 'WAIT'
             self.state_start_time = time.time()
+            self.has_respawned_this_wait = False
             
             reps = int(cmd) if cmd.isdigit() else 1
             self.remaining_repetitions = reps - 1
-            
-            self._respawn_object()
             
             self.get_logger().info(f"=== INICIANDO SECUENCIA (Repeticiones: {reps}) ===")
             res.success = True
