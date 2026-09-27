@@ -10,7 +10,14 @@ find_package(ament_cmake REQUIRED)
 install(DIRECTORY
   launch
   rviz
+  urdf
+  config
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  scripts/sixd_speed_limiter
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

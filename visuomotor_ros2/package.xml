@@ -15,8 +15,6 @@
   <depend>message_filters</depend>
   <depend>visuomotor_msgs</depend>
 
-  <depend>python3-torch</depend>
-  <depend>python3-torchvision</depend>
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
 

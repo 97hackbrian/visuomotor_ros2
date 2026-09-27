@@ -50,3 +50,13 @@ wandb/
 !**/.gitkeep
 
 docker_ros2.sh
+*.bashrc
+
+
+.cache/
+.ros/
+
+.bash_history
+.sudo_as_admin_successful
+.config/
+.rviz2/
