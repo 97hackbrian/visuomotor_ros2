@@ -65,3 +65,5 @@ docker_ros2.sh
 *.gv
 
 patch*
+
+*.mp4
