@@ -10,6 +10,38 @@ import tf2_ros
 from tf2_ros import TransformException
 import time
 
+def multiply_quaternions(q1, q2):
+    # q = [x, y, z, w]
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return [
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2
+    ]
+
+def euler_from_quaternion(q):
+    x, y, z, w = q
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    roll = np.arctan2(t0, t1)
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    pitch = np.arcsin(t2)
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    yaw = np.arctan2(t3, t4)
+    return roll, pitch, yaw
+
+def quaternion_from_euler(roll, pitch, yaw):
+    qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+    qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+    qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    return [qx, qy, qz, qw]
+
 from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
 from visuomotor_data_collection.utils.pid_controller import CartesianPID
@@ -73,6 +105,9 @@ class PickupApproximateNode(Node):
         self.state_start_time = 0.0
         self.last_published_gripper_state = None
         self.is_recording = False
+        self.remaining_repetitions = 0
+        self.target_orientation_quat = None
+        self.initial_ee_quat = None
 
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
 
@@ -97,17 +132,29 @@ class PickupApproximateNode(Node):
         ee_frame = self.get_parameter('ee_frame').value
         
         try:
-            t_obj = self.tf_buffer.lookup_transform('link_base', obj_frame, rclpy.time.Time())
             t_ee = self.tf_buffer.lookup_transform('link_base', ee_frame, rclpy.time.Time())
-        except TransformException as ex:
+        except TransformException:
             return
+            
+        t_obj = None
+        try:
+            t_obj = self.tf_buffer.lookup_transform('link_base', obj_frame, rclpy.time.Time())
+        except TransformException:
+            pass
+            
+        if t_obj is None and self.state not in ('IDLE', 'WAIT'):
+            return  # Requiere objeto para las fases activas
             
         tcp_offset_z = self.get_parameter('tcp_offset_z').value
         hover_z_offset = self.get_parameter('hover_z_offset').value
         
-        obj_x = t_obj.transform.translation.x
-        obj_y = t_obj.transform.translation.y
-        obj_z = t_obj.transform.translation.z
+        if t_obj is not None:
+            obj_x = t_obj.transform.translation.x
+            obj_y = t_obj.transform.translation.y
+            obj_z = t_obj.transform.translation.z
+        else:
+            obj_x = obj_y = obj_z = 0.0
+            
         ee_x  = t_ee.transform.translation.x
         ee_y  = t_ee.transform.translation.y
         ee_z  = t_ee.transform.translation.z
@@ -153,13 +200,39 @@ class PickupApproximateNode(Node):
             gripper_state = gripper_closed_pos
 
         elif self.state == 'LIFT':
-            target_x = obj_x
-            target_y = obj_y
-            target_z = obj_z + self.get_parameter('lift_z_offset').value
+            if self.grasp_position is not None:
+                target_x = self.grasp_position[0]
+                target_y = self.grasp_position[1]
+                target_z = self.grasp_position[2] + self.get_parameter('lift_z_offset').value
+            else:
+                target_x = ee_x
+                target_y = ee_y
+                target_z = ee_z + self.get_parameter('lift_z_offset').value
             gripper_state = gripper_closed_pos
 
-        else:
-            target_x, target_y, target_z = ee_x, ee_y, ee_z
+        # Orientación target
+        if self.target_orientation_quat is None:
+            self.target_orientation_quat = [
+                t_ee.transform.rotation.x, t_ee.transform.rotation.y,
+                t_ee.transform.rotation.z, t_ee.transform.rotation.w
+            ]
+            self.initial_ee_quat = self.target_orientation_quat.copy()
+
+        if self.state in ('ALIGN', 'DESCEND'):
+            # Obtenemos el Yaw del objeto
+            q_obj = [
+                t_obj.transform.rotation.x, t_obj.transform.rotation.y,
+                t_obj.transform.rotation.z, t_obj.transform.rotation.w
+            ]
+            _, _, obj_yaw = euler_from_quaternion(q_obj)
+            
+            # Obtenemos el Roll y Pitch INICIALES del gripper (así siempre apunta perfectamente hacia abajo)
+            init_roll, init_pitch, _ = euler_from_quaternion(self.initial_ee_quat)
+            
+            # El Yaw deseado es el del objeto + 90 grados (pi/2) para llegar perpendicular
+            target_yaw = obj_yaw + (np.pi / 2.0)
+            
+            self.target_orientation_quat = quaternion_from_euler(init_roll, init_pitch, target_yaw)
 
         # ── Error 3D y distancias parciales ────────────────────────────────
         error = np.array([target_x - ee_x, target_y - ee_y, target_z - ee_z])
@@ -174,13 +247,12 @@ class PickupApproximateNode(Node):
             if now - self.state_start_time > self.get_parameter('wait_time_s').value:
                 self.state = 'ALIGN'
                 self.state_start_time = now
-                self.get_logger().info("WAIT terminado → ALIGN: alineando sobre el objeto.")
+                self.get_logger().info("WAIT terminado → ALIGN: alineando sobre el objeto. [START RECORDING]")
                 self.buffer.clear()
                 self.is_recording = True
 
         elif self.state == 'ALIGN':
             dist_z = abs(target_z - ee_z)
-            # Usar tolerancia independiente para XY y Z, dando más margen a XY por si el objeto tiembla
             if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance) or now - self.state_start_time > timeout:
                 self.state = 'DESCEND'
                 self.state_start_time = now
@@ -192,9 +264,6 @@ class PickupApproximateNode(Node):
             if dist_z < goal_tolerance or now - self.state_start_time > timeout:
                 self.state = 'SETTLE'
                 self.state_start_time = now
-                # ¡CRÍTICO! Guardar el TARGET ideal, no la posición actual del brazo.
-                # Así, si el robot entra a SETTLE estando a 2.9cm del objetivo,
-                # el PID lo seguirá moviendo esos últimos centímetros hasta el objeto real.
                 self.grasp_position = (target_x, target_y, target_z)
                 self.get_logger().info(
                     f"DESCEND en tolerancia (err_z={dist_z:.4f}m) → SETTLE: asimilando error restante.")
@@ -210,14 +279,24 @@ class PickupApproximateNode(Node):
             if elapsed > self.get_parameter('grasp_wait_time_s').value:
                 self.state = 'LIFT'
                 self.get_logger().info("GRASP completo → LIFT: levantando objeto.")
-            elif int(elapsed * 100) % 100 == 0:  # Cada ~1 segundo (a 100Hz)
+            elif int(elapsed * 100) % 100 == 0:
                 self.get_logger().info(f"Brazo inmóvil. Esperando a que el gripper cierre físicamente... ({elapsed:.1f}s)")
 
         elif self.state == 'LIFT':
             if dist < goal_tolerance:
-                self.get_logger().info("LIFT completo. Guardando episodio.")
+                self.get_logger().info("LIFT completo. Guardando episodio. [END RECORDING]")
                 self._save_episode()
-                self.state = 'IDLE'
+                
+                if self.remaining_repetitions > 0:
+                    self.remaining_repetitions -= 1
+                    self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
+                    self.state = 'WAIT'
+                    self.state_start_time = time.time()
+                    self.grasp_position = None
+                    self.target_orientation_quat = None
+                    self.initial_ee_quat = None
+                else:
+                    self.state = 'IDLE'
 
 
         max_speed_m_s = self.get_parameter('max_speed_m_s').value
@@ -245,10 +324,17 @@ class PickupApproximateNode(Node):
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
         target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
         
-        if self.fixed_orientation is None:
-            self.fixed_orientation = t_ee.transform.rotation
-            
-        target_pose.pose.orientation = self.fixed_orientation
+        current_quat = [
+            t_ee.transform.rotation.x, t_ee.transform.rotation.y,
+            t_ee.transform.rotation.z, t_ee.transform.rotation.w
+        ]
+        
+        smoothed_quat = self.pid.compute_orientation(current_quat, self.target_orientation_quat)
+        
+        target_pose.pose.orientation.x = smoothed_quat[0]
+        target_pose.pose.orientation.y = smoothed_quat[1]
+        target_pose.pose.orientation.z = smoothed_quat[2]
+        target_pose.pose.orientation.w = smoothed_quat[3]
         
         self.action_pub.publish(target_pose)
         
@@ -288,20 +374,27 @@ class PickupApproximateNode(Node):
         self.buffer.clear()
 
     def _srv_trigger(self, req, res):
-        if req.command == "START":
+        cmd = req.command.strip().upper()
+        if cmd == "START" or cmd.isdigit():
             self.pid.reset()
             self.fixed_orientation = None
+            self.target_orientation_quat = None
+            self.initial_ee_quat = None
             self.grasp_position = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
             self.state_start_time = time.time()
-            self.get_logger().info("=== INICIANDO SECUENCIA PICK UP AND APPROXIMATE ===")
+            
+            reps = int(cmd) if cmd.isdigit() else 1
+            self.remaining_repetitions = reps - 1
+            
+            self.get_logger().info(f"=== INICIANDO SECUENCIA (Repeticiones: {reps}) ===")
             res.success = True
-            res.message = "Secuencia iniciada."
+            res.message = f"Secuencia iniciada para {reps} iteración(es)."
         else:
             res.success = False
-            res.message = "Comando desconocido. Usa START."
+            res.message = "Comando desconocido. Usa START o un número entero."
         return res
 
 def main(args=None):
