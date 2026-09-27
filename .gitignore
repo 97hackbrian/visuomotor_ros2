@@ -67,3 +67,4 @@ docker_ros2.sh
 patch*
 
 *.mp4
+*.png
