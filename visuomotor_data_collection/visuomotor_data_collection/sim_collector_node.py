@@ -27,6 +27,7 @@ class SimCollectorNode(Node):
         self.declare_parameter('enable_auto_pid', False)
         self.declare_parameter('object_frame', 'object_link')
         self.declare_parameter('ee_frame', 'link_tcp')
+        self.declare_parameter('tcp_offset_z', 0.17) # Offset en metros para la longitud del gripper
         self.declare_parameter('kp', 1.0)
         self.declare_parameter('ki', 0.0)
         self.declare_parameter('kd', 0.05)
@@ -58,6 +59,7 @@ class SimCollectorNode(Node):
             # Variables de estado del PID
             self.pid_integral = np.zeros(3)
             self.pid_prev_error = np.zeros(3)
+            self.fixed_orientation = None
         else:
             # Si el PID está desactivado, solo escuchamos las acciones que otro nodo genere (ej. teleoperación manual)
             self.create_subscription(PoseStamped, 'target_frame', self._action_cb, 10, callback_group=self.cbg)
@@ -102,11 +104,14 @@ class SimCollectorNode(Node):
         ki = self.get_parameter('ki').value
         kd = self.get_parameter('kd').value
         
+        # Obtenemos el offset del TCP para no chocar contra el suelo (la base del gripper debe estar encima del objeto)
+        tcp_offset_z = self.get_parameter('tcp_offset_z').value
+        
         # Error en posición (en el marco base_link)
         error = np.array([
             t_obj.transform.translation.x - t_ee.transform.translation.x,
             t_obj.transform.translation.y - t_ee.transform.translation.y,
-            t_obj.transform.translation.z - t_ee.transform.translation.z
+            (t_obj.transform.translation.z + tcp_offset_z) - t_ee.transform.translation.z
         ])
         
         self.pid_integral += error
@@ -125,8 +130,12 @@ class SimCollectorNode(Node):
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
         target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
         
-        # Mantenemos la orientación del objeto
-        target_pose.pose.orientation = t_obj.transform.rotation
+        # Mantenemos la orientación rígidamente fijada a su estado inicial
+        if self.fixed_orientation is None:
+            self.fixed_orientation = t_ee.transform.rotation
+            self.get_logger().info("Orientación del gripper bloqueada a su estado inicial.")
+            
+        target_pose.pose.orientation = self.fixed_orientation
         
         self.action_pub.publish(target_pose)
         
@@ -168,6 +177,7 @@ class SimCollectorNode(Node):
             if self.enable_auto_pid:
                 self.pid_integral = np.zeros(3)
                 self.pid_prev_error = np.zeros(3)
+                self.fixed_orientation = None
             res.success = True
             res.message = "Muestreo sincrónico iniciado."
         elif req.command == "SAVE":

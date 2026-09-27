@@ -12,6 +12,9 @@ sim_collector_node:
     # Marco de coordenadas del efector final del brazo
     ee_frame: "gripper_base_link"
     
+    # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
+    tcp_offset_z: 0.08
+    
     # Ganancias del controlador PID Cartesiano
     kp: 1.0
     ki: 0.0
