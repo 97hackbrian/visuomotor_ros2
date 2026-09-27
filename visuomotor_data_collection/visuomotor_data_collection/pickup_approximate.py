@@ -35,7 +35,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('init_y', 0.0)         # Posición inicial oficial en Y
         self.declare_parameter('init_z_height', 0.40) # Altura a la que sube para enfocar
         self.declare_parameter('wait_time_s', 2.0)    # Tiempo de espera arriba
-        self.declare_parameter('grasp_wait_time_s', 3.0) # Tiempo esperando que cierre
+        self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
         self.declare_parameter('hover_z_offset', 0.10) # Altura extra sobre el objeto al alinearse (metros)
@@ -206,9 +206,12 @@ class PickupApproximateNode(Node):
                 self.get_logger().info("SETTLE completo → GRASP: cerrando gripper (brazo inmóvil).")
 
         elif self.state == 'GRASP':
-            if now - self.state_start_time > self.get_parameter('grasp_wait_time_s').value:
+            elapsed = now - self.state_start_time
+            if elapsed > self.get_parameter('grasp_wait_time_s').value:
                 self.state = 'LIFT'
                 self.get_logger().info("GRASP completo → LIFT: levantando objeto.")
+            elif int(elapsed * 100) % 100 == 0:  # Cada ~1 segundo (a 100Hz)
+                self.get_logger().info(f"Brazo inmóvil. Esperando a que el gripper cierre físicamente... ({elapsed:.1f}s)")
 
         elif self.state == 'LIFT':
             if dist < goal_tolerance:
@@ -250,12 +253,14 @@ class PickupApproximateNode(Node):
         self.action_pub.publish(target_pose)
         
 
+        # Publicar el comando del gripper continuamente a 100Hz (requerido por algunos controladores/simuladores)
+        gripper_msg = Float64MultiArray()
+        gripper_msg.data = [gripper_state]
+        self.gripper_pub.publish(gripper_msg)
+
         if self.last_published_gripper_state != gripper_state:
-            gripper_msg = Float64MultiArray()
-            gripper_msg.data = [gripper_state]
-            self.gripper_pub.publish(gripper_msg)
             self.last_published_gripper_state = gripper_state
-            self.get_logger().info(f"Gripper command enviado: {gripper_state}")
+            self.get_logger().info(f"Gripper command cambiado a: {gripper_state}")
 
         
         self.latest_action = np.array([

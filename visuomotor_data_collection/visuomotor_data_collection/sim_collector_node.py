@@ -153,10 +153,11 @@ class SimCollectorNode(Node):
         gripper_state = gripper_closed_pos if (self.is_recording and dist < goal_tolerance) else gripper_open_pos
         
 
+        gripper_msg = Float64MultiArray()
+        gripper_msg.data = [gripper_state]
+        self.gripper_pub.publish(gripper_msg)
+        
         if self.last_published_gripper_state != gripper_state:
-            gripper_msg = Float64MultiArray()
-            gripper_msg.data = [gripper_state]
-            self.gripper_pub.publish(gripper_msg)
             self.last_published_gripper_state = gripper_state
 
         
