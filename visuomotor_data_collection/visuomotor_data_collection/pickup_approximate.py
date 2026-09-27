@@ -2,10 +2,11 @@ import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, JointState
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from std_msgs.msg import Float64MultiArray  # noqa: kept for legacy compatibility
 from cv_bridge import CvBridge
 import numpy as np
+import random
 import tf2_ros
 from tf2_ros import TransformException
 import time
@@ -68,6 +69,14 @@ class PickupApproximateNode(Node):
         self.declare_parameter('init_y', 0.0)         # Posición inicial oficial en Y
         self.declare_parameter('init_z_height', 0.40) # Altura a la que sube para enfocar
         self.declare_parameter('wait_time_s', 2.0)    # Tiempo de espera arriba
+        
+        # Parámetros para aleatorización del objeto (respawn)
+        self.declare_parameter('random_spawn', True)
+        self.declare_parameter('spawn_x_min', 0.28)
+        self.declare_parameter('spawn_x_max', 0.32)
+        self.declare_parameter('spawn_y_min', -0.64)
+        self.declare_parameter('spawn_y_max', -0.66)
+        self.declare_parameter('spawn_z', 0.6)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
@@ -91,6 +100,7 @@ class PickupApproximateNode(Node):
         self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
         self.action_pub = self.create_publisher(PoseStamped, 'target_frame', 10)
         self.gripper_pub = self.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
+        self.respawn_pub = self.create_publisher(Twist, '/respawn', 10)
         
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -283,6 +293,7 @@ class PickupApproximateNode(Node):
             if dist < goal_tolerance:
                 self.get_logger().info("LIFT completo. Guardando episodio. [END RECORDING]")
                 self._save_episode()
+                self._respawn_object()
                 
                 if self.remaining_repetitions > 0:
                     self.remaining_repetitions -= 1
@@ -382,6 +393,27 @@ class PickupApproximateNode(Node):
             self.get_logger().info(f"Episodio guardado exitosamente: {len(self.buffer)} pasos.")
         self.buffer.clear()
 
+    def _respawn_object(self):
+        if not self.get_parameter('random_spawn').value:
+            return
+            
+        spawn_x_min = self.get_parameter('spawn_x_min').value
+        spawn_x_max = self.get_parameter('spawn_x_max').value
+        spawn_y_min = self.get_parameter('spawn_y_min').value
+        spawn_y_max = self.get_parameter('spawn_y_max').value
+        spawn_z     = self.get_parameter('spawn_z').value
+        
+        target_x = random.uniform(spawn_x_min, spawn_x_max)
+        target_y = random.uniform(spawn_y_min, spawn_y_max)
+        
+        twist_msg = Twist()
+        twist_msg.linear.x = target_x
+        twist_msg.linear.y = target_y
+        twist_msg.linear.z = spawn_z
+        
+        self.respawn_pub.publish(twist_msg)
+        self.get_logger().info(f"Objeto re-posicionado en: X={target_x:.3f}, Y={target_y:.3f}, Z={spawn_z:.3f}")
+
     def _srv_trigger(self, req, res):
         cmd = req.command.strip().upper()
         if cmd == "START" or cmd.isdigit():
@@ -397,6 +429,8 @@ class PickupApproximateNode(Node):
             
             reps = int(cmd) if cmd.isdigit() else 1
             self.remaining_repetitions = reps - 1
+            
+            self._respawn_object()
             
             self.get_logger().info(f"=== INICIANDO SECUENCIA (Repeticiones: {reps}) ===")
             res.success = True
