@@ -106,3 +106,36 @@ Durante las fases de integración (especialmente simulando con Omniverse Isaac S
 8. **Visualización de Zarr (Proyecciones Ortográficas):**
    - *El Problema:* Al plotear trayectorias 3D (X, Y, Z) con `matplotlib`, la perspectiva estándar deformaba la percepción visual de la altura Z y la alineación (efecto "ojo de pez" e ilusiones de inclinación en L).
    - *La Solución:* En `visualize_zarr.py`, se implementó estrictamente una proyección ortográfica (`ax.set_proj_type('ortho')`) con límites dinámicos (`set_box_aspect(1,1,1)`), garantizando que las líneas dibujadas coincidan 1:1 con los movimientos reales físicos que experimenta el robot.
+
+9. **Error `Expected 3D or 4D input to conv2d, but got 5D` en Inferencia:**
+   - *El Problema:* El script original `policy_node.py` intentaba acumular el historial de observaciones (`h_obs = 2`) haciendo un `torch.stack` manual y enviándolo empaquetado a `policy.select_action()`. Sin embargo, `DiffusionPolicy` ya cuenta con una cola interna (Deque) que realiza este empaquetamiento, provocando la duplicación de dimensiones y un tensor de 5 dimensiones (`[1, 2, 3, 224, 224]`) que crasheaba al Encoder RGB (conv2d).
+   - *La Solución:* Se delegó toda la responsabilidad de caché temporal a la política. El nodo de ROS 2 fue rescrito para enviar única y exclusivamente **el frame y pose más recientes** en cada tick de inferencia, evitando la sobredimensión.
+
+10. **Parálisis por Desplazamiento Fuera de Distribución (Out of Distribution / OOD):**
+   - *El Problema:* Al iniciar la inferencia, si el brazo físico se encontraba en la parte inferior de la mesa, el modelo se congelaba prediciendo ruidos (micro-movimientos). Esto sucedía porque, durante la toma de datos, **todas las trayectorias** iniciaban desde una pose de descanso elevada (`Z=0.40`). Poner la red en un estado físico nunca visto (OOD) paralizaba la predicción.
+   - *La Solución:* Se implementó un modo estricto en el nodo de inferencia `policy_node.py`. Ahora se interpone un estado obligatorio llamado `RESET` (duración: 5 seg), el cual asume el control manual para desplazar el efector exactamente a la coordenada de inicio `[0.25, 0.0, 0.40]`. Esto garantiza que, al cederle el control al estado de `INFERENCE`, la Red Neuronal se encuentre en su "zona de confort" de distribución y sepa descender suavemente.
+
+11. **Robot Físico Ignorando la Trayectoria Generada (TF Frame ID faltante):**
+   - *El Problema:* La IA predecía las acciones fluidamente por terminal, pero el robot ni se inmutaba en Isaac Sim, mostrándose trabado.
+   - *La Solución:* Se descubrió que al generar y publicar el mensaje ROS 2 (`PoseStamped`), se había omitido poblar la cabecera espacial (`msg.header.frame_id = 'link_base'`). El solucionador cinemático (RMPflow / FZI) descarta sistemáticamente como medida de seguridad cualquier orden que carezca de un punto de referencia. Inyectar el `frame_id` reactivó el movimiento del robot.
+
+12. **El Gripper Físico se Niega a Cerrarse durante la Inferencia:**
+   - *El Problema:* La IA navegaba hacia abajo (ej. `Z=0.08`), pero el actuador ignoraba las señales numéricas de cierre generadas por la red neuronal, escurriendo el objeto.
+   - *La Solución:* En `action_executors.py`, el nodo de inferencia empaquetaba la acción del motor del gripper como un arreglo de 2 elementos `[val, val]`. No obstante, el colector de datos original estaba configurado para usar un controlador de articulación único (`[val]`). Al notar la discrepancia dimensional, Isaac Sim ignoraba la señal del ROS 2 Subscribe Node. Recortar la salida a una matriz unidimensional restableció el cierre físico guiado por IA.
+
+
+### 6. Análisis de Fallas Cognitivas en la Inferencia (Falta de Generalización)
+Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 repeticiones por 2.5 horas, se detectaron los siguientes comportamientos deficientes:
+1. **Aproximación Estocástica:** Ante la misma posición del objeto, el brazo a veces se acerca bien y otras veces diverge a otro lado.
+2. **Ceguera Rotacional:** Si el objeto rota en su eje Z, la política deja de detectarlo.
+3. **Incapacidad de Estimar Profundidad (Eje Z):** El robot falla en percibir el tamaño escalar del objeto, cerrando el gripper centímetros antes o después de la altura correcta.
+4. **Confusión por Distractores:** Si el dataset contiene el objeto apilado o rodeado de otros objetos, el robot tiende a ir hacia los objetos equivocados.
+
+**Diagnóstico Raíz:**
+- **Data Quantity (Sub-entrenamiento por escasez):** 60 demostraciones son absolutamente insuficientes para un modelo generativo visual continuo (Diffusion Policy). Con 50,000 steps, la red sobreajustó (overfitting) memorizando el ruido de fondo, pero no generalizó la silueta del objeto.
+- **Data Quality (Correlaciones Espurias):** Si el objetivo estaba sobre otros objetos en la demostración, la red neuronal (CNN) pudo haber prestado atención al objeto más brillante/grande del fondo (clutter), creyendo erróneamente que 'ir hacia la pila' era la instrucción correcta, ignorando el objeto real.
+
+**Roadmap y Siguientes Pasos (Proceder para Nueva Sesión):**
+- **Fase 1: Limpieza del Entorno (Data-Centric AI):** Para entrenar un modelo 'Zero-Shot' específico por objeto, la escena de recolección debe ser purgada. Solo debe existir la mesa y el objeto objetivo (sin distractores).
+- **Fase 2: Aumento Masivo de Demostraciones:** Se requieren un mínimo de 150 a 200 demostraciones exitosas.
+- **Fase 3: Variabilidad Total (Rotación y Posición):** El script de spawn aleatorio debe garantizar que el objeto aparezca en los 360 grados de Yaw (orientación). Si el modelo no ve el objeto girado durante el entrenamiento, no podrá extraer características invariantes a la rotación.
