@@ -111,8 +111,9 @@ class PickupApproximateNode(Node):
         self.grasp_position = None  # Posición XYZ exacta donde se cierra el gripper
         self.grasp_orientation_quat = None
         self.wait_reached_time = None
+        self.untilt_reached_time = None
         
-        # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT
+        # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT, UNTILT
         self.state = 'IDLE'
         self.state_start_time = 0.0
         self.last_published_gripper_state = None
@@ -183,7 +184,7 @@ class PickupApproximateNode(Node):
         if self.target_orientation_quat is None:
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
-        if self.state in ('IDLE', 'WAIT'):
+        if self.state in ('IDLE', 'WAIT', 'UNTILT'):
             # Regresar a la postura inicial (mirando hacia abajo)
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
@@ -255,7 +256,7 @@ class PickupApproximateNode(Node):
                 target_x, target_y, target_z = ee_x, ee_y, ee_z
             gripper_state = gripper_closed_pos
 
-        elif self.state == 'LIFT':
+        elif self.state in ('LIFT', 'UNTILT'):
             if self.grasp_position is not None:
                 target_x = self.grasp_position[0]
                 target_y = self.grasp_position[1]
@@ -343,28 +344,44 @@ class PickupApproximateNode(Node):
 
         elif self.state == 'LIFT':
             if dist < goal_tolerance:
-                self.get_logger().info("LIFT completo. Guardando episodio. [END RECORDING]")
-                self._save_episode()
+                self.state = 'UNTILT'
+                self.state_start_time = now
+                self.get_logger().info("LIFT completo → UNTILT: Enderezando orientación del objeto.")
                 
-                if self.remaining_repetitions > 0:
-                    self.remaining_repetitions -= 1
-                    self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
-                    self.state = 'WAIT'
-                    self.state_start_time = time.time()
-                    self.has_respawned_this_wait = False
-                    self.grasp_position = None
-                    self.grasp_orientation_quat = None
-                    self.target_orientation_quat = None
-                    self.wait_reached_time = None
-                    self.pid.reset()
-                    return
-                else:
-                    self.state = 'IDLE'
-                    self.target_orientation_quat = None
-                    self.grasp_orientation_quat = None
-                    self.wait_reached_time = None
-                    self.pid.reset()
-                    return
+        elif self.state == 'UNTILT':
+            # Esperar a que la orientación vuelva a estar recta y la posición se mantenga
+            if dist < goal_tolerance * 2.0 and error_rot_mag < 0.05:
+                if self.untilt_reached_time is None:
+                    self.untilt_reached_time = now
+                
+                # Pequeño settling time de 0.5s para asegurar que se grabe la postura recta
+                if now - self.untilt_reached_time > 0.5:
+                    self.get_logger().info("UNTILT completo. Guardando episodio. [END RECORDING]")
+                    self._save_episode()
+                    
+                    if self.remaining_repetitions > 0:
+                        self.remaining_repetitions -= 1
+                        self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
+                        self.state = 'WAIT'
+                        self.state_start_time = time.time()
+                        self.has_respawned_this_wait = False
+                        self.grasp_position = None
+                        self.grasp_orientation_quat = None
+                        self.target_orientation_quat = None
+                        self.wait_reached_time = None
+                        self.untilt_reached_time = None
+                        self.pid.reset()
+                        return
+                    else:
+                        self.state = 'IDLE'
+                        self.target_orientation_quat = None
+                        self.grasp_orientation_quat = None
+                        self.wait_reached_time = None
+                        self.untilt_reached_time = None
+                        self.pid.reset()
+                        return
+            else:
+                self.untilt_reached_time = None
 
 
         max_speed_m_s = self.get_parameter('max_speed_m_s').value
@@ -484,6 +501,7 @@ class PickupApproximateNode(Node):
             self.grasp_position = None
             self.grasp_orientation_quat = None
             self.wait_reached_time = None
+            self.untilt_reached_time = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
