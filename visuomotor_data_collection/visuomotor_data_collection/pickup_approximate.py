@@ -319,14 +319,14 @@ class PickupApproximateNode(Node):
                     f"ALIGN completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m, err_rot={error_rot_mag:.4f}rad) → DESCEND: bajando verticalmente.")
 
         elif self.state == 'DESCEND':
-            dist_z = abs(target_z - ee_z)
-            if (dist_z < goal_tolerance and error_rot_mag < 0.05) or now - self.state_start_time > timeout:
+            # Para DESCEND usamos la distancia 3D real porque la aproximación puede ser diagonal
+            if (dist < goal_tolerance and error_rot_mag < 0.05) or now - self.state_start_time > 4.0:
                 self.state = 'SETTLE'
                 self.state_start_time = now
                 self.grasp_position = (target_x, target_y, target_z)
                 self.grasp_orientation_quat = self.target_orientation_quat.copy()
                 self.get_logger().info(
-                    f"DESCEND en tolerancia (err_z={dist_z:.4f}m, err_rot={error_rot_mag:.4f}rad) → SETTLE: asimilando error restante.")
+                    f"DESCEND completado/forzado (err_3d={dist:.4f}m, err_rot={error_rot_mag:.4f}rad) → SETTLE: asimilando error restante.")
 
         elif self.state == 'SETTLE':
             if now - self.state_start_time > self.get_parameter('settle_time_s').value:
