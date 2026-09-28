@@ -28,6 +28,7 @@ class PolicyNode(Node):
         self.declare_parameter('camera_topic', '/rgb')
         self.declare_parameter('ee_frame', 'gripper_base_link')
         self.declare_parameter('base_frame', 'link_base')
+        self.declare_parameter('num_inference_steps', 16)
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -43,7 +44,7 @@ class PolicyNode(Node):
         ckpt_path = self.get_parameter('checkpoint_path').value
         if ckpt_path:
             self.policy = DiffusionPolicy.from_pretrained(Path(ckpt_path))
-            self.policy.diffusion.num_inference_steps = 10
+            self.policy.diffusion.num_inference_steps = self.get_parameter('num_inference_steps').value
             self.policy.eval()
             self.policy.to(self.device)
             self.policy.reset()
@@ -138,8 +139,10 @@ class PolicyNode(Node):
                 self.state = 'INFERENCE'
                 
         if self.policy is not None:
+            import torchvision.transforms as transforms
             # Prepare image tensor (1, C, H, W)
             img_tensor = torch.from_numpy(self.latest_img).to(torch.float32).permute(2, 0, 1) / 255.0
+            img_tensor = transforms.Resize((256, 256), antialias=True)(img_tensor)
             img_tensor = img_tensor.to(self.device, non_blocking=True).unsqueeze(0)
             
             # Prepare state tensor (1, dim)
@@ -164,10 +167,18 @@ class PolicyNode(Node):
             p.position.z = float(action_np[2])
             
             if len(action_np) >= 7:
-                p.orientation.x = float(action_np[3])
-                p.orientation.y = float(action_np[4])
-                p.orientation.z = float(action_np[5])
-                p.orientation.w = float(action_np[6])
+                # Normalizar el cuaternión predicho por la red neuronal!
+                norm = np.linalg.norm(action_np[3:7])
+                if norm > 1e-6:
+                    p.orientation.x = float(action_np[3] / norm)
+                    p.orientation.y = float(action_np[4] / norm)
+                    p.orientation.z = float(action_np[5] / norm)
+                    p.orientation.w = float(action_np[6] / norm)
+                else:
+                    p.orientation.x = float(action_np[3])
+                    p.orientation.y = float(action_np[4])
+                    p.orientation.z = float(action_np[5])
+                    p.orientation.w = float(action_np[6])
             
             msg.poses.append(p)
             

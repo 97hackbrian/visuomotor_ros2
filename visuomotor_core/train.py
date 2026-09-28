@@ -9,7 +9,7 @@ from visuomotor_core.dataset.zarr_dataset import ZarrDataset
 
 
 
-def main(root, epoch, batch_size):
+def main(root, epoch, batch_size, out_dir):
     print(root)
     if root is None:
         print('[ERROR] Must specify path to data!')
@@ -20,7 +20,7 @@ def main(root, epoch, batch_size):
     import matplotlib.pyplot as plt
     from datetime import datetime
 
-    output_directory = Path("outputs/train")
+    output_directory = Path(out_dir)
     output_directory.mkdir(parents=True, exist_ok=True)
 
     torch.set_float32_matmul_precision('high')
@@ -135,6 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size (n_obs_steps=2 doubles the effective '
                          'image batch through the ResNet encoder; 224x224 crops OOM well before batch_size=512 on an '
                          '8GB GPU — start low and raise it while watching the printed VRAM figure)')
+    parser.add_argument('--out_dir', type=str, default='outputs/train', help='Output directory')
     parsed_args = parser.parse_args()
 
-    main(parsed_args.path, parsed_args.epoch, parsed_args.batch_size)
+    main(parsed_args.path, parsed_args.epoch, parsed_args.batch_size, parsed_args.out_dir)

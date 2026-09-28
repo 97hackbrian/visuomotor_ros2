@@ -1,3 +1,4 @@
+import torchvision.transforms as transforms
 import zarr
 import torch
 from torch.utils.data import Dataset
@@ -57,6 +58,8 @@ class ZarrDataset(Dataset):
         imgs = group['image'][frame_idx - self.n_obs_steps + 1 : frame_idx + 1]
         imgs = torch.tensor(imgs, dtype=torch.float32) / 255.0
         imgs = imgs.permute(0, 3, 1, 2)
+        # 🚨 FIX: La cámara es 720p (1280x720). Resize a 256x256 ANTES del recorte (crop)
+        imgs = transforms.Resize((256, 256), antialias=True)(imgs)
         
         states = group['state'][frame_idx - self.n_obs_steps + 1 : frame_idx + 1]
         states = torch.tensor(states, dtype=torch.float32)

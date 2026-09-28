@@ -120,7 +120,9 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
             # TODO(rcadene): make above methods return output dictionary?
             actions = self.unnormalize_outputs({"action": actions})["action"]
 
-            self._queues["action"].extend(actions.transpose(0, 1))
+            # Add only up to maxlen to prevent .extend() from dropping the earliest actions!
+            actions_to_queue = actions.transpose(0, 1)[:self._queues["action"].maxlen]
+            self._queues["action"].extend(actions_to_queue)
 
         action = self._queues["action"].popleft()
         return action
