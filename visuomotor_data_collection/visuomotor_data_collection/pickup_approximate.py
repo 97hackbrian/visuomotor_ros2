@@ -110,6 +110,7 @@ class PickupApproximateNode(Node):
         self.fixed_orientation = None
         self.grasp_position = None  # Posición XYZ exacta donde se cierra el gripper
         self.grasp_orientation_quat = None
+        self.wait_reached_time = None
         
         # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT
         self.state = 'IDLE'
@@ -294,12 +295,19 @@ class PickupApproximateNode(Node):
                 self._respawn_object()
                 self.has_respawned_this_wait = True
                 
-            if now - self.state_start_time > self.get_parameter('wait_time_s').value:
-                self.state = 'ALIGN'
-                self.state_start_time = now
-                self.get_logger().info("WAIT terminado → ALIGN: alineando sobre el objeto. [START RECORDING]")
-                self.buffer.clear()
-                self.is_recording = True
+            if dist < goal_tolerance * 2.0 and error_rot_mag < 0.1:
+                if self.wait_reached_time is None:
+                    self.wait_reached_time = now
+                    
+                if now - self.wait_reached_time > self.get_parameter('wait_time_s').value + 1.0:
+                    self.state = 'ALIGN'
+                    self.state_start_time = now
+                    self.wait_reached_time = None
+                    self.get_logger().info("WAIT terminado (posición origen alcanzada) → ALIGN: alineando sobre el objeto. [START RECORDING]")
+                    self.buffer.clear()
+                    self.is_recording = True
+            else:
+                self.wait_reached_time = None
 
         elif self.state == 'ALIGN':
             dist_z = abs(target_z - ee_z)
@@ -347,12 +355,14 @@ class PickupApproximateNode(Node):
                     self.grasp_position = None
                     self.grasp_orientation_quat = None
                     self.target_orientation_quat = None
+                    self.wait_reached_time = None
                     self.pid.reset()
                     return
                 else:
                     self.state = 'IDLE'
                     self.target_orientation_quat = None
                     self.grasp_orientation_quat = None
+                    self.wait_reached_time = None
                     self.pid.reset()
                     return
 
@@ -473,6 +483,7 @@ class PickupApproximateNode(Node):
             self.target_orientation_quat = None
             self.grasp_position = None
             self.grasp_orientation_quat = None
+            self.wait_reached_time = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
