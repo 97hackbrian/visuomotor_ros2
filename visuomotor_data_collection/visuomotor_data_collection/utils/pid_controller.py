@@ -12,8 +12,15 @@ class CartesianPID:
         self.prev_error = np.zeros(3)
         self.virtual_setpoint = None
         
+        self.virtual_euler = None
+        self.integral_euler = np.zeros(3)
+        self.prev_error_euler = np.zeros(3)
+        
     def reset(self):
         self.virtual_setpoint = None
+        self.virtual_euler = None
+        self.integral_euler = np.zeros(3)
+        self.prev_error_euler = np.zeros(3)
         
     def update_params(self, kp, ki, kd, max_speed_m_s):
         self.kp = kp
@@ -22,7 +29,7 @@ class CartesianPID:
     def compute(self, current_pos, target_pos):
         """
         Genera un setpoint virtual que se mueve hacia el target a velocidad constante (a 100Hz),
-        y luego decelera suavemente usando control proporcional.
+        y luego decelera suavemente usando control proporcional, integral y derivativo.
         Garantiza que la velocidad física sea EXACTAMENTE max_speed_m_s sin tartamudeos.
         """
         if self.virtual_setpoint is None:
@@ -30,7 +37,13 @@ class CartesianPID:
             
         error = target_pos - self.virtual_setpoint
         
-        step = self.kp * error
+        p_term = self.kp * error
+        self.integral += error * (1.0 / self.sampling_rate_hz)
+        i_term = self.ki * self.integral
+        d_term = self.kd * (error - self.prev_error) * self.sampling_rate_hz
+        self.prev_error = error
+        
+        step = p_term + i_term + d_term
         
         max_step = self.max_speed_m_s / self.sampling_rate_hz
         norm = np.linalg.norm(step)
@@ -42,6 +55,39 @@ class CartesianPID:
         control_output = self.virtual_setpoint - current_pos
         real_error = target_pos - current_pos
             
+        return control_output, real_error
+
+    def compute_euler(self, current_euler, target_euler):
+        if self.virtual_euler is None:
+            self.virtual_euler = np.array(current_euler, dtype=np.float64)
+            
+        current_euler = np.array(current_euler, dtype=np.float64)
+        target_euler = np.array(target_euler, dtype=np.float64)
+            
+        # Error angular (distancia más corta)
+        error = np.arctan2(np.sin(target_euler - self.virtual_euler), np.cos(target_euler - self.virtual_euler))
+        
+        p_term = self.kp * error
+        self.integral_euler += error * (1.0 / self.sampling_rate_hz)
+        i_term = self.ki * self.integral_euler
+        d_term = self.kd * (error - self.prev_error_euler) * self.sampling_rate_hz
+        self.prev_error_euler = error
+        
+        step = p_term + i_term + d_term
+        
+        # Limitar velocidad angular
+        max_rot_step = (self.max_speed_m_s * 2.0) / self.sampling_rate_hz
+        norm_step = np.linalg.norm(step)
+        if norm_step > max_rot_step:
+            step = (step / norm_step) * max_rot_step
+            
+        self.virtual_euler += step
+        # Normalizar a -pi, pi
+        self.virtual_euler = np.arctan2(np.sin(self.virtual_euler), np.cos(self.virtual_euler))
+        
+        control_output = np.arctan2(np.sin(self.virtual_euler - current_euler), np.cos(self.virtual_euler - current_euler))
+        real_error = np.arctan2(np.sin(target_euler - current_euler), np.cos(target_euler - current_euler))
+        
         return control_output, real_error
 
     def compute_orientation(self, current_quat, target_quat):

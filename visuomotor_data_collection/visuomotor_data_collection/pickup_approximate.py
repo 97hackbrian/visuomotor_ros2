@@ -72,10 +72,10 @@ class PickupApproximateNode(Node):
         
         # Parámetros para aleatorización del objeto (respawn)
         self.declare_parameter('random_spawn', True)
-        self.declare_parameter('spawn_x_min', 0.25)
+        self.declare_parameter('spawn_x_min', 0.24)
         self.declare_parameter('spawn_x_max', 0.29)
         self.declare_parameter('spawn_y_min', -0.645)
-        self.declare_parameter('spawn_y_max', -0.67)
+        self.declare_parameter('spawn_y_max', -1.025)
         self.declare_parameter('spawn_z', 0.49)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
@@ -109,6 +109,7 @@ class PickupApproximateNode(Node):
         
         self.fixed_orientation = None
         self.grasp_position = None  # Posición XYZ exacta donde se cierra el gripper
+        self.grasp_orientation_quat = None
         
         # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT
         self.state = 'IDLE'
@@ -171,7 +172,38 @@ class PickupApproximateNode(Node):
         gripper_closed_pos = self.get_parameter('gripper_closed_pos').value
         goal_tolerance     = self.get_parameter('goal_tolerance_m').value
 
-        # ── Determinar target según estado ──────────────────────────────────
+        # ── 1. Orientación target ───────────────────────────────────────────
+        if self.initial_ee_quat is None:
+            self.initial_ee_quat = [
+                t_ee.transform.rotation.x, t_ee.transform.rotation.y,
+                t_ee.transform.rotation.z, t_ee.transform.rotation.w
+            ]
+            
+        if self.target_orientation_quat is None:
+            self.target_orientation_quat = self.initial_ee_quat.copy()
+
+        if self.state in ('IDLE', 'WAIT'):
+            # Regresar a la postura inicial (mirando hacia abajo)
+            self.target_orientation_quat = self.initial_ee_quat.copy()
+
+        if self.state in ('ALIGN', 'DESCEND'):
+            # Obtenemos la orientación completa del objeto (pick_target)
+            q_obj = [
+                t_obj.transform.rotation.x, t_obj.transform.rotation.y,
+                t_obj.transform.rotation.z, t_obj.transform.rotation.w
+            ]
+            obj_roll, obj_pitch, obj_yaw = euler_from_quaternion(q_obj)
+            
+            # Usamos el Roll, Pitch y Yaw directamente del pick_target
+            # (El PID ahora se encarga de suavizar la transición sin sufrir drifting)
+            target_roll = obj_roll
+            target_pitch = obj_pitch
+            target_yaw = obj_yaw
+            
+            self.target_orientation_quat = quaternion_from_euler(target_roll, target_pitch, target_yaw)
+
+
+        # ── 2. Determinar posición target según estado ──────────────────────
         gripper_state = gripper_open_pos
 
         if self.state in ('IDLE', 'WAIT'):
@@ -181,16 +213,31 @@ class PickupApproximateNode(Node):
             target_z = self.get_parameter('init_z_height').value
 
         elif self.state == 'ALIGN':
-            # Fase 1: moverse en X,Y sobre el objeto, manteniendo la altura actual del EE
-            target_x = obj_x
-            target_y = obj_y
-            target_z = obj_z + tcp_offset_z + hover_z_offset  # altura segura sobre el objeto
+            # Fase 1: moverse compensando el ángulo 3D (Z invertido relativo al gripper)
+            # Offset del TCP compensando el ángulo (vector -Z en el frame local del gripper)
+            qx, qy, qz, qw = self.target_orientation_quat
+            d = -(tcp_offset_z + hover_z_offset)
+            
+            dx = d * 2.0 * (qx*qz + qw*qy)
+            dy = d * 2.0 * (qy*qz - qw*qx)
+            dz = d * (1.0 - 2.0*(qx*qx + qy*qy))
+            
+            target_x = obj_x + dx
+            target_y = obj_y + dy
+            target_z = obj_z + dz
 
         elif self.state == 'DESCEND':
-            # Fase 2: bajar verticalmente (X,Y ya están alineados)
-            target_x = obj_x
-            target_y = obj_y
-            target_z = obj_z + tcp_offset_z  # altura de agarre
+            # Fase 2: bajar compensando el ángulo 3D (Z invertido relativo al gripper)
+            qx, qy, qz, qw = self.target_orientation_quat
+            d = -tcp_offset_z
+            
+            dx = d * 2.0 * (qx*qz + qw*qy)
+            dy = d * 2.0 * (qy*qz - qw*qx)
+            dz = d * (1.0 - 2.0*(qx*qx + qy*qy))
+            
+            target_x = obj_x + dx
+            target_y = obj_y + dy
+            target_z = obj_z + dz
 
         elif self.state == 'SETTLE':
             # Brazo inmóvil en el punto de agarre grabado
@@ -218,34 +265,24 @@ class PickupApproximateNode(Node):
                 target_z = ee_z + self.get_parameter('lift_z_offset').value
             gripper_state = gripper_closed_pos
 
-        # Orientación target
-        if self.target_orientation_quat is None:
-            self.target_orientation_quat = [
-                t_ee.transform.rotation.x, t_ee.transform.rotation.y,
-                t_ee.transform.rotation.z, t_ee.transform.rotation.w
-            ]
-            self.initial_ee_quat = self.target_orientation_quat.copy()
-
-        if self.state in ('ALIGN', 'DESCEND'):
-            # Obtenemos el Yaw del objeto
-            q_obj = [
-                t_obj.transform.rotation.x, t_obj.transform.rotation.y,
-                t_obj.transform.rotation.z, t_obj.transform.rotation.w
-            ]
-            _, _, obj_yaw = euler_from_quaternion(q_obj)
-            
-            # Obtenemos el Roll y Pitch INICIALES del gripper (así siempre apunta perfectamente hacia abajo)
-            init_roll, init_pitch, _ = euler_from_quaternion(self.initial_ee_quat)
-            
-            # El Yaw deseado es el del objeto + 90 grados (pi/2) para llegar perpendicular
-            target_yaw = obj_yaw + (np.pi / 2.0)
-            
-            self.target_orientation_quat = quaternion_from_euler(init_roll, init_pitch, target_yaw)
-
         # ── Error 3D y distancias parciales ────────────────────────────────
         error = np.array([target_x - ee_x, target_y - ee_y, target_z - ee_z])
         dist  = np.linalg.norm(error)
         dist_xy = np.linalg.norm(error[:2])   # solo plano horizontal
+
+        current_quat = [
+            t_ee.transform.rotation.x, t_ee.transform.rotation.y,
+            t_ee.transform.rotation.z, t_ee.transform.rotation.w
+        ]
+        
+        current_euler = euler_from_quaternion(current_quat)
+        if self.target_orientation_quat is not None:
+            target_euler = euler_from_quaternion(self.target_orientation_quat)
+        else:
+            target_euler = current_euler
+            
+        error_euler = np.arctan2(np.sin(np.array(target_euler) - np.array(current_euler)), np.cos(np.array(target_euler) - np.array(current_euler)))
+        error_rot_mag = np.linalg.norm(error_euler)
 
         # ── Transiciones de estado ─────────────────────────────────────────
         now     = time.time()
@@ -266,20 +303,21 @@ class PickupApproximateNode(Node):
 
         elif self.state == 'ALIGN':
             dist_z = abs(target_z - ee_z)
-            if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance) or now - self.state_start_time > timeout:
+            if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance and error_rot_mag < 0.05) or now - self.state_start_time > timeout:
                 self.state = 'DESCEND'
                 self.state_start_time = now
                 self.get_logger().info(
-                    f"ALIGN completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m) → DESCEND: bajando verticalmente.")
+                    f"ALIGN completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m, err_rot={error_rot_mag:.4f}rad) → DESCEND: bajando verticalmente.")
 
         elif self.state == 'DESCEND':
             dist_z = abs(target_z - ee_z)
-            if dist_z < goal_tolerance or now - self.state_start_time > timeout:
+            if (dist_z < goal_tolerance and error_rot_mag < 0.05) or now - self.state_start_time > timeout:
                 self.state = 'SETTLE'
                 self.state_start_time = now
                 self.grasp_position = (target_x, target_y, target_z)
+                self.grasp_orientation_quat = self.target_orientation_quat.copy()
                 self.get_logger().info(
-                    f"DESCEND en tolerancia (err_z={dist_z:.4f}m) → SETTLE: asimilando error restante.")
+                    f"DESCEND en tolerancia (err_z={dist_z:.4f}m, err_rot={error_rot_mag:.4f}rad) → SETTLE: asimilando error restante.")
 
         elif self.state == 'SETTLE':
             if now - self.state_start_time > self.get_parameter('settle_time_s').value:
@@ -307,10 +345,16 @@ class PickupApproximateNode(Node):
                     self.state_start_time = time.time()
                     self.has_respawned_this_wait = False
                     self.grasp_position = None
+                    self.grasp_orientation_quat = None
                     self.target_orientation_quat = None
-                    self.initial_ee_quat = None
+                    self.pid.reset()
+                    return
                 else:
                     self.state = 'IDLE'
+                    self.target_orientation_quat = None
+                    self.grasp_orientation_quat = None
+                    self.pid.reset()
+                    return
 
 
         max_speed_m_s = self.get_parameter('max_speed_m_s').value
@@ -338,12 +382,13 @@ class PickupApproximateNode(Node):
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
         target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
         
-        current_quat = [
-            t_ee.transform.rotation.x, t_ee.transform.rotation.y,
-            t_ee.transform.rotation.z, t_ee.transform.rotation.w
-        ]
-        
-        smoothed_quat = self.pid.compute_orientation(current_quat, self.target_orientation_quat)
+        if self.state in ('SETTLE', 'GRASP', 'LIFT') and self.grasp_orientation_quat is not None:
+            # Detener el PID de orientación y congelar la postura en el punto de agarre
+            smoothed_quat = self.grasp_orientation_quat
+        else:
+            euler_control, _ = self.pid.compute_euler(current_euler, target_euler)
+            new_euler = np.array(current_euler) + euler_control
+            smoothed_quat = quaternion_from_euler(new_euler[0], new_euler[1], new_euler[2])
         
         target_pose.pose.orientation.x = smoothed_quat[0]
         target_pose.pose.orientation.y = smoothed_quat[1]
@@ -426,8 +471,8 @@ class PickupApproximateNode(Node):
             self.pid.reset()
             self.fixed_orientation = None
             self.target_orientation_quat = None
-            self.initial_ee_quat = None
             self.grasp_position = None
+            self.grasp_orientation_quat = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
