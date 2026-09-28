@@ -1,9 +1,13 @@
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Float64MultiArray
 
 class ActionExecutor:
     def __init__(self, node):
         self.node = node
-        self.pose_pub = node.create_publisher(PoseStamped, 'target_pid_pose', 10)
+        # Se publica la acción en target_frame para que Isaac Sim / IK la ejecute
+        self.pose_pub = node.create_publisher(PoseStamped, 'target_frame', 10)
+        # Se publica el estado del gripper para que Isaac Sim lo abra/cierre
+        self.gripper_pub = node.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
         
     def execute(self, action_chunk):
         """
@@ -18,7 +22,10 @@ class ActionExecutor:
         target.pose = action_chunk.poses[0]
         self.pose_pub.publish(target)
         
-        # Opcional: Publicar estado del gripper si existe
+        # Publicar estado del gripper si existe
         if action_chunk.gripper_states:
             gripper_val = action_chunk.gripper_states[0]
-            # TODO: Enviar gripper_val al controlador del gripper
+            gripper_msg = Float64MultiArray()
+            # Asumimos que el array contiene dos valores o los que requiera el controlador
+            gripper_msg.data = [float(gripper_val)]
+            self.gripper_pub.publish(gripper_msg)

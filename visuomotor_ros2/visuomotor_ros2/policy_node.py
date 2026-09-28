@@ -3,10 +3,14 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, JointState
 from visuomotor_msgs.msg import ActionChunk
-from visuomotor_ros2.observation_buffer import ObservationBuffer
 from visuomotor_ros2.action_executors import ActionExecutor
 import torch
 import numpy as np
+import cv_bridge
+from geometry_msgs.msg import Pose
+import tf2_ros
+from tf2_ros import TransformException
+import time
 
 # Import real policy
 from visuomotor_core.models.diffusion_policy import DiffusionPolicy
@@ -16,16 +20,26 @@ class PolicyNode(Node):
     def __init__(self):
         super().__init__('policy_node')
         self.cbg = ReentrantCallbackGroup()
+        self.bridge = cv_bridge.CvBridge()
         
         self.declare_parameter('model_type', 'diffusion')
         self.declare_parameter('checkpoint_path', '')
-        self.declare_parameter('inference_hz', 10.0)
-        self.declare_parameter('h_obs', 2)
-        self.declare_parameter('h_act', 16)
+        self.declare_parameter('inference_hz', 20.0)
+        self.declare_parameter('camera_topic', '/rgb')
+        self.declare_parameter('ee_frame', 'gripper_base_link')
+        self.declare_parameter('base_frame', 'link_base')
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Load weights
+        self.current_gripper_state = 0.0
+        self.create_subscription(JointState, '/joint_states', self._joint_cb, 10, callback_group=self.cbg)
+
+        camera_topic = self.get_parameter('camera_topic').value
+        self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
+        
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
         ckpt_path = self.get_parameter('checkpoint_path').value
         if ckpt_path:
             self.policy = DiffusionPolicy.from_pretrained(Path(ckpt_path))
@@ -38,48 +52,98 @@ class PolicyNode(Node):
             self.policy = None
             self.get_logger().warn("No checkpoint_path provided. Running in dummy mode.")
         
-        self.obs_buffer = ObservationBuffer(self, self.get_parameter('h_obs').value)
         self.action_executor = ActionExecutor(self)
-        
         self.action_pub = self.create_publisher(ActionChunk, 'policy/action_chunk', 10)
+        
+        self.latest_img = None
+        self.latest_state = None
+        
+        # State machine
+        self.node_start_time = time.time()
+        self.state = 'RESET'
+        self.reset_duration_s = 5.0
+        self.initial_quat = None
         
         rate = self.get_parameter('inference_hz').value
         self.timer = self.create_timer(1.0 / rate, self._inference_step, callback_group=self.cbg)
+
+    def _joint_cb(self, msg):
+        try:
+            for name, pos in zip(msg.name, msg.position):
+                if 'gripper' in name:
+                    self.current_gripper_state = float(pos)
+                    break
+        except Exception:
+            pass
+
+    def _img_cb(self, msg):
+        cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        try:
+            ee_frame = self.get_parameter('ee_frame').value
+            base_frame = self.get_parameter('base_frame').value
+            t = self.tf_buffer.lookup_transform(base_frame, ee_frame, rclpy.time.Time())
+            
+            ee_pose = np.array([
+                t.transform.translation.x,
+                t.transform.translation.y,
+                t.transform.translation.z,
+                t.transform.rotation.x,
+                t.transform.rotation.y,
+                t.transform.rotation.z,
+                t.transform.rotation.w,
+                self.current_gripper_state
+            ], dtype=np.float32)
+            
+            if self.initial_quat is None:
+                self.initial_quat = ee_pose[3:7]
+            
+            self.latest_img = cv_img
+            self.latest_state = ee_pose
+                
+        except TransformException as e:
+            self.get_logger().warn(f"TF Error en la inferencia: {e}", throttle_duration_sec=2.0)
         
     def _inference_step(self):
-        obs = self.obs_buffer.get_recent_observations()
-        if obs is None:
+        if self.latest_img is None or self.latest_state is None:
+            self.get_logger().info("Esperando imagen y tf para inferir...", throttle_duration_sec=2.0)
             return
             
+        now = time.time()
+        if self.state == 'RESET':
+            if now - self.node_start_time < self.reset_duration_s:
+                self.get_logger().info(f"Yendo a posicion inicial [0.25, 0.0, 0.40]...", throttle_duration_sec=1.0)
+                msg = ActionChunk()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.header.frame_id = self.get_parameter("base_frame").value
+                p = Pose()
+                p.position.x = 0.25
+                p.position.y = 0.0
+                p.position.z = 0.40
+                
+                # Mantener la orientación que tenía al iniciar el script
+                if self.initial_quat is not None:
+                    p.orientation.x = float(self.initial_quat[0])
+                    p.orientation.y = float(self.initial_quat[1])
+                    p.orientation.z = float(self.initial_quat[2])
+                    p.orientation.w = float(self.initial_quat[3])
+                
+                msg.poses.append(p)
+                msg.gripper_states.append(0.0) # Gripper abierto
+                
+                self.action_pub.publish(msg)
+                self.action_executor.execute(msg)
+                return
+            else:
+                self.get_logger().info("RESET finalizado. ¡Cediendo el control a la Red Neuronal (Diffusion Policy)!")
+                self.state = 'INFERENCE'
+                
         if self.policy is not None:
-            # Reconstruir tensor de imagen (B, T, C, H, W)
-            # Y tensor de estado (B, T_state, dim)
-            import cv_bridge
-            from geometry_msgs.msg import Pose
-            
-            bridge = cv_bridge.CvBridge()
-            
-            # obs is a list of len h_obs. Each has 'image' and 'joint' (or 'ee_pose').
-            # We assume 'joint' has positions for joints + gripper
-            # Since diffusion policy typically expects [1, C, H, W] for current image or [1, h_obs, C, H, W] depending on the model.
-            # In robo_imitate, observation_image is a single image passed to the model which maintains an internal queue.
-            # Wait, `self.policy.select_action` from robo_imitate expects:
-            # "observation.state": (1, dim), "observation.image": (1, C, H, W)
-            # The model internally handles the history (queues).
-            
-            # So we only need the LATEST observation
-            latest_obs = obs[-1]
-            cv_img = bridge.imgmsg_to_cv2(latest_obs['image'], desired_encoding='rgb8')
-            
-            # Prepare image tensor
-            img_tensor = torch.from_numpy(cv_img).to(torch.float32).permute(2, 0, 1) / 255.0
+            # Prepare image tensor (1, C, H, W)
+            img_tensor = torch.from_numpy(self.latest_img).to(torch.float32).permute(2, 0, 1) / 255.0
             img_tensor = img_tensor.to(self.device, non_blocking=True).unsqueeze(0)
             
-            # Prepare state tensor
-            # The observation_buffer currently stores JointState. 
-            # We should extract the positions.
-            state_array = np.array(latest_obs['joint'].position, dtype=np.float32)
-            state_tensor = torch.from_numpy(state_array).to(torch.float32).to(self.device).unsqueeze(0)
+            # Prepare state tensor (1, dim)
+            state_tensor = torch.from_numpy(self.latest_state).to(torch.float32).to(self.device).unsqueeze(0)
             
             observation = {
                 "observation.state": state_tensor,
@@ -87,36 +151,39 @@ class PolicyNode(Node):
             }
             
             with torch.inference_mode():
-                # action = (horizon, action_dim)
-                action_seq = self.policy.select_action(observation).squeeze(0).cpu().numpy()
+                action_output = self.policy.select_action(observation)
+                action_np = action_output.squeeze().cpu().numpy()
                 
             msg = ActionChunk()
             msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = self.get_parameter("base_frame").value
             
-            for i in range(action_seq.shape[0]):
-                p = Pose()
-                p.position.x = float(action_seq[i, 0])
-                p.position.y = float(action_seq[i, 1])
-                p.position.z = float(action_seq[i, 2])
+            p = Pose()
+            p.position.x = float(action_np[0])
+            p.position.y = float(action_np[1])
+            p.position.z = float(action_np[2])
+            
+            if len(action_np) >= 7:
+                p.orientation.x = float(action_np[3])
+                p.orientation.y = float(action_np[4])
+                p.orientation.z = float(action_np[5])
+                p.orientation.w = float(action_np[6])
+            
+            msg.poses.append(p)
+            
+            if len(action_np) >= 8:
+                msg.gripper_states.append(float(action_np[7]))
+            else:
+                msg.gripper_states.append(0.0)
                 
-                # If using 6DoF Euler, you might need to convert to Quat here.
-                # If using 7DoF Quat natively:
-                if action_seq.shape[1] >= 7:
-                    p.orientation.x = float(action_seq[i, 3])
-                    p.orientation.y = float(action_seq[i, 4])
-                    p.orientation.z = float(action_seq[i, 5])
-                    p.orientation.w = float(action_seq[i, 6])
-                
-                msg.poses.append(p)
-                
-                # Check for Gripper action
-                if self.policy.config.use_gripper and action_seq.shape[1] >= 8:
-                    msg.gripper_states.append(float(action_seq[i, 7]))
-                elif self.policy.config.use_gripper and action_seq.shape[1] == 7: # If 6DoF + gripper
-                    msg.gripper_states.append(float(action_seq[i, 6]))
-                    
             self.action_pub.publish(msg)
             self.action_executor.execute(msg)
+            
+            gripper_val = msg.gripper_states[0]
+            gripper_str = "CERRADO" if gripper_val < -0.005 else "ABIERTO"
+            self.get_logger().info(f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {gripper_val:.4f} ({gripper_str})", throttle_duration_sec=1.0)
+
+def main(args=None):
     rclpy.init(args=args)
     node = PolicyNode()
     rclpy.spin(node)
@@ -125,4 +192,3 @@ class PolicyNode(Node):
 
 if __name__ == '__main__':
     main()
-
