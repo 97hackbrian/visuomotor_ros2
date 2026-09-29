@@ -15,11 +15,17 @@
     # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
     tcp_offset_z: 0.079
     
-    # Ganancias y límites del controlador PID Cartesiano
+    # Ganancias y límites del controlador PID Cartesiano (Traslación)
     kp: 1.0
-    ki: 0.0
+    ki: 0.001
     kd: 0.05
-    max_speed_m_s: 0.07       # Límite de velocidad máxima permitida (metros por segundo)
+    max_speed_m_s: 0.055       # Límite de velocidad máxima permitida (metros por segundo)
+    
+    # Ganancias y límites del controlador PID Cartesiano (Rotación)
+    kp_rot: 1.2
+    ki_rot: 0.0
+    kd_rot: 0.05
+    max_speed_rad_s: 1.25      # Límite de velocidad angular (radianes por segundo)
     
     # Parámetros de la secuencia Pick up and Approximate
     init_x: 0.25              # Posición inicial oficial en X (metros)

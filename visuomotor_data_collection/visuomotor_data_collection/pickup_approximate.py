@@ -64,6 +64,11 @@ class PickupApproximateNode(Node):
         self.declare_parameter('kd', 0.05)
         self.declare_parameter('max_speed_m_s', 0.15) # Límite de velocidad
         
+        self.declare_parameter('kp_rot', 1.5)
+        self.declare_parameter('ki_rot', 0.0)
+        self.declare_parameter('kd_rot', 0.05)
+        self.declare_parameter('max_speed_rad_s', 1.5)
+        
         # Nuevos parámetros de la secuencia
         self.declare_parameter('init_x', 0.25)        # Posición inicial oficial en X
         self.declare_parameter('init_y', 0.0)         # Posición inicial oficial en Y
@@ -72,11 +77,11 @@ class PickupApproximateNode(Node):
         
         # Parámetros para aleatorización del objeto (respawn)
         self.declare_parameter('random_spawn', True)
-        self.declare_parameter('spawn_x_min', 0.24)
-        self.declare_parameter('spawn_x_max', 0.29)
-        self.declare_parameter('spawn_y_min', -0.645)
-        self.declare_parameter('spawn_y_max', -1.025)
-        self.declare_parameter('spawn_z', 0.49)
+        self.declare_parameter('spawn_x_min', 0.30)
+        self.declare_parameter('spawn_x_max', 0.34)
+        self.declare_parameter('spawn_y_min', -0.71)
+        self.declare_parameter('spawn_y_max', -1.0)
+        self.declare_parameter('spawn_z', 0.44)
         self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
@@ -184,7 +189,7 @@ class PickupApproximateNode(Node):
         if self.target_orientation_quat is None:
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
-        if self.state in ('IDLE', 'WAIT', 'UNTILT'):
+        if self.state in ('IDLE', 'WAIT', 'LIFT', 'UNTILT'):
             # Regresar a la postura inicial (mirando hacia abajo)
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
@@ -389,8 +394,14 @@ class PickupApproximateNode(Node):
         kp = self.get_parameter('kp').value
         ki = self.get_parameter('ki').value
         kd = self.get_parameter('kd').value
+        
+        kp_rot = self.get_parameter('kp_rot').value
+        ki_rot = self.get_parameter('ki_rot').value
+        kd_rot = self.get_parameter('kd_rot').value
+        max_speed_rad_s = self.get_parameter('max_speed_rad_s').value
+        
         self.pid.sampling_rate_hz = control_rate
-        self.pid.update_params(kp, ki, kd, max_speed_m_s)
+        self.pid.update_params(kp, ki, kd, max_speed_m_s, kp_rot, ki_rot, kd_rot, max_speed_rad_s)
         
         current_pos = np.array([
             t_ee.transform.translation.x,
@@ -409,7 +420,7 @@ class PickupApproximateNode(Node):
         target_pose.pose.position.y = t_ee.transform.translation.y + control_output[1]
         target_pose.pose.position.z = t_ee.transform.translation.z + control_output[2]
         
-        if self.state in ('SETTLE', 'GRASP', 'LIFT') and self.grasp_orientation_quat is not None:
+        if self.state in ('SETTLE', 'GRASP') and self.grasp_orientation_quat is not None:
             # Detener el PID de orientación y congelar la postura en el punto de agarre
             smoothed_quat = self.grasp_orientation_quat
         else:
@@ -481,16 +492,37 @@ class PickupApproximateNode(Node):
         spawn_y_max = self.get_parameter('spawn_y_max').value
         spawn_z     = self.get_parameter('spawn_z').value
         
-        target_x = random.uniform(spawn_x_min, spawn_x_max)
-        target_y = random.uniform(spawn_y_min, spawn_y_max)
+        # Muestreo Estratificado (Stratified Sampling) para consistencia probabilística
+        # Dividimos el espacio en una cuadrícula de 3x3 para garantizar cobertura uniforme
+        if not hasattr(self, 'spawn_grid_indices') or len(self.spawn_grid_indices) == 0:
+            grid_size_x, grid_size_y = 3, 3
+            self.spawn_grid_indices = [(i, j) for i in range(grid_size_x) for j in range(grid_size_y)]
+            random.shuffle(self.spawn_grid_indices)
+        
+        idx_x, idx_y = self.spawn_grid_indices.pop()
+        
+        step_x = (spawn_x_max - spawn_x_min) / 3.0
+        step_y = (spawn_y_max - spawn_y_min) / 3.0
+        
+        cell_x_min = spawn_x_min + idx_x * step_x
+        cell_x_max = cell_x_min + step_x
+        cell_y_min = spawn_y_min + idx_y * step_y
+        cell_y_max = cell_y_min + step_y
+        
+        # Jitter uniforme dentro de la cuadrícula seleccionada
+        target_x = random.uniform(cell_x_min, cell_x_max)
+        target_y = random.uniform(cell_y_min, cell_y_max)
         
         twist_msg = Twist()
-        twist_msg.linear.x = target_x
-        twist_msg.linear.y = target_y
-        twist_msg.linear.z = spawn_z
+        twist_msg.linear.x = float(target_x)
+        twist_msg.linear.y = float(target_y)
+        twist_msg.linear.z = float(spawn_z)
+        
+        # Yaw aleatorio entre -pi y pi para dar consistencia rotacional a los datos
+        twist_msg.angular.z = random.uniform(-3.14159, 3.14159)
         
         self.respawn_pub.publish(twist_msg)
-        self.get_logger().info(f"Objeto re-posicionado en: X={target_x:.3f}, Y={target_y:.3f}, Z={spawn_z:.3f}")
+        self.get_logger().info(f"Objeto re-posicionado (Estratificado): X={target_x:.3f}, Y={target_y:.3f}, Yaw={twist_msg.angular.z:.2f}")
 
     def _srv_trigger(self, req, res):
         cmd = req.command.strip().upper()

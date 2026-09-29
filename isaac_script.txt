@@ -1,0 +1,87 @@
+import numpy as np
+import math
+from pxr import Gf
+import omni.graph.core as og
+import omni.usd
+
+def setup(db: og.Database):
+    pass
+
+def cleanup(db: og.Database):
+    pass
+
+def compute(db: og.Database):
+    # Usamos atributos de la propia funcion para guardar la memoria sin variables globales
+    if not hasattr(compute, "last_lin"):
+        compute.last_lin = None
+        compute.init_orient = None
+        compute.init_rotate = None
+
+    TARGET_PATH = "/World/Dynamic_obs/pruning_shears1"
+    TWIST_PATH = "/World/husky_A200_robot/Geometry/base_link/top_plate_link/lite6_cam/ros2_position_respawn/ros2_subscribe_twist"
+
+    stage = omni.usd.get_context().get_stage()
+    target_prim = stage.GetPrimAtPath(TARGET_PATH)
+
+    if not target_prim.IsValid():
+        return
+
+    # 1. CAPTURAR LA ROTACION ORIGINAL
+    if compute.init_orient is None and compute.init_rotate is None:
+        if target_prim.HasAttribute("xformOp:orient"):
+            compute.init_orient = target_prim.GetAttribute("xformOp:orient").Get()
+        if target_prim.HasAttribute("xformOp:rotateXYZ"):
+            compute.init_rotate = target_prim.GetAttribute("xformOp:rotateXYZ").Get()
+
+    graph = db.node.get_graph()
+    twist_node = graph.get_node(TWIST_PATH)
+    
+    # Extraer velocidades lineales y angulares enviadas desde ROS 2
+    lin = og.Controller.get(og.Controller.attribute("outputs:linearVelocity", twist_node))
+    ang = og.Controller.get(og.Controller.attribute("outputs:angularVelocity", twist_node))
+
+    if lin is not None and (abs(lin[0]) > 1e-6 or abs(lin[1]) > 1e-6 or abs(lin[2]) > 1e-6):
+        
+        current_lin = (float(lin[0]), float(lin[1]), float(lin[2]))
+        
+        if current_lin != compute.last_lin:
+            
+            # A. Restaurar Posicion
+            target_prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*current_lin))
+            
+            # Extraer el Yaw en radianes enviado por nuestro script y pasarlo a grados
+            yaw_rad = float(ang[2]) if ang is not None else 0.0
+            yaw_deg = math.degrees(yaw_rad)
+            
+            # B. Aplicar Rotacion
+            if compute.init_orient is not None:
+                orig_rot = Gf.Rotation(compute.init_orient)
+                # Si Z era el Roll, intentamos con Y (0, 1, 0) o X (1, 0, 0) para el Yaw
+                yaw_rot = Gf.Rotation(Gf.Vec3d(0, 1, 0), yaw_deg)
+                
+                new_rot = yaw_rot * orig_rot
+                new_quat = new_rot.GetQuat()
+                
+                if type(compute.init_orient) == Gf.Quatf:
+                    target_prim.GetAttribute("xformOp:orient").Set(Gf.Quatf(new_quat))
+                else:
+                    target_prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(new_quat))
+                    
+            if compute.init_rotate is not None:
+                new_rotate = Gf.Vec3d(
+                    compute.init_rotate[0], 
+                    compute.init_rotate[1] + yaw_deg, 
+                    compute.init_rotate[2]
+                )
+                target_prim.GetAttribute("xformOp:rotateXYZ").Set(new_rotate)
+
+            # C. Matar inercias fisicas
+            if target_prim.HasAttribute("physics:velocity"):
+                target_prim.GetAttribute("physics:velocity").Set(Gf.Vec3f(0.0, 0.0, 0.0))
+            if target_prim.HasAttribute("physics:angularVelocity"):
+                target_prim.GetAttribute("physics:angularVelocity").Set(Gf.Vec3f(0.0, 0.0, 0.0))              
+            
+            print(f"[Respawn] Movido a: {current_lin} | Yaw rotado: {yaw_deg:.2f}")
+            
+            # Guardamos en memoria
+            compute.last_lin = current_lin
