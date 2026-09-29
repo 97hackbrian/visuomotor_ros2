@@ -8,6 +8,7 @@ from cv_bridge import CvBridge
 import numpy as np
 import random
 import tf2_ros
+import cv2
 from tf2_ros import TransformException
 import time
 
@@ -141,7 +142,9 @@ class PickupApproximateNode(Node):
         self.get_logger().info(f"Pickup & Approximate Sequence Node Inicializado. Velocidad max: {max_speed} m/s")
 
     def _img_cb(self, msg):
-        self.latest_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        # Reducir drásticamente el peso del dataset (de 33GB a ~2GB) redimensionando en origen
+        self.latest_img = cv2.resize(img, (256, 256), interpolation=cv2.INTER_AREA)
 
     def _control_step(self):
         obj_frame = self.get_parameter('object_frame').value
