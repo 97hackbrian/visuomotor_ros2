@@ -1,8 +1,8 @@
 policy_node:
   ros__parameters:
     model_type: "diffusion"
-    checkpoint_path: "/ros/visuomotor_core/outputs/train_fixed_vision"
-    inference_hz: 10.0
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_500"
+    inference_hz: 20.0
     num_inference_steps: 16
     h_obs: 2
     h_act: 16

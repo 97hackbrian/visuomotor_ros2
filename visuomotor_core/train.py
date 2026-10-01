@@ -9,7 +9,7 @@ from visuomotor_core.dataset.zarr_dataset import ZarrDataset
 
 
 
-def main(root, epoch, batch_size, out_dir):
+def main(root, epoch, batch_size, out_dir, save_every):
     print(root)
     if root is None:
         print('[ERROR] Must specify path to data!')
@@ -97,13 +97,20 @@ def main(root, epoch, batch_size, out_dir):
                     print(f"Epoch {epoch_idx}/{epochs} | Step {step}/{total_steps} | Loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.2e} | VRAM(peak): {vram_mb:.0f}MB")
                     torch.cuda.reset_peak_memory_stats()
 
-                if step > 0 and step % checkpoint_freq == 0:
-                    orig_policy = policy._orig_mod if hasattr(policy, "_orig_mod") else policy
-                    orig_policy.save_pretrained(output_directory)
-                    print(f"[checkpoint] saved at step {step}")
-
                 step += 1
                 train_losses.append(loss.item())
+            
+            # Guardar el checkpoint exactamente al finalizar la época (oficial)
+            orig_policy = policy._orig_mod if hasattr(policy, "_orig_mod") else policy
+            orig_policy.save_pretrained(output_directory)
+            print(f"[checkpoint] Official weights saved at end of Epoch {epoch_idx} (Step {step})")
+            
+            # Guardar en carpeta separada cada 'save_every' épocas
+            if epoch_idx % save_every == 0:
+                ckpt_dir = os.path.join(output_directory, "checkpoints", f"epoch_{epoch_idx}")
+                os.makedirs(ckpt_dir, exist_ok=True)
+                orig_policy.save_pretrained(ckpt_dir)
+                print(f"[checkpoint] Separated checkpoint saved for evaluation at: {ckpt_dir}")
     except KeyboardInterrupt:
         print("\n[INFO] Entrenamiento interrumpido manualmente (KeyboardInterrupt). Guardando pesos actuales...")
 
@@ -114,11 +121,10 @@ def main(root, epoch, batch_size, out_dir):
     plt.legend()
 
     time_now = datetime.now()
-    loss_path = 'outputs/losses/'
-    if not os.path.exists(loss_path):
-        os.mkdir(loss_path)
+    loss_path = os.path.join(output_directory, 'losses')
+    os.makedirs(loss_path, exist_ok=True)
 
-    name = loss_path + 'loss_' + time_now.strftime("%Y_%m_%d_%H_%M_%S") + '.png'
+    name = os.path.join(loss_path, f"loss_{time_now.strftime('%Y_%m_%d_%H_%M_%S')}.png")
     plt.savefig(name, bbox_inches='tight', dpi=300)
 
     # Save the original uncompiled policy if compiled
@@ -136,6 +142,7 @@ if __name__ == '__main__':
                          'image batch through the ResNet encoder; 224x224 crops OOM well before batch_size=512 on an '
                          '8GB GPU — start low and raise it while watching the printed VRAM figure)')
     parser.add_argument('--out_dir', type=str, default='outputs/train', help='Output directory')
+    parser.add_argument('--save_every', type=int, default=25, help='Save a separate checkpoint every N epochs')
     parsed_args = parser.parse_args()
 
-    main(parsed_args.path, parsed_args.epoch, parsed_args.batch_size, parsed_args.out_dir)
+    main(parsed_args.path, parsed_args.epoch, parsed_args.batch_size, parsed_args.out_dir, parsed_args.save_every)
