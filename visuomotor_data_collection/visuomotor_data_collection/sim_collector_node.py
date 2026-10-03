@@ -21,7 +21,7 @@ class SimCollectorNode(Node):
         self.cbg = ReentrantCallbackGroup()
         
         # Parámetros generales
-        self.declare_parameter('dataset_path', 'demonstrations.zarr')
+        self.declare_parameter('dataset_path', 'AUTO')
         self.declare_parameter('sampling_rate_hz', 20.0)
         self.declare_parameter('camera_topic', '/rgb')
         
@@ -45,6 +45,27 @@ class SimCollectorNode(Node):
         self.declare_parameter('gripper_closed_pos', -0.01)
         
         storage_path = self.get_parameter('dataset_path').value
+        if storage_path == 'AUTO':
+            import glob
+            import os
+            import re
+            
+            base_dir = "datasets"
+            os.makedirs(base_dir, exist_ok=True)
+            existing = glob.glob(os.path.join(base_dir, "demonstrations_v*.zarr"))
+            max_v = 1
+            for path in existing:
+                match = re.search(r"demonstrations_v(\d+)\.zarr", path)
+                if match:
+                    v = int(match.group(1))
+                    if v > max_v:
+                        max_v = v
+            
+            storage_path = os.path.join(base_dir, f"demonstrations_v{max_v + 1}.zarr")
+            self.get_logger().info(f"Modo AUTO: Creado nuevo dataset aislado en {storage_path}")
+        else:
+            self.get_logger().info(f"Usando dataset especificado: {storage_path}")
+            
         self.storage = ZarrStorage(storage_path)
         
         self.is_recording = False

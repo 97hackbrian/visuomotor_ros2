@@ -29,6 +29,7 @@ class PolicyNode(Node):
         self.declare_parameter('ee_frame', 'gripper_base_link')
         self.declare_parameter('base_frame', 'link_base')
         self.declare_parameter('num_inference_steps', 16)
+        self.declare_parameter('n_action_steps', 8)
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -45,6 +46,11 @@ class PolicyNode(Node):
         if ckpt_path:
             self.policy = DiffusionPolicy.from_pretrained(Path(ckpt_path))
             self.policy.diffusion.num_inference_steps = self.get_parameter('num_inference_steps').value
+            
+            # Sobreescribir el n_action_steps para controlar la reactividad (pasos ejecutados antes de replanificar)
+            self.policy.config.n_action_steps = self.get_parameter('n_action_steps').value
+            self.policy.reset() # Re-inicializar las colas con el nuevo tamaño
+            
             self.policy.eval()
             self.policy.to(self.device)
             self.policy.reset()

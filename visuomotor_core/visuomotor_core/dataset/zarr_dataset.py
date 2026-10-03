@@ -40,10 +40,14 @@ class ZarrDataset(Dataset):
             "observation.state": {
                 "min": torch.tensor(all_states.min(axis=0), dtype=torch.float32),
                 "max": torch.tensor(all_states.max(axis=0), dtype=torch.float32),
+                "mean": torch.tensor(all_states.mean(axis=0), dtype=torch.float32),
+                "std": torch.tensor(all_states.std(axis=0) + 1e-6, dtype=torch.float32),
             },
             "action": {
                 "min": torch.tensor(all_actions.min(axis=0), dtype=torch.float32),
                 "max": torch.tensor(all_actions.max(axis=0), dtype=torch.float32),
+                "mean": torch.tensor(all_actions.mean(axis=0), dtype=torch.float32),
+                "std": torch.tensor(all_actions.std(axis=0) + 1e-6, dtype=torch.float32),
             }
         }
         return stats
@@ -63,6 +67,10 @@ class ZarrDataset(Dataset):
         
         states = group['state'][frame_idx - self.n_obs_steps + 1 : frame_idx + 1]
         states = torch.tensor(states, dtype=torch.float32)
+        
+        # Proprioception Dropout (15% probability)
+        if torch.rand(1).item() < 0.15:
+            states = torch.zeros_like(states)
         
         actions = group['action'][frame_idx : frame_idx + self.h_act]
         actions = torch.tensor(actions, dtype=torch.float32)

@@ -11,6 +11,7 @@ import tf2_ros
 import cv2
 from tf2_ros import TransformException
 import time
+from scipy.stats import qmc
 
 def multiply_quaternions(q1, q2):
     # q = [x, y, z, w]
@@ -54,7 +55,7 @@ class PickupApproximateNode(Node):
         self.bridge = CvBridge()
         self.cbg = ReentrantCallbackGroup()
         
-        self.declare_parameter('dataset_path', 'demonstrations.zarr')
+        self.declare_parameter('dataset_path', 'AUTO')
         self.declare_parameter('sampling_rate_hz', 20.0)
         self.declare_parameter('camera_topic', '/rgb')
         self.declare_parameter('object_frame', 'pick_target')
@@ -95,7 +96,30 @@ class PickupApproximateNode(Node):
         self.declare_parameter('gripper_open_pos', 0.0)
         self.declare_parameter('gripper_closed_pos', -0.01)
         
-        self.storage = ZarrStorage(self.get_parameter('dataset_path').value)
+        dataset_path = self.get_parameter('dataset_path').value
+        if dataset_path == 'AUTO':
+            import glob
+            import os
+            import re
+            
+            base_dir = "datasets"
+            os.makedirs(base_dir, exist_ok=True)
+            existing = glob.glob(os.path.join(base_dir, "demonstrations_v*.zarr"))
+            max_v = 1
+            for path in existing:
+                match = re.search(r"demonstrations_v(\d+)\.zarr", path)
+                if match:
+                    v = int(match.group(1))
+                    if v > max_v:
+                        max_v = v
+            
+            # Start at v2 by default since v1 is demonstrations.zarr
+            dataset_path = os.path.join(base_dir, f"demonstrations_v{max_v + 1}.zarr")
+            self.get_logger().info(f"Modo AUTO: Creado nuevo dataset aislado en {dataset_path}")
+        else:
+            self.get_logger().info(f"Usando dataset especificado: {dataset_path}")
+        
+        self.storage = ZarrStorage(dataset_path)
         
         self.buffer = []
         self.latest_img = None
@@ -128,6 +152,16 @@ class PickupApproximateNode(Node):
         self.target_orientation_quat = None
         self.initial_ee_quat = None
         self.has_respawned_this_wait = False
+        
+        self.noise_offset = np.zeros(3)
+        self.halton_obj = qmc.Halton(d=3, scramble=True)
+        self.halton_robot = qmc.Halton(d=2, scramble=True)
+        
+        self.current_init_x = self.get_parameter('init_x').value
+        self.current_init_y = self.get_parameter('init_y').value
+        self.current_jitter_roll = 0.0
+        self.current_jitter_pitch = 0.0
+        self.current_jitter_yaw = 0.0
 
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
 
@@ -193,8 +227,13 @@ class PickupApproximateNode(Node):
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
         if self.state in ('IDLE', 'WAIT', 'LIFT', 'UNTILT'):
-            # Regresar a la postura inicial (mirando hacia abajo)
-            self.target_orientation_quat = self.initial_ee_quat.copy()
+            # Regresar a la postura inicial pero aplicando el jitter calculado para esta demostración
+            r_init, p_init, y_init = euler_from_quaternion(self.initial_ee_quat)
+            self.target_orientation_quat = quaternion_from_euler(
+                r_init + self.current_jitter_roll,
+                p_init + self.current_jitter_pitch,
+                y_init + self.current_jitter_yaw
+            )
 
         if self.state in ('ALIGN', 'DESCEND'):
             # Obtenemos la orientación completa del objeto (pick_target)
@@ -205,7 +244,6 @@ class PickupApproximateNode(Node):
             obj_roll, obj_pitch, obj_yaw = euler_from_quaternion(q_obj)
             
             # Usamos el Roll, Pitch y Yaw directamente del pick_target
-            # (El PID ahora se encarga de suavizar la transición sin sufrir drifting)
             target_roll = obj_roll
             target_pitch = obj_pitch
             target_yaw = obj_yaw
@@ -217,16 +255,20 @@ class PickupApproximateNode(Node):
         gripper_state = gripper_open_pos
 
         if self.state in ('IDLE', 'WAIT'):
-            # Posición de reposo / inicio
-            target_x = self.get_parameter('init_x').value
-            target_y = self.get_parameter('init_y').value
+            # Posición de reposo / inicio aleatorizada
+            target_x = self.current_init_x
+            target_y = self.current_init_y
             target_z = self.get_parameter('init_z_height').value
 
         elif self.state == 'ALIGN':
-            # Fase 1: moverse compensando el ángulo 3D (Z invertido relativo al gripper)
+            # Fase 1: Alineamiento XY y Rotacional previo al descenso
             # Offset del TCP compensando el ángulo (vector -Z en el frame local del gripper)
             qx, qy, qz, qw = self.target_orientation_quat
-            d = -(tcp_offset_z + hover_z_offset)
+            
+            # Trayectoria de Embudo: Z proporcional al error en XY respecto al objeto
+            dist_to_obj_xy = np.linalg.norm([obj_x - ee_x, obj_y - ee_y])
+            funnel_z_offset = hover_z_offset + (dist_to_obj_xy * 1.5)
+            d = -(tcp_offset_z + funnel_z_offset)
             
             dx = d * 2.0 * (qx*qz + qw*qy)
             dy = d * 2.0 * (qy*qz - qw*qx)
@@ -436,7 +478,23 @@ class PickupApproximateNode(Node):
         target_pose.pose.orientation.z = smoothed_quat[2]
         target_pose.pose.orientation.w = smoothed_quat[3]
         
-        self.action_pub.publish(target_pose)
+        # DAgger / Proprioception Noise Injection
+        import copy
+        published_pose = copy.deepcopy(target_pose)
+        
+        if self.state in ('DESCEND', 'ALIGN'):
+            # Random walk noise decay
+            self.noise_offset *= 0.95
+            # Inject new gaussian step
+            self.noise_offset += np.random.normal(0, 0.001, 3)
+            
+            published_pose.pose.position.x += float(self.noise_offset[0])
+            published_pose.pose.position.y += float(self.noise_offset[1])
+            published_pose.pose.position.z += float(self.noise_offset[2])
+        else:
+            self.noise_offset = np.zeros(3)
+        
+        self.action_pub.publish(published_pose)
         
 
         # Publicar el comando del gripper continuamente a 100Hz (requerido por algunos controladores/simuladores)
@@ -495,37 +553,37 @@ class PickupApproximateNode(Node):
         spawn_y_max = self.get_parameter('spawn_y_max').value
         spawn_z     = self.get_parameter('spawn_z').value
         
-        # Muestreo Estratificado (Stratified Sampling) para consistencia probabilística
-        # Dividimos el espacio en una cuadrícula de 3x3 para garantizar cobertura uniforme
-        if not hasattr(self, 'spawn_grid_indices') or len(self.spawn_grid_indices) == 0:
-            grid_size_x, grid_size_y = 3, 3
-            self.spawn_grid_indices = [(i, j) for i in range(grid_size_x) for j in range(grid_size_y)]
-            random.shuffle(self.spawn_grid_indices)
+        # Secuencia Quasi-Monte Carlo (Halton) para el objeto (3D: X, Y, Yaw)
+        halton_sample = self.halton_obj.random(1)[0]
         
-        idx_x, idx_y = self.spawn_grid_indices.pop()
-        
-        step_x = (spawn_x_max - spawn_x_min) / 3.0
-        step_y = (spawn_y_max - spawn_y_min) / 3.0
-        
-        cell_x_min = spawn_x_min + idx_x * step_x
-        cell_x_max = cell_x_min + step_x
-        cell_y_min = spawn_y_min + idx_y * step_y
-        cell_y_max = cell_y_min + step_y
-        
-        # Jitter uniforme dentro de la cuadrícula seleccionada
-        target_x = random.uniform(cell_x_min, cell_x_max)
-        target_y = random.uniform(cell_y_min, cell_y_max)
+        target_x = spawn_x_min + halton_sample[0] * (spawn_x_max - spawn_x_min)
+        target_y = spawn_y_min + halton_sample[1] * (spawn_y_max - spawn_y_min)
+        target_yaw = -3.14159 + halton_sample[2] * (2.0 * 3.14159)
         
         twist_msg = Twist()
         twist_msg.linear.x = float(target_x)
         twist_msg.linear.y = float(target_y)
         twist_msg.linear.z = float(spawn_z)
-        
-        # Yaw aleatorio entre -pi y pi para dar consistencia rotacional a los datos
-        twist_msg.angular.z = random.uniform(-3.14159, 3.14159)
+        twist_msg.angular.z = float(target_yaw)
         
         self.respawn_pub.publish(twist_msg)
-        self.get_logger().info(f"Objeto re-posicionado (Estratificado): X={target_x:.3f}, Y={target_y:.3f}, Yaw={twist_msg.angular.z:.2f}")
+        self.get_logger().info(f"Objeto re-posicionado (Halton): X={target_x:.3f}, Y={target_y:.3f}, Yaw={target_yaw:.2f}")
+
+        # Randomización de la pose inicial del EE (Robot) con Halton (2D: X, Y)
+        # Randomizaremos la base alrededor del punto inicial predeterminado
+        base_init_x = self.get_parameter('init_x').value
+        base_init_y = self.get_parameter('init_y').value
+        
+        ee_halton = self.halton_robot.random(1)[0]
+        self.current_init_x = base_init_x + (ee_halton[0] * 0.1 - 0.05) # +/- 5cm
+        self.current_init_y = base_init_y + (ee_halton[1] * 0.2 - 0.1)  # +/- 10cm
+        
+        self.current_jitter_roll = np.random.uniform(-0.1, 0.1)
+        self.current_jitter_pitch = np.random.uniform(-0.1, 0.1)
+        self.current_jitter_yaw = np.random.uniform(-0.1, 0.1)
+        
+        # Orientation down is [0, 1, 0, 0] or something similar? Actually, the initial_ee_quat is captured at runtime.
+        # We'll just add this jitter to the PID target in the IDLE state.
 
     def _srv_trigger(self, req, res):
         cmd = req.command.strip().upper()

@@ -98,10 +98,10 @@ class DiffusionConfig:
     input_normalization_modes: dict[str, str] = field(
         default_factory=lambda: {
             "observation.image": "mean_std",
-            "observation.state": "min_max",
+            "observation.state": "mean_std",
         }
     )
-    output_normalization_modes: dict[str, str] = field(default_factory=lambda: {"action": "min_max"})
+    output_normalization_modes: dict[str, str] = field(default_factory=lambda: {"action": "mean_std"})
 
     # Architecture / modeling.
     # Vision backbone.

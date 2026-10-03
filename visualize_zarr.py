@@ -17,7 +17,7 @@ def visualize_episode(zarr_path, episode_id=None):
     if episode_id is None:
         episode_name = episodes[-1][0]
     else:
-        episode_name = f"episode_{episode_id}"
+        episode_name = episode_id if str(episode_id).startswith('episode_') else f"episode_{episode_id}"
         
     if episode_name not in root:
         print(f"El episodio {episode_name} no existe.")
@@ -27,8 +27,9 @@ def visualize_episode(zarr_path, episode_id=None):
     actions = root[episode_name]['action'][:]  # [x, y, z, qx, qy, qz, qw, gripper]
     states = root[episode_name]['state'][:]    # [x, y, z, qx, qy, qz, qw, gripper]
     
-    output_video = f"{episode_name}.mp4"
-    print(f"Exportando {episode_name} ({len(images)} frames)...")
+    dataset_name = os.path.basename(zarr_path).replace('.zarr', '')
+    output_video = f"datasets/{dataset_name}_{episode_name}.mp4"
+    print(f"Exportando {episode_name} ({len(images)} frames) a {output_video}...")
     
     # 1. Crear el Video
     height, width, layers = images[0].shape
@@ -114,13 +115,16 @@ def visualize_episode(zarr_path, episode_id=None):
     # Ajustar un poco el ángulo de vista para mejor claridad
     ax.view_init(elev=20, azim=-45)
     
-    plot_file = f"{episode_name}_trajectory.png"
+    dataset_name = os.path.basename(zarr_path).replace('.zarr', '')
+    plot_file = f"datasets/{dataset_name}_{episode_name}_trajectory.png"
     plt.savefig(plot_file)
     print(f"¡Plot 3D guardado en {plot_file}!")
 
 if __name__ == "__main__":
-    zarr_dir = "demonstrations.zarr"
-    if len(sys.argv) > 1:
-        visualize_episode(zarr_dir, episode_id=sys.argv[1])
-    else:
-        visualize_episode(zarr_dir)
+    import argparse
+    parser = argparse.ArgumentParser(description="Visualizar trayectorias del dataset Zarr")
+    parser.add_argument('--path', type=str, default='datasets/demonstrations.zarr', help='Ruta al dataset Zarr (ej. datasets/demonstrations_v2.zarr)')
+    parser.add_argument('--ep', type=str, default=None, help='ID del episodio específico (ej. episode_0)')
+    args = parser.parse_args()
+    
+    visualize_episode(args.path, episode_id=args.ep)

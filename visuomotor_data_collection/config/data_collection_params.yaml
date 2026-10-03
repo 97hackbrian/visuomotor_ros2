@@ -1,7 +1,7 @@
 "**":
   ros__parameters:
     # Ruta del dataset en formato zarr
-    dataset_path: "demonstrations.zarr"
+    dataset_path: "AUTO"
     # Frecuencia de recolección de los datos (Hz)
     sampling_rate_hz: 20.0
     
