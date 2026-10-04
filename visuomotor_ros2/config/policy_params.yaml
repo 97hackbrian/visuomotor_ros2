@@ -1,7 +1,7 @@
 policy_node:
   ros__parameters:
     model_type: "diffusion"
-    checkpoint_path: "/ros/visuomotor_core/outputs/train_500" #si 500  300_dataV3  20      no 100, 50
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_400_dataV4/checkpoints/epoch_100" #si 400_dataV4 500  300_dataV3  20      no 100, 50
     inference_hz: 20.0
     num_inference_steps: 10
     n_action_steps: 8

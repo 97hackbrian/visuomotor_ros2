@@ -69,7 +69,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('kp_rot', 1.5)
         self.declare_parameter('ki_rot', 0.0)
         self.declare_parameter('kd_rot', 0.05)
-        self.declare_parameter('max_speed_rad_s', 1.5)
+        self.declare_parameter('max_speed_rad_s', 1.0)
         
         # Nuevos parámetros de la secuencia
         self.declare_parameter('init_x', 0.25)        # Posición inicial oficial en X
@@ -84,8 +84,8 @@ class PickupApproximateNode(Node):
         self.declare_parameter('spawn_y_min', -0.71)
         self.declare_parameter('spawn_y_max', -1.0)
         self.declare_parameter('spawn_z', 0.44)
-        self.declare_parameter('grasp_wait_time_s', 5.0) # Tiempo esperando que cierre
-        self.declare_parameter('settle_time_s', 1.5)  # Tiempo inmóvil antes de cerrar
+        self.declare_parameter('grasp_wait_time_s', 1.0) # Tiempo esperando que cierre
+        self.declare_parameter('settle_time_s', 0.5)  # Tiempo inmóvil antes de cerrar
         self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
         self.declare_parameter('hover_z_offset', 0.10) # Altura extra sobre el objeto al alinearse (metros)
         self.declare_parameter('lift_z_offset', 0.35) # Altura final de levantamiento
@@ -443,7 +443,18 @@ class PickupApproximateNode(Node):
         kp_rot = self.get_parameter('kp_rot').value
         ki_rot = self.get_parameter('ki_rot').value
         kd_rot = self.get_parameter('kd_rot').value
-        max_speed_rad_s = self.get_parameter('max_speed_rad_s').value
+        
+        # 1. Rotaciones globales al 60%
+        max_speed_rad_s = self.get_parameter('max_speed_rad_s').value * 0.60
+        
+        # 2. Freno dinámico en Z mientras rota (para evitar desenfoque de cámara)
+        if self.state in ['ALIGN', 'DESCEND']:
+            if error_rot_mag > 0.15:
+                # Si el error de rotación es alto, frena el descenso al 30%
+                max_speed_m_s = max_speed_m_s * 0.30
+            elif error_rot_mag > 0.05:
+                # Si ya casi está alineado, acelera al 60%
+                max_speed_m_s = max_speed_m_s * 0.60
         
         self.pid.sampling_rate_hz = control_rate
         self.pid.update_params(kp, ki, kd, max_speed_m_s, kp_rot, ki_rot, kd_rot, max_speed_rad_s)
@@ -558,7 +569,8 @@ class PickupApproximateNode(Node):
         
         target_x = spawn_x_min + halton_sample[0] * (spawn_x_max - spawn_x_min)
         target_y = spawn_y_min + halton_sample[1] * (spawn_y_max - spawn_y_min)
-        target_yaw = -3.14159 + halton_sample[2] * (2.0 * 3.14159)
+        # Limitar Yaw a [-90, 90] grados para evitar Symmetry Ambiguity
+        target_yaw = -1.5707 + halton_sample[2] * (2.0 * 1.5707)
         
         twist_msg = Twist()
         twist_msg.linear.x = float(target_x)

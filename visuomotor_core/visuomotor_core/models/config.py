@@ -80,7 +80,7 @@ class DiffusionConfig:
     # n_action_steps < horizon - n_obs_steps + 1
     n_obs_steps: int = 2
     horizon: int = 16
-    n_action_steps: int = 14
+    n_action_steps: int = 8
 
     input_shapes: dict[str, list[int]] = field(
         default_factory=lambda: {
@@ -108,8 +108,8 @@ class DiffusionConfig:
     vision_backbone: str = "resnet18" #"efficientnet_b0"
     crop_shape: tuple[int, int] | None = (224, 224)
     crop_is_random: bool = True
-    pretrained_backbone_weights: str | None = "IMAGENET1K_V1"
-    use_group_norm: bool = False
+    pretrained_backbone_weights: str | None = None
+    use_group_norm: bool = True
     spatial_softmax_num_keypoints: int = 32
     # Unet.
     down_dims: tuple[int, ...] = (128, 256, 512)

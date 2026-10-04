@@ -19,13 +19,13 @@
     kp: 1.0
     ki: 0.001
     kd: 0.05
-    max_speed_m_s: 0.055       # Límite de velocidad máxima permitida (metros por segundo)
+    max_speed_m_s: 0.05       # Límite de velocidad máxima permitida (metros por segundo)
     
     # Ganancias y límites del controlador PID Cartesiano (Rotación)
     kp_rot: 1.2
     ki_rot: 0.0
     kd_rot: 0.05
-    max_speed_rad_s: 1.25      # Límite de velocidad angular (radianes por segundo)
+    max_speed_rad_s: 1.1      # Límite de velocidad angular (radianes por segundo)
     
     # Parámetros de la secuencia Pick up and Approximate
     init_x: 0.25              # Posición inicial oficial en X (metros)
@@ -33,8 +33,8 @@
     init_z_height: 0.40       # Altura inicial para enfocar con la cámara (metros)
     wait_time_s: 5.5          # Segundos de espera en la altura inicial
     hover_z_offset: 0.05      # Altura extra sobre el objeto durante ALIGN (metros)
-    grasp_wait_time_s: 2.0    # Segundos esperando que el gripper cierre físicamente
-    settle_time_s: 2.5        # Segundos de espera inmóvil en el objetivo antes de cerrar
+    grasp_wait_time_s: 1.0    # Segundos esperando que el gripper cierre físicamente
+    settle_time_s: 0.5        # Segundos de espera inmóvil en el objetivo antes de cerrar
     approach_timeout_s: 60.0  # Timeout máximo por fase (segundos)
     lift_z_offset: 0.20       # Altura a la que sube el objeto después de agarrarlo (metros)
 
