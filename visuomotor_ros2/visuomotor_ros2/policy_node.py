@@ -189,7 +189,11 @@ class PolicyNode(Node):
             msg.poses.append(p)
             
             if len(action_np) >= 8:
-                msg.gripper_states.append(float(action_np[7]))
+                # Binarizador de Inferencia: asegurar que el motor del gripper 
+                # reciba el booleano duro y no vibre con decimales de la red
+                raw_gripper = float(action_np[7])
+                binary_gripper = -0.01 if raw_gripper <= -0.001 else raw_gripper
+                msg.gripper_states.append(binary_gripper)
             else:
                 msg.gripper_states.append(0.0)
                 
@@ -197,8 +201,8 @@ class PolicyNode(Node):
             self.action_executor.execute(msg)
             
             gripper_val = msg.gripper_states[0]
-            gripper_str = "CERRADO" if gripper_val < -0.005 else "ABIERTO"
-            self.get_logger().info(f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {gripper_val:.4f} ({gripper_str})", throttle_duration_sec=1.0)
+            gripper_str = "CERRADO" if gripper_val <= -0.001 else "ABIERTO"
+            self.get_logger().info(f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {raw_gripper:.7f} ({gripper_str})", throttle_duration_sec=1.0)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -101,7 +101,7 @@ class DiffusionConfig:
             "observation.state": "mean_std",
         }
     )
-    output_normalization_modes: dict[str, str] = field(default_factory=lambda: {"action": "mean_std"})
+    output_normalization_modes: dict[str, str] = field(default_factory=lambda: {"action": "min_max"})
 
     # Architecture / modeling.
     # Vision backbone.
@@ -119,7 +119,7 @@ class DiffusionConfig:
     use_film_scale_modulation: bool = True
     # Noise scheduler.
     noise_scheduler_type: str = "DDIM"
-    num_train_timesteps: int = 50  # before 100
+    num_train_timesteps: int = 100  # before 100
     beta_schedule: str = "squaredcos_cap_v2"
     beta_start: float = 0.0001
     beta_end: float = 0.02

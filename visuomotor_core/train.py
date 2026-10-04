@@ -63,7 +63,12 @@ def main(root, epoch, batch_size, out_dir, save_every):
     lr = base_lr * (batch_size / 64) ** 0.5
     print(f"batch_size={batch_size}  lr={lr:.2e}")
 
-    optimizer = torch.optim.Adam(policy.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(
+        policy.parameters(),
+        lr=lr,
+        betas=(0.95, 0.999),
+        weight_decay=1e-6
+    )
 
     n = len(base_dataset)
     steps_per_epoch = max(1, n // batch_size)
