@@ -79,16 +79,25 @@ class PickupApproximateNode(Node):
         
         # Parámetros para aleatorización del objeto (respawn)
         self.declare_parameter('random_spawn', True)
-        self.declare_parameter('spawn_x_min', 0.30)
-        self.declare_parameter('spawn_x_max', 0.34)
-        self.declare_parameter('spawn_y_min', -0.71)
-        self.declare_parameter('spawn_y_max', -1.0)
+        self.declare_parameter('spawn_x_min', 0.25)
+        self.declare_parameter('spawn_x_max', 0.32)
+        self.declare_parameter('spawn_y_min', -0.65)
+        self.declare_parameter('spawn_y_max', -1.13)
         self.declare_parameter('spawn_z', 0.44)
+        self.declare_parameter('spawn_yaw_min', -1.5707)
+        self.declare_parameter('spawn_yaw_max', 1.5707)
+        self.declare_parameter('spawn_safe_margin_x', 0.0) # Margen de seguridad en el eje X
+        self.declare_parameter('spawn_safe_margin_y', 0.0555) # Margen de seguridad en el eje Y
         self.declare_parameter('grasp_wait_time_s', 1.0) # Tiempo esperando que cierre
         self.declare_parameter('settle_time_s', 0.5)  # Tiempo inmóvil antes de cerrar
-        self.declare_parameter('approach_timeout_s', 30.0) # Timeout máximo por fase
-        self.declare_parameter('hover_z_offset', 0.10) # Altura extra sobre el objeto al alinearse (metros)
+        self.declare_parameter('approach_timeout_s', 15.0) # Timeout máximo por fase
+        self.declare_parameter('global_episode_timeout_s', 48.0) # Timeout global de todo el episodio
+        self.declare_parameter('hover_z_offset', 0.15) # Altura extra sobre el objeto al alinearse (metros)
+        self.declare_parameter('funnel_curvature_multiplier', 1.5) # Curvatura del embudo de aproximación
         self.declare_parameter('lift_z_offset', 0.35) # Altura final de levantamiento
+        self.declare_parameter('validate_grasp_success', True) # Validar si el objeto fue levantado
+        self.declare_parameter('grasp_success_fraction', 0.5)  # Porcentaje requerido de elevación
+        self.declare_parameter('turtle_descent_multiplier', 0.10) # Freno en Z (velocidad tortuga) al rotar
         
         # Parámetros avanzados de Control y Tolerancias
         self.declare_parameter('control_rate_hz', 100.0)
@@ -142,6 +151,7 @@ class PickupApproximateNode(Node):
         self.grasp_orientation_quat = None
         self.wait_reached_time = None
         self.untilt_reached_time = None
+        self.episode_start_time = None
         
         # Máquina de estados: IDLE, WAIT, ALIGN, DESCEND, SETTLE, GRASP, LIFT, UNTILT
         self.state = 'IDLE'
@@ -226,16 +236,17 @@ class PickupApproximateNode(Node):
         if self.target_orientation_quat is None:
             self.target_orientation_quat = self.initial_ee_quat.copy()
 
-        if self.state in ('IDLE', 'WAIT', 'LIFT', 'UNTILT'):
-            # Regresar a la postura inicial pero aplicando el jitter calculado para esta demostración
-            r_init, p_init, y_init = euler_from_quaternion(self.initial_ee_quat)
-            self.target_orientation_quat = quaternion_from_euler(
-                r_init + self.current_jitter_roll,
-                p_init + self.current_jitter_pitch,
-                y_init + self.current_jitter_yaw
+        if self.state in ('IDLE', 'WAIT', 'APPROACH_XY', 'LIFT', 'UNTILT'):
+            # Regresar a la postura inicial pero aplicando el jitter calculado para esta demostración usando cuaterniones directos
+            jitter_q = quaternion_from_euler(
+                self.current_jitter_roll,
+                self.current_jitter_pitch,
+                self.current_jitter_yaw
             )
+            # multiply_quaternions(rotacion_local, rotacion_base)
+            self.target_orientation_quat = multiply_quaternions(jitter_q, self.initial_ee_quat)
 
-        if self.state in ('ALIGN', 'DESCEND'):
+        if self.state in ('ALIGN_YAW', 'DESCEND'):
             # Obtenemos la orientación completa del objeto (pick_target)
             q_obj = [
                 t_obj.transform.rotation.x, t_obj.transform.rotation.y,
@@ -260,14 +271,14 @@ class PickupApproximateNode(Node):
             target_y = self.current_init_y
             target_z = self.get_parameter('init_z_height').value
 
-        elif self.state == 'ALIGN':
-            # Fase 1: Alineamiento XY y Rotacional previo al descenso
-            # Offset del TCP compensando el ángulo (vector -Z en el frame local del gripper)
+        elif self.state == 'APPROACH_XY':
+            # Fase 1: Alineamiento XY manteniendo altura hover
             qx, qy, qz, qw = self.target_orientation_quat
             
             # Trayectoria de Embudo: Z proporcional al error en XY respecto al objeto
+            funnel_mult = self.get_parameter('funnel_curvature_multiplier').value
             dist_to_obj_xy = np.linalg.norm([obj_x - ee_x, obj_y - ee_y])
-            funnel_z_offset = hover_z_offset + (dist_to_obj_xy * 1.5)
+            funnel_z_offset = hover_z_offset + (dist_to_obj_xy * funnel_mult)
             d = -(tcp_offset_z + funnel_z_offset)
             
             dx = d * 2.0 * (qx*qz + qw*qy)
@@ -278,8 +289,8 @@ class PickupApproximateNode(Node):
             target_y = obj_y + dy
             target_z = obj_z + dz
 
-        elif self.state == 'DESCEND':
-            # Fase 2: bajar compensando el ángulo 3D (Z invertido relativo al gripper)
+        elif self.state in ('ALIGN_YAW', 'DESCEND'):
+            # Fase 2 y 3: Bajar apuntando al objeto. ALIGN_YAW gira mientras baja lento.
             qx, qy, qz, qw = self.target_orientation_quat
             d = -tcp_offset_z
             
@@ -327,46 +338,88 @@ class PickupApproximateNode(Node):
             t_ee.transform.rotation.z, t_ee.transform.rotation.w
         ]
         
-        current_euler = euler_from_quaternion(current_quat)
         if self.target_orientation_quat is not None:
-            target_euler = euler_from_quaternion(self.target_orientation_quat)
+            target_quat = self.target_orientation_quat
         else:
-            target_euler = current_euler
+            target_quat = current_quat
             
-        error_euler = np.arctan2(np.sin(np.array(target_euler) - np.array(current_euler)), np.cos(np.array(target_euler) - np.array(current_euler)))
-        error_rot_mag = np.linalg.norm(error_euler)
+        # Quaternion dot product for rotational error
+        dot_product = np.clip(np.abs(np.sum(np.array(current_quat) * np.array(target_quat))), -1.0, 1.0)
+        error_rot_mag = 2.0 * np.arccos(dot_product)
 
         # ── Transiciones de estado ─────────────────────────────────────────
         now     = time.time()
         timeout = self.get_parameter('approach_timeout_s').value
+        global_timeout = self.get_parameter('global_episode_timeout_s').value
+        
+        # Check global timeout
+        if self.episode_start_time is not None:
+            if now - self.episode_start_time > global_timeout:
+                self.get_logger().warn(f"¡Timeout global superado ({global_timeout}s)! Episodio atascado, descartando y reiniciando.")
+                self.is_recording = False
+                self.buffer.clear()
+                if self.remaining_repetitions > 0:
+                    self.remaining_repetitions -= 1
+                    self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
+                    self.state = 'WAIT'
+                    self.state_start_time = time.time()
+                    self.has_respawned_this_wait = False
+                else:
+                    self.state = 'IDLE'
+                self.grasp_position = None
+                self.grasp_orientation_quat = None
+                self.target_orientation_quat = None
+                self.wait_reached_time = None
+                self.untilt_reached_time = None
+                self.episode_start_time = None
+                self.pid.reset()
+                return
+
 
         if self.state == 'WAIT':
+            # Local timeout for returning to home to avoid getting permanently stuck
+            if now - self.state_start_time > timeout * 3.0:
+                self.get_logger().warn(f"¡Timeout en WAIT! Robot atascado intentando volver a home. Reiniciando WAIT.")
+                self.state_start_time = now
+                self.has_respawned_this_wait = False
+                self.wait_reached_time = None
+                self.pid.reset()
+                return
+
             # Teletransportar el objeto a mitad del WAIT (da 1 segundo para soltar, y N segundos para asentar)
             if now - self.state_start_time > 1.0 and not self.has_respawned_this_wait:
                 self._respawn_object()
                 self.has_respawned_this_wait = True
                 
-            if dist < goal_tolerance * 2.0 and error_rot_mag < 0.1:
+            if dist < goal_tolerance * 3.0:  # Ignoramos la rotación para no atascarnos
                 if self.wait_reached_time is None:
                     self.wait_reached_time = now
                     
                 if now - self.wait_reached_time > self.get_parameter('wait_time_s').value + 1.0:
-                    self.state = 'ALIGN'
+                    self.state = 'APPROACH_XY'
                     self.state_start_time = now
                     self.wait_reached_time = None
-                    self.get_logger().info("WAIT terminado (posición origen alcanzada) → ALIGN: alineando sobre el objeto. [START RECORDING]")
+                    self.get_logger().info("WAIT terminado → APPROACH_XY: Centrando sobre el objeto. [START RECORDING]")
                     self.buffer.clear()
                     self.is_recording = True
-            else:
-                self.wait_reached_time = None
+                    self.episode_start_time = now
 
-        elif self.state == 'ALIGN':
+        elif self.state == 'APPROACH_XY':
             dist_z = abs(target_z - ee_z)
-            if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance and error_rot_mag < 0.05) or now - self.state_start_time > timeout:
+            # Solo exigimos tolerancia en XY y Z, ignoramos la rotación porque aún no giramos
+            if (dist_xy < goal_tolerance * 1.5 and dist_z < goal_tolerance) or now - self.state_start_time > timeout:
+                self.state = 'ALIGN_YAW'
+                self.state_start_time = now
+                self.get_logger().info(
+                    f"APPROACH_XY completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m) → ALIGN_YAW: Rotando para alinear orientación.")
+
+        elif self.state == 'ALIGN_YAW':
+            # Ahora exigimos precisión en la rotación antes de descender a tocar el objeto
+            if error_rot_mag < 0.05 or now - self.state_start_time > timeout:
                 self.state = 'DESCEND'
                 self.state_start_time = now
                 self.get_logger().info(
-                    f"ALIGN completo (err_xy={dist_xy:.4f}m, err_z={dist_z:.4f}m, err_rot={error_rot_mag:.4f}rad) → DESCEND: bajando verticalmente.")
+                    f"ALIGN_YAW completo (err_rot={error_rot_mag:.4f}rad) → DESCEND: bajando verticalmente.")
 
         elif self.state == 'DESCEND':
             # Para DESCEND usamos la distancia 3D real porque la aproximación puede ser diagonal
@@ -393,21 +446,39 @@ class PickupApproximateNode(Node):
                 self.get_logger().info(f"Brazo inmóvil. Esperando a que el gripper cierre físicamente... ({elapsed:.1f}s)")
 
         elif self.state == 'LIFT':
-            if dist < goal_tolerance:
+            if dist < goal_tolerance * 3.0 or now - self.state_start_time > 5.0:
                 self.state = 'UNTILT'
                 self.state_start_time = now
                 self.get_logger().info("LIFT completo → UNTILT: Enderezando orientación del objeto.")
                 
         elif self.state == 'UNTILT':
-            # Esperar a que la orientación vuelva a estar recta y la posición se mantenga
-            if dist < goal_tolerance * 2.0 and error_rot_mag < 0.05:
+            # Esperar a que la orientación vuelva a estar recta y la posición se mantenga (con timeout de 5s para no atascarse)
+            if (dist < goal_tolerance * 5.0 and error_rot_mag < 0.25) or now - self.state_start_time > 5.0:
                 if self.untilt_reached_time is None:
                     self.untilt_reached_time = now
                 
                 # Pequeño settling time de 0.5s para asegurar que se grabe la postura recta
                 if now - self.untilt_reached_time > 0.5:
-                    self.get_logger().info("UNTILT completo. Guardando episodio. [END RECORDING]")
-                    self._save_episode()
+                    is_valid = True
+                    if self.get_parameter('validate_grasp_success').value and self.grasp_position is not None:
+                        # Validación porcentual respecto a la altura objetivo de levantamiento
+                        lift_offset = self.get_parameter('lift_z_offset').value
+                        success_fraction = self.get_parameter('grasp_success_fraction').value
+                        required_z_travel = abs(lift_offset) * success_fraction
+                        actual_z_travel = abs(obj_z - self.grasp_position[2])
+                        
+                        if actual_z_travel < required_z_travel:
+                            is_valid = False
+                            self.get_logger().warn(
+                                f"¡Fallo de agarre detectado! El objeto se movió solo {actual_z_travel:.3f}m en Z. Se requería mínimo {required_z_travel:.3f}m. Episodio descartado."
+                            )
+                    
+                    if is_valid:
+                        self.get_logger().info("UNTILT completo y validado. Guardando episodio. [END RECORDING]")
+                        self._save_episode()
+                    else:
+                        self.is_recording = False
+                        self.buffer.clear()
                     
                     if self.remaining_repetitions > 0:
                         self.remaining_repetitions -= 1
@@ -420,6 +491,7 @@ class PickupApproximateNode(Node):
                         self.target_orientation_quat = None
                         self.wait_reached_time = None
                         self.untilt_reached_time = None
+                        self.episode_start_time = None
                         self.pid.reset()
                         return
                     else:
@@ -428,10 +500,9 @@ class PickupApproximateNode(Node):
                         self.grasp_orientation_quat = None
                         self.wait_reached_time = None
                         self.untilt_reached_time = None
+                        self.episode_start_time = None
                         self.pid.reset()
                         return
-            else:
-                self.untilt_reached_time = None
 
 
         max_speed_m_s = self.get_parameter('max_speed_m_s').value
@@ -444,17 +515,21 @@ class PickupApproximateNode(Node):
         ki_rot = self.get_parameter('ki_rot').value
         kd_rot = self.get_parameter('kd_rot').value
         
-        # 1. Rotaciones globales al 60%
-        max_speed_rad_s = self.get_parameter('max_speed_rad_s').value * 0.60
+        # 1. Rotaciones globales usando el límite estricto del YAML
+        max_speed_rad_s = self.get_parameter('max_speed_rad_s').value
         
-        # 2. Freno dinámico en Z mientras rota (para evitar desenfoque de cámara)
-        if self.state in ['ALIGN', 'DESCEND']:
-            if error_rot_mag > 0.15:
-                # Si el error de rotación es alto, frena el descenso al 30%
-                max_speed_m_s = max_speed_m_s * 0.30
-            elif error_rot_mag > 0.05:
-                # Si ya casi está alineado, acelera al 60%
-                max_speed_m_s = max_speed_m_s * 0.60
+        # 2. Freno dinámico en Z mientras rota (para evitar desenfoque de cámara y permitir giro de 180 sin chocar)
+        if self.state in ['APPROACH_XY', 'ALIGN_YAW', 'DESCEND']:
+            if self.state == 'ALIGN_YAW':
+                # Freno extremo para inyectar un pequeñísimo impulso de bajada constante
+                # mientras completa el giro completo de la muñeca (ej. 180 grados)
+                turtle_mult = self.get_parameter('turtle_descent_multiplier').value
+                max_speed_m_s = max_speed_m_s * turtle_mult
+            else:
+                if error_rot_mag > 0.15:
+                    max_speed_m_s = max_speed_m_s * 0.30
+                elif error_rot_mag > 0.05:
+                    max_speed_m_s = max_speed_m_s * 0.60
         
         self.pid.sampling_rate_hz = control_rate
         self.pid.update_params(kp, ki, kd, max_speed_m_s, kp_rot, ki_rot, kd_rot, max_speed_rad_s)
@@ -480,9 +555,7 @@ class PickupApproximateNode(Node):
             # Detener el PID de orientación y congelar la postura en el punto de agarre
             smoothed_quat = self.grasp_orientation_quat
         else:
-            euler_control, _ = self.pid.compute_euler(current_euler, target_euler)
-            new_euler = np.array(current_euler) + euler_control
-            smoothed_quat = quaternion_from_euler(new_euler[0], new_euler[1], new_euler[2])
+            smoothed_quat = self.pid.compute_orientation(current_quat, target_quat)
         
         target_pose.pose.orientation.x = smoothed_quat[0]
         target_pose.pose.orientation.y = smoothed_quat[1]
@@ -518,16 +591,26 @@ class PickupApproximateNode(Node):
             self.get_logger().info(f"Gripper command cambiado a: {gripper_state}")
 
         
+        # Solución al "Quaternion Double Cover": 
+        # Asegurar que el componente W siempre sea positivo para evitar que la red neuronal 
+        # colapse al promediar rotaciones de 180 grados (q vs -q son la misma rotación física).
+        target_q = [target_pose.pose.orientation.x, target_pose.pose.orientation.y, target_pose.pose.orientation.z, target_pose.pose.orientation.w]
+        if target_q[3] < 0:
+            target_q = [-target_q[0], -target_q[1], -target_q[2], -target_q[3]]
+            
+        current_q = [current_quat[0], current_quat[1], current_quat[2], current_quat[3]]
+        if current_q[3] < 0:
+            current_q = [-current_q[0], -current_q[1], -current_q[2], -current_q[3]]
+        
         self.latest_action = np.array([
             target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
-            target_pose.pose.orientation.x, target_pose.pose.orientation.y, 
-            target_pose.pose.orientation.z, target_pose.pose.orientation.w, 
+            target_q[0], target_q[1], target_q[2], target_q[3], 
             gripper_state
         ], dtype=np.float32)
         
         self.latest_state = np.array([
             ee_x, ee_y, ee_z,
-            current_quat[0], current_quat[1], current_quat[2], current_quat[3],
+            current_q[0], current_q[1], current_q[2], current_q[3],
             gripper_state
         ], dtype=np.float32)
 
@@ -563,14 +646,25 @@ class PickupApproximateNode(Node):
         spawn_y_min = self.get_parameter('spawn_y_min').value
         spawn_y_max = self.get_parameter('spawn_y_max').value
         spawn_z     = self.get_parameter('spawn_z').value
+        spawn_yaw_min = self.get_parameter('spawn_yaw_min').value
+        spawn_yaw_max = self.get_parameter('spawn_yaw_max').value
+        safe_margin_x = self.get_parameter('spawn_safe_margin_x').value
+        safe_margin_y = self.get_parameter('spawn_safe_margin_y').value
         
         # Secuencia Quasi-Monte Carlo (Halton) para el objeto (3D: X, Y, Yaw)
         halton_sample = self.halton_obj.random(1)[0]
         
         target_x = spawn_x_min + halton_sample[0] * (spawn_x_max - spawn_x_min)
         target_y = spawn_y_min + halton_sample[1] * (spawn_y_max - spawn_y_min)
-        # Limitar Yaw a [-90, 90] grados para evitar Symmetry Ambiguity
-        target_yaw = -1.5707 + halton_sample[2] * (2.0 * 1.5707)
+        
+        # Verificar si el objeto está demasiado cerca del borde de caída
+        dist_x = min(abs(target_x - spawn_x_min), abs(target_x - spawn_x_max))
+        dist_y = min(abs(target_y - spawn_y_min), abs(target_y - spawn_y_max))
+        
+        if dist_x < safe_margin_x or dist_y < safe_margin_y:
+            target_yaw = 0.0  # Prohibido rotar en el borde para evitar caída
+        else:
+            target_yaw = spawn_yaw_min + halton_sample[2] * (spawn_yaw_max - spawn_yaw_min)
         
         twist_msg = Twist()
         twist_msg.linear.x = float(target_x)
@@ -607,6 +701,7 @@ class PickupApproximateNode(Node):
             self.grasp_orientation_quat = None
             self.wait_reached_time = None
             self.untilt_reached_time = None
+            self.episode_start_time = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'

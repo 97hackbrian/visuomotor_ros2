@@ -17,6 +17,7 @@ class CartesianPID:
         self.integral = np.zeros(3)
         self.prev_error = np.zeros(3)
         self.virtual_setpoint = None
+        self.virtual_quat = None
         
         self.virtual_euler = None
         self.integral_euler = np.zeros(3)
@@ -24,9 +25,12 @@ class CartesianPID:
         
     def reset(self):
         self.virtual_setpoint = None
+        self.virtual_quat = None
         self.virtual_euler = None
         self.integral_euler = np.zeros(3)
         self.prev_error_euler = np.zeros(3)
+        self.integral = np.zeros(3)
+        self.prev_error = np.zeros(3)
         
     def update_params(self, kp, ki, kd, max_speed_m_s, kp_rot=None, ki_rot=None, kd_rot=None, max_speed_rad_s=None):
         self.kp = kp
@@ -48,9 +52,15 @@ class CartesianPID:
         if self.virtual_setpoint is None:
             self.virtual_setpoint = current_pos.copy()
             
+        # [CRITICAL] Prevent the virtual setpoint from running away if the physical robot is stuck
+        dist_to_robot = np.linalg.norm(self.virtual_setpoint - current_pos)
+        if dist_to_robot > 0.05: # Max 5cm lead
+            self.virtual_setpoint = current_pos + ((self.virtual_setpoint - current_pos) / dist_to_robot) * 0.05
+            
         error = target_pos - self.virtual_setpoint
         
-        p_term = self.kp * error
+        effective_kp = min(self.kp, 1.0)
+        p_term = effective_kp * error
         self.integral += error * (1.0 / self.sampling_rate_hz)
         i_term = self.ki * self.integral
         d_term = self.kd * (error - self.prev_error) * self.sampling_rate_hz
@@ -108,15 +118,39 @@ class CartesianPID:
         Interpola suavemente la orientación actual hacia la deseada.
         current_quat, target_quat: [x, y, z, w]
         """
-        if self.virtual_setpoint is None or target_quat is None:
-            # Si el PID no ha iniciado o no hay target explícito, no rotamos
+        if not hasattr(self, 'virtual_quat') or self.virtual_quat is None:
+            self.virtual_quat = np.array(current_quat)
+            
+        # [CRITICAL] Prevent virtual_quat from running away from the physical robot
+        dot_curr = np.clip(np.abs(np.sum(self.virtual_quat * np.array(current_quat))), -1.0, 1.0)
+        ang_dist_to_robot = 2.0 * np.arccos(dot_curr)
+        if ang_dist_to_robot > 0.15: # Max ~8.5 degrees lead
+            # Pull virtual_quat back closer to current_quat
+            t_pull = 0.15 / ang_dist_to_robot
+            
+            cq = np.array(current_quat)
+            vq = self.virtual_quat
+            if np.sum(cq * vq) < 0.0:
+                cq = -cq
+                
+            sin_theta_0 = np.sin(ang_dist_to_robot / 2.0)
+            theta = (ang_dist_to_robot / 2.0) * t_pull
+            sin_theta = np.sin(theta)
+            dot_v = np.sum(cq * vq)
+            
+            s0 = np.cos(theta) - dot_v * sin_theta / sin_theta_0
+            s1 = sin_theta / sin_theta_0
+            self.virtual_quat = (s0 * cq) + (s1 * vq)
+            self.virtual_quat /= np.linalg.norm(self.virtual_quat)
+            
+        if target_quat is None:
             return current_quat
             
         # Determinar velocidad angular máxima
         max_rot_step = self.max_speed_rad_s / self.sampling_rate_hz
         
-        # Calcular SLERP
-        q1 = np.array(current_quat)
+        # Calcular SLERP desde el virtual_quat (no desde current_quat)
+        q1 = self.virtual_quat
         q2 = np.array(target_quat)
         
         dot = np.sum(q1 * q2)
@@ -125,19 +159,22 @@ class CartesianPID:
             dot = -dot
             
         if dot > 0.9995:
-            # Linear interpolation para ángulos muy pequeños
-            res = q1 + self.kp_rot * (q2 - q1)
+            # Linear interpolation para ángulos muy pequeños (sin overshoot)
+            effective_kp = min(self.kp_rot, 1.0)
+            res = q1 + effective_kp * (q2 - q1)
             res = res / np.linalg.norm(res)
+            self.virtual_quat = res
             return res
             
         theta_0 = np.arccos(dot)
         
-        # El paso angular deseado es theta_0 * kp_rot, pero lo limitamos a max_rot_step
-        step_theta = theta_0 * self.kp_rot
+        # El paso angular deseado es theta_0 * kp_rot, pero lo limitamos a max_rot_step y evitamos overshoot
+        effective_kp = min(self.kp_rot, 1.0)
+        step_theta = theta_0 * effective_kp
         if step_theta > max_rot_step:
             t = max_rot_step / theta_0
         else:
-            t = self.kp_rot
+            t = effective_kp
             
         sin_theta_0 = np.sin(theta_0)
         theta = theta_0 * t
@@ -147,4 +184,6 @@ class CartesianPID:
         s1 = sin_theta / sin_theta_0
         
         res = (s0 * q1) + (s1 * q2)
-        return res / np.linalg.norm(res)
+        res = res / np.linalg.norm(res)
+        self.virtual_quat = res
+        return res

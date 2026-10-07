@@ -1,45 +1,58 @@
 "**":
   ros__parameters:
-    # Ruta del dataset en formato zarr
-    dataset_path: "AUTO"
-    # Frecuencia de recolección de los datos (Hz)
-    sampling_rate_hz: 20.0
+    # ── Configuración General del Dataset ──
+    dataset_path: "AUTO"            # Ruta del dataset en formato zarr ("AUTO" auto-incrementa la versión)
+    sampling_rate_hz: 20.0          # Frecuencia estricta a la que se graban los pasos (cámara + cinemática)
     
-    # Activar PID en modo automático para generar comandos hacia el objeto (True en Isaac Sim)
-    enable_auto_pid: true
-    # Marco de coordenadas del objeto a seguir (proporcionado por Isaac Sim)
-    object_frame: "pick_target"
-    # Marco de coordenadas del efector final del brazo
-    ee_frame: "gripper_base_link"
+    # ── Configuración del Robot y Sistema ──
+    enable_auto_pid: true           # Activa el generador sintético experto (True para Isaac Sim)
+    object_frame: "pick_target"     # Nombre del frame (TF) del objeto destino en ROS 2
+    ee_frame: "gripper_base_link"   # Nombre del frame (TF) de la muñeca del robot
+    tcp_offset_z: 0.079             # Offset crítico: Longitud en Z desde la muñeca hasta la punta de los dedos (metros)
     
-    # Offset Z para compensar la longitud del gripper y evitar chocar contra el suelo
-    tcp_offset_z: 0.079
+    # ── Dinámica Cartesiana (PID de Traslación) ──
+    kp: 1.0                         # Ganancia Proporcional (Agresividad de movimiento en XYZ)
+    ki: 0.001                       # Ganancia Integral (Corrección de error acumulado)
+    kd: 0.05                        # Ganancia Derivativa (Amortiguación para evitar oscilaciones)
+    max_speed_m_s: 0.05             # Límite absoluto de velocidad de traslación (m/s). Afectado por freno Z dinámico.
+    turtle_descent_multiplier: 0.15 # Fracción de velocidad traslacional para "velocidad tortuga" mientras se alinea el Yaw
+
     
-    # Ganancias y límites del controlador PID Cartesiano (Traslación)
-    kp: 1.0
-    ki: 0.001
-    kd: 0.05
-    max_speed_m_s: 0.05       # Límite de velocidad máxima permitida (metros por segundo)
-    
-    # Ganancias y límites del controlador PID Cartesiano (Rotación)
-    kp_rot: 1.2
+    # ── Dinámica Rotacional (PID Angular) ──
+    kp_rot: 1.2                     # Agresividad para alinear la orientación (Cuaterniones)
     ki_rot: 0.0
     kd_rot: 0.05
-    max_speed_rad_s: 1.1      # Límite de velocidad angular (radianes por segundo)
+    max_speed_rad_s: 0.5           # Límite de velocidad angular (rad/s). 0.66 equivale a ~37 grados/seg (giro suave)
     
-    # Parámetros de la secuencia Pick up and Approximate
-    init_x: 0.25              # Posición inicial oficial en X (metros)
-    init_y: 0.0               # Posición inicial oficial en Y (metros)
-    init_z_height: 0.40       # Altura inicial para enfocar con la cámara (metros)
-    wait_time_s: 5.5          # Segundos de espera en la altura inicial
-    hover_z_offset: 0.05      # Altura extra sobre el objeto durante ALIGN (metros)
-    grasp_wait_time_s: 1.0    # Segundos esperando que el gripper cierre físicamente
-    settle_time_s: 0.5        # Segundos de espera inmóvil en el objetivo antes de cerrar
-    approach_timeout_s: 60.0  # Timeout máximo por fase (segundos)
-    lift_z_offset: 0.20       # Altura a la que sube el objeto después de agarrarlo (metros)
-
-    # Parámetros avanzados de Control y Tolerancias
-    control_rate_hz: 100.0    # Frecuencia del bucle de control interno (Hz)
-    goal_tolerance_m: 0.01    # Distancia al objetivo para considerar que se llegó (metros)
-    gripper_open_pos: 0.0    # Posición del gripper abierto
-    gripper_closed_pos: -0.01   # Posición del gripper cerrado
+    # ── Secuencia Lógica (FSM) y Geometría ──
+    init_x: 0.25                    # Posición de reposo X entre iteraciones (metros)
+    init_y: 0.0                     # Posición de reposo Y entre iteraciones (metros)
+    init_z_height: 0.40             # Posición de reposo Z (Altura ideal para panorama de cámara)
+    wait_time_s: 5.5                # Tiempo esperando en reposo para asimilar la caída del objeto previo
+    hover_z_offset: 0.15            # Altura de seguridad sobre el objeto donde termina el embudo de aproximación
+    funnel_curvature_multiplier: 1.5 # Factor de curvatura del vuelo de embudo (Mayor = Vuelo más parabólico)
+    grasp_wait_time_s: 1.0          # Tiempo que el brazo queda congelado esperando que el hardware del gripper cierre
+    settle_time_s: 0.5              # Tiempo de asimilación tras llegar al objeto antes de dar la orden de agarre
+    approach_timeout_s: 15.0        # Tiempo máximo antes de cancelar un intento atascado (segundos)
+    global_episode_timeout_s: 48.0  # Tiempo máximo total para todo el episodio desde que empieza a acercarse
+    lift_z_offset: 0.20             # Altura en Z a la que levanta el objeto tras agarrarlo
+    validate_grasp_success: true    # Si es true, descarta el episodio si el objeto no se elevó exitosamente
+    grasp_success_fraction: 0.4     # Fracción de lift_z_offset requerida para dar por válido el agarre (0.5 = 50%)
+    
+    # ── Aparición de Objetos (Secuencia Halton Quasi-Monte Carlo) ──
+    random_spawn: true              # Activa la teletransportación automática del objeto
+    spawn_x_min: 0.25               # Límite mínimo en el eje X (Profundidad)
+    spawn_x_max: 0.32               # Límite máximo en el eje X
+    spawn_y_min: -0.65              # Límite derecho de la mesa en Y
+    spawn_y_max: -1.13              # Límite izquierdo de la mesa en Y
+    spawn_z: 0.44                   # Altura estática de aparición del objeto (sobre la mesa)
+    spawn_yaw_min: -3.14159         # Límite mínimo de rotación del objeto (-180°).
+    spawn_yaw_max: 3.14159          # Límite máximo de rotación del objeto (+180°).
+    spawn_safe_margin_x: 0.0        # Distancia al borde X (metros) donde el objeto no rotará (0 = desactivado)
+    spawn_safe_margin_y: 0.0555     # Distancia al borde Y (metros) donde el objeto no rotará
+    
+    # ── Tolerancias de Control de Bajo Nivel ──
+    control_rate_hz: 100.0          # Velocidad interna del bucle PID en ROS 2 (Hz)
+    goal_tolerance_m: 0.01          # Distancia Euclidiana (1cm) para declarar que el objetivo fue alcanzado
+    gripper_open_pos: 0.0           # Señal que representa el Gripper 100% abierto
+    gripper_closed_pos: -0.01       # Señal que representa el Gripper 100% cerrado
