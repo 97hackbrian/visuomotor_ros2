@@ -1,5 +1,17 @@
 pose_smoother:
   ros__parameters:
+    # min_cutoff: Frecuencia de corte mínima (Hz) a baja velocidad.
+    # Reduce este valor (ej. 0.05 - 0.5) para eliminar vibraciones lentas cuando el robot está casi detenido.
+    # Si es muy bajo, el robot responderá de manera perezosa o lenta.
     min_cutoff: 0.1
+    
+    # beta: Factor de ajuste de velocidad.
+    # Define qué tan rápido se "abre" el filtro cuando el robot se mueve rápido.
+    # Un valor mayor reduce el retraso (lag) en movimientos rápidos pero puede introducir ruido.
+    # Un valor muy bajo genera que los movimientos rápidos tengan un retraso notable.
     beta: 0.00125
+    
+    # d_cutoff: Frecuencia de corte para la derivada (velocidad).
+    # Usualmente se deja en 1.0 (o cercano) a menos que haya muchísimo ruido de alta frecuencia,
+    # en cuyo caso se puede reducir.
     d_cutoff: 0.95

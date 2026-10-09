@@ -1,16 +1,63 @@
 policy_node:
   ros__parameters:
+    # --- Configuración del Modelo ---
+    # Tipo de arquitectura de red neuronal a utilizar
     model_type: "diffusion"
+    
+    # Ruta absoluta al directorio que contiene los pesos (weights) y configuración del modelo entrenado
     checkpoint_path: "/ros/visuomotor_core/outputs/train_502_dataV5/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
+    
+    # --- Configuración de Inferencia y Rendimiento ---
+    # Frecuencia (Hz) a la que corre el bucle principal del nodo de inferencia
     inference_hz: 20.0
+    
+    # Cantidad de pasos de "des-ruidificado" (denoising) del solver DDIM. 
+    # Más pasos = mayor fidelidad a la trayectoria original, pero exige más cálculo de GPU.
     num_inference_steps: 10
+    
+    # --- Temporal Ensemble (Capa 1 de Suavizado) ---
+    # Cada cuántos ciclos de control se invoca a la IA. 
+    # Ej: 3 significa que solaparemos 13 bloques (horizonte 15 - 3 + 1). Mayor solapamiento = más suavidad pero más GPU.
     n_action_steps: 3
+    
+    # Activa (True) o desactiva (False) el suavizado por promedio de trayectorias pasadas superpuestas
     use_temporal_ensemble: True
+    
+    # Tasa de decaimiento exponencial del promedio (w = exp(-k * age)). 
+    # 0.0 = promedio simple (máximo suavizado, posible mini-lag). 0.01 = default SOTA. >0.1 = más reactivo, menos suave.
     temporal_ensemble_k: 0.0
+    
+    # --- Configuración de Sensores y TF ---
+    # Topic de ROS 2 del que se lee la imagen de la cámara (RGB)
     camera_topic: "/rgb"
+    
+    # Marco de referencia (Frame) del efector final
+    ee_frame: "gripper_base_link"
+    
+    # Marco de referencia (Frame) base del robot
+    base_frame: "link_base"
+    
+    # --- Configuración de Pose Inicial (Home) ---
+    # Coordenada espacial en Metros (X, Y, Z) a la que se dirige el efector al arrancar, antes de ceder el control a la IA.
     home_x: 0.25
     home_y: 0.0
     home_z: 0.40
+    
+    # Orientación inicial en ángulos de Euler (Radianes). 
+    # Nota: Internamente se convierten a cuaterniones (x,y,z,w) para la cinemática inversa.
     home_roll: 3.14159
     home_pitch: 0.0
     home_yaw: 0.0
+
+    # --- Condición de Fin de Tarea (Auto-Stop) ---
+    # Si es True, el modelo detectará automáticamente cuando el robot haya dejado de moverse 
+    # (por ejemplo, al finalizar la tarea) y congelará la posición en lugar de oscilar.
+    enable_auto_stop: False
+    
+    # Umbral de varianza. Si la posición (X, Y, Z) varía menos que este número (en metros cuadrados) 
+    # durante los últimos N pasos, se considera que la tarea terminó. Un valor de 0.00001 a 0.001 suele funcionar.
+    auto_stop_variance_threshold: 0.0000001
+    
+    # Cantidad de pasos (ticks de inferencia) durante los cuales el robot debe estar "quieto"
+    # para activar el Auto-Stop. A 20 Hz, 20 pasos son 1 segundo continuo de inactividad.
+    auto_stop_patience_steps: 20

@@ -46,6 +46,11 @@ class PolicyNode(Node):
         self.declare_parameter('home_pitch', 0.0)
         self.declare_parameter('home_yaw', 0.0)
         
+        # --- Parámetros de Auto-Stop ---
+        self.declare_parameter('enable_auto_stop', True)
+        self.declare_parameter('auto_stop_variance_threshold', 0.001)
+        self.declare_parameter('auto_stop_patience_steps', 20)
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.current_gripper_state = 0.0
@@ -86,6 +91,11 @@ class PolicyNode(Node):
         self.node_start_time = time.time()
         self.state = 'RESET'
         self.reset_duration_s = 5.0
+        
+        # Historial para detectar inactividad y hacer auto-stop
+        self.action_history = []
+        self.frozen_pose = None
+        self.frozen_gripper = None
         
         rate = self.get_parameter('inference_hz').value
         self.timer = self.create_timer(1.0 / rate, self._inference_step, callback_group=self.cbg)
@@ -162,6 +172,18 @@ class PolicyNode(Node):
                 self.get_logger().info("RESET finalizado. ¡Cediendo el control a la Red Neuronal (Diffusion Policy)!")
                 self.state = 'INFERENCE'
                 
+        if self.state == 'DONE':
+            if self.frozen_pose is not None:
+                msg = ActionChunk()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.header.frame_id = self.get_parameter("base_frame").value
+                msg.poses.append(self.frozen_pose)
+                msg.gripper_states.append(self.frozen_gripper)
+                self.action_pub.publish(msg)
+                self.action_executor.execute(msg)
+                self.get_logger().info("Tarea completada (Auto-Stop). Manteniendo posición fija.", throttle_duration_sec=2.0)
+            return
+
         if self.policy is not None:
             import torchvision.transforms as transforms
             # Prepare image tensor (1, C, H, W)
@@ -221,6 +243,27 @@ class PolicyNode(Node):
             gripper_val = msg.gripper_states[0]
             gripper_str = "CERRADO" if gripper_val <= -0.001 else "ABIERTO"
             self.get_logger().info(f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {raw_gripper:.7f} ({gripper_str})", throttle_duration_sec=1.0)
+            
+            # --- Lógica de Auto-Stop ---
+            if self.get_parameter('enable_auto_stop').value:
+                # Guardar solo la posición 3D (X, Y, Z)
+                pos_array = np.array([p.position.x, p.position.y, p.position.z])
+                self.action_history.append(pos_array)
+                
+                patience = self.get_parameter('auto_stop_patience_steps').value
+                if len(self.action_history) > patience:
+                    self.action_history.pop(0)
+                    
+                    # Calcular la varianza máxima en las 3 dimensiones (X, Y, Z)
+                    # Si el robot se está moviendo muy poco en los últimos N pasos, consideramos la tarea terminada.
+                    history_np = np.array(self.action_history)
+                    variance = np.max(np.var(history_np, axis=0))
+                    
+                    if variance < self.get_parameter('auto_stop_variance_threshold').value:
+                        self.get_logger().info(f"¡Auto-Stop Activado! Varianza del movimiento ({variance:.6f}) por debajo del umbral. Finalizando tarea.")
+                        self.state = 'DONE'
+                        self.frozen_pose = p
+                        self.frozen_gripper = gripper_val
 
 def main(args=None):
     rclpy.init(args=args)
