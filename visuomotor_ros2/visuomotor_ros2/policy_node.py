@@ -16,6 +16,13 @@ import time
 from visuomotor_core.models.diffusion_policy import DiffusionPolicy
 from pathlib import Path
 
+def euler_to_quat(roll, pitch, yaw):
+    qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+    qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+    qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    return [qx, qy, qz, qw]
+
 class PolicyNode(Node):
     def __init__(self):
         super().__init__('policy_node')
@@ -30,6 +37,12 @@ class PolicyNode(Node):
         self.declare_parameter('base_frame', 'link_base')
         self.declare_parameter('num_inference_steps', 16)
         self.declare_parameter('n_action_steps', 8)
+        self.declare_parameter('home_x', 0.25)
+        self.declare_parameter('home_y', 0.0)
+        self.declare_parameter('home_z', 0.40)
+        self.declare_parameter('home_roll', 3.14159)
+        self.declare_parameter('home_pitch', 0.0)
+        self.declare_parameter('home_yaw', 0.0)
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -69,7 +82,6 @@ class PolicyNode(Node):
         self.node_start_time = time.time()
         self.state = 'RESET'
         self.reset_duration_s = 5.0
-        self.initial_quat = None
         
         rate = self.get_parameter('inference_hz').value
         self.timer = self.create_timer(1.0 / rate, self._inference_step, callback_group=self.cbg)
@@ -101,8 +113,6 @@ class PolicyNode(Node):
                 self.current_gripper_state
             ], dtype=np.float32)
             
-            if self.initial_quat is None:
-                self.initial_quat = ee_pose[3:7]
             
             self.latest_img = cv_img
             self.latest_state = ee_pose
@@ -123,16 +133,20 @@ class PolicyNode(Node):
                 msg.header.stamp = self.get_clock().now().to_msg()
                 msg.header.frame_id = self.get_parameter("base_frame").value
                 p = Pose()
-                p.position.x = 0.25
-                p.position.y = 0.0
-                p.position.z = 0.40
+                p.position.x = self.get_parameter('home_x').value
+                p.position.y = self.get_parameter('home_y').value
+                p.position.z = self.get_parameter('home_z').value
                 
-                # Mantener la orientación que tenía al iniciar el script
-                if self.initial_quat is not None:
-                    p.orientation.x = float(self.initial_quat[0])
-                    p.orientation.y = float(self.initial_quat[1])
-                    p.orientation.z = float(self.initial_quat[2])
-                    p.orientation.w = float(self.initial_quat[3])
+                # Orientación inicial desde los parámetros YAML
+                r = self.get_parameter('home_roll').value
+                p_pitch = self.get_parameter('home_pitch').value
+                y = self.get_parameter('home_yaw').value
+                home_q = euler_to_quat(r, p_pitch, y)
+                
+                p.orientation.x = float(home_q[0])
+                p.orientation.y = float(home_q[1])
+                p.orientation.z = float(home_q[2])
+                p.orientation.w = float(home_q[3])
                 
                 msg.poses.append(p)
                 msg.gripper_states.append(0.0) # Gripper abierto

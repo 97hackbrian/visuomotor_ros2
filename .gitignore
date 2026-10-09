@@ -78,3 +78,5 @@ append*
 
 *.log
 visuomotor_pipeline_drawio.mmd
+plan_pose_smoother.md
+diagrama_pose_smoother.mmd
