@@ -1,5 +1,5 @@
 pose_smoother:
   ros__parameters:
-    min_cutoff: 0.137
+    min_cutoff: 0.1
     beta: 0.00125
     d_cutoff: 0.95
