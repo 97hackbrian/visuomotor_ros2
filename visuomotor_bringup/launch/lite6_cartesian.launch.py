@@ -130,10 +130,15 @@ def launch_setup(context):
         output='screen'
     )
 
-    sixd_speed_limiter = Node(
+    pose_smoother_config = os.path.join(get_package_share_directory(
+        'visuomotor_bringup'), 'config', 'pose_smoother_params.yaml')
+
+    pose_smoother = Node(
         package='visuomotor_bringup',
-        executable='sixd_speed_limiter',
-        output='screen'
+        executable='pose_smoother.py',
+        name='pose_smoother',
+        output='screen',
+        parameters=[pose_smoother_config]
     )
 
     realsence_camera = Node(
@@ -185,7 +190,7 @@ def launch_setup(context):
         joint_state_broadcaster_spawner,
         rviz,
         position_controller,
-        sixd_speed_limiter,
+        pose_smoother,
         realsence_camera,
         gripper_service,
         foxglove_bridge

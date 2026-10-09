@@ -5,7 +5,7 @@ class ActionExecutor:
     def __init__(self, node):
         self.node = node
         # Se publica la acción en target_frame para que Isaac Sim / IK la ejecute
-        self.pose_pub = node.create_publisher(PoseStamped, 'target_frame', 10)
+        self.pose_pub = node.create_publisher(PoseStamped, 'target_frame_raw', 10)
         # Se publica el estado del gripper para que Isaac Sim lo abra/cierre
         self.gripper_pub = node.create_publisher(Float64MultiArray, '/position_controller/commands', 10)
         

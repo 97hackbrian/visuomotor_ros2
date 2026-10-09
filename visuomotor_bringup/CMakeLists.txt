@@ -17,6 +17,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/sixd_speed_limiter
+  scripts/pose_smoother.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

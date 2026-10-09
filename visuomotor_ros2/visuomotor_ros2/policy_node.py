@@ -37,6 +37,8 @@ class PolicyNode(Node):
         self.declare_parameter('base_frame', 'link_base')
         self.declare_parameter('num_inference_steps', 16)
         self.declare_parameter('n_action_steps', 8)
+        self.declare_parameter('use_temporal_ensemble', True)
+        self.declare_parameter('temporal_ensemble_k', 0.01)
         self.declare_parameter('home_x', 0.25)
         self.declare_parameter('home_y', 0.0)
         self.declare_parameter('home_z', 0.40)
@@ -62,6 +64,8 @@ class PolicyNode(Node):
             
             # Sobreescribir el n_action_steps para controlar la reactividad (pasos ejecutados antes de replanificar)
             self.policy.config.n_action_steps = self.get_parameter('n_action_steps').value
+            self.policy.config.use_temporal_ensemble = self.get_parameter('use_temporal_ensemble').value
+            self.policy.config.temporal_ensemble_k = self.get_parameter('temporal_ensemble_k').value
             self.policy.reset() # Re-inicializar las colas con el nuevo tamaño
             
             self.policy.eval()

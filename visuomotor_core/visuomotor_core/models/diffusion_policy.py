@@ -112,20 +112,66 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
 
         self._queues = populate_queues(self._queues, batch)
 
-        if len(self._queues["action"]) == 0:
-            # stack n latest observations from the queue
-            batch = {k: torch.stack(list(self._queues[k]), dim=1) for k in batch if k in self._queues}
-            actions = self.diffusion.generate_actions(batch)
+        if getattr(self.config, 'use_temporal_ensemble', False):
+            if not hasattr(self, 'active_chunks'):
+                self.active_chunks = []
+                self.te_k = getattr(self.config, 'temporal_ensemble_k', 0.01)
 
-            # TODO(rcadene): make above methods return output dictionary?
-            actions = self.unnormalize_outputs({"action": actions})["action"]
+            # 1. Update ages and remove chunks that no longer cover the current timestep
+            for chunk_dict in self.active_chunks:
+                chunk_dict['age'] += 1
+            self.active_chunks = [c for c in self.active_chunks if c['age'] < c['chunk'].shape[0]]
+            
+            # 2. Query model if it's time (simulated by checking the queue)
+            if len(self._queues["action"]) == 0:
+                batch_for_model = {k: torch.stack(list(self._queues[k]), dim=1) for k in batch if k in self._queues}
+                actions = self.diffusion.generate_actions(batch_for_model, return_full_horizon=True)
+                actions = self.unnormalize_outputs({"action": actions})["action"]
+                
+                # Transpose to [H_valid, B, action_dim]
+                actions_transposed = actions.transpose(0, 1)
+                
+                self.active_chunks.append({'chunk': actions_transposed, 'age': 0})
+                
+                # Fill the queue with dummy values to keep the counting mechanism
+                dummy_actions = torch.zeros_like(actions_transposed[:self._queues["action"].maxlen])
+                self._queues["action"].extend(dummy_actions)
 
-            # Add only up to maxlen to prevent .extend() from dropping the earliest actions!
-            actions_to_queue = actions.transpose(0, 1)[:self._queues["action"].maxlen]
-            self._queues["action"].extend(actions_to_queue)
-
-        action = self._queues["action"].popleft()
-        return action
+            # 3. Ensemble overlapping predictions
+            actions_for_curr_step = []
+            weights = []
+            for chunk_dict in self.active_chunks:
+                age = chunk_dict['age']
+                actions_for_curr_step.append(chunk_dict['chunk'][age])
+                weights.append(math.exp(-self.te_k * age))
+                
+            self._queues["action"].popleft()
+            
+            if not actions_for_curr_step:
+                return torch.zeros((1, self.config.output_shapes["action"][0]), device=batch["observation.state"].device)
+                
+            actions_tensor = torch.stack(actions_for_curr_step, dim=0) # [num_chunks, B, action_dim]
+            weights_tensor = torch.tensor(weights, dtype=actions_tensor.dtype, device=actions_tensor.device)
+            weights_tensor = weights_tensor / weights_tensor.sum()
+            
+            ensembled_action = (actions_tensor * weights_tensor.view(-1, 1, 1)).sum(dim=0) # [B, action_dim]
+            return ensembled_action
+            
+        else:
+            if len(self._queues["action"]) == 0:
+                # stack n latest observations from the queue
+                batch = {k: torch.stack(list(self._queues[k]), dim=1) for k in batch if k in self._queues}
+                actions = self.diffusion.generate_actions(batch)
+    
+                # TODO(rcadene): make above methods return output dictionary?
+                actions = self.unnormalize_outputs({"action": actions})["action"]
+    
+                # Add only up to maxlen to prevent .extend() from dropping the earliest actions!
+                actions_to_queue = actions.transpose(0, 1)[:self._queues["action"].maxlen]
+                self._queues["action"].extend(actions_to_queue)
+    
+            action = self._queues["action"].popleft()
+            return action
 
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
         """Run the batch through the model and compute the loss for training or validation."""
@@ -211,7 +257,7 @@ class DiffusionModel(nn.Module):
 
         return sample
 
-    def generate_actions(self, batch: dict[str, Tensor]) -> Tensor:
+    def generate_actions(self, batch: dict[str, Tensor], return_full_horizon=False) -> Tensor:
         """
         This function expects `batch` to have:
         {
@@ -241,8 +287,12 @@ class DiffusionModel(nn.Module):
         actions = sample[..., : self.config.output_shapes["action"][0]]
         # Extract `n_action_steps` steps worth of actions (from the current observation).
         start = n_obs_steps - 1
-        end = start + self.config.n_action_steps
-        actions = actions[:, start:end]
+        
+        if return_full_horizon:
+            actions = actions[:, start:]
+        else:
+            end = start + self.config.n_action_steps
+            actions = actions[:, start:end]
 
         return actions
 

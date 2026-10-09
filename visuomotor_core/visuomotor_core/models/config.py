@@ -141,6 +141,10 @@ class DiffusionConfig:
     # Gripper Integration
     use_gripper: bool = False
 
+    # Temporal Ensemble
+    use_temporal_ensemble: bool = False
+    temporal_ensemble_k: float = 0.01
+
     def __post_init__(self):
         """Input validation (not exhaustive)."""
         if self.use_gripper:

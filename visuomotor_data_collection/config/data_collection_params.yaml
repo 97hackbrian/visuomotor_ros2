@@ -19,10 +19,10 @@
 
     
     # ── Dinámica Rotacional (PID Angular) ──
-    kp_rot: 1.2                     # Agresividad para alinear la orientación (Cuaterniones)
+    kp_rot: 1.5                     # Agresividad para alinear la orientación (Cuaterniones)
     ki_rot: 0.0
     kd_rot: 0.05
-    max_speed_rad_s: 0.5           # Límite de velocidad angular (rad/s). 0.66 equivale a ~37 grados/seg (giro suave)
+    max_speed_rad_s: 0.645           # Límite de velocidad angular (rad/s). 0.66 equivale a ~37 grados/seg (giro suave)
     
     # ── Secuencia Lógica (FSM) y Geometría ──
     init_x: 0.25                    # Posición de reposo X entre iteraciones (metros)
@@ -42,14 +42,14 @@
     # ── Aparición de Objetos (Secuencia Halton Quasi-Monte Carlo) ──
     random_spawn: true              # Activa la teletransportación automática del objeto
     spawn_x_min: 0.25               # Límite mínimo en el eje X (Profundidad)
-    spawn_x_max: 0.32               # Límite máximo en el eje X
-    spawn_y_min: -0.65              # Límite derecho de la mesa en Y
-    spawn_y_max: -1.13              # Límite izquierdo de la mesa en Y
+    spawn_x_max: 0.36   #0.32       # Límite máximo en el eje X
+    spawn_y_min: -0.64              # Límite derecho de la mesa en Y
+    spawn_y_max: -1.14  #0.13       # Límite izquierdo de la mesa en Y
     spawn_z: 0.44                   # Altura estática de aparición del objeto (sobre la mesa)
     spawn_yaw_min: -3.14159         # Límite mínimo de rotación del objeto (-180°).
     spawn_yaw_max: 3.14159          # Límite máximo de rotación del objeto (+180°).
     spawn_safe_margin_x: 0.0        # Distancia al borde X (metros) donde el objeto no rotará (0 = desactivado)
-    spawn_safe_margin_y: 0.0555     # Distancia al borde Y (metros) donde el objeto no rotará
+    spawn_safe_margin_y: 0.0225 #0.055# Distancia al borde Y (metros) donde el objeto no rotará
     
     # ── Tolerancias de Control de Bajo Nivel ──
     control_rate_hz: 100.0          # Velocidad interna del bucle PID en ROS 2 (Hz)

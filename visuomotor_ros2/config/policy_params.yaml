@@ -4,7 +4,9 @@ policy_node:
     checkpoint_path: "/ros/visuomotor_core/outputs/train_502_dataV5/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
     inference_hz: 20.0
     num_inference_steps: 10
-    n_action_steps: 8
+    n_action_steps: 3
+    use_temporal_ensemble: True
+    temporal_ensemble_k: 0.0
     camera_topic: "/rgb"
     home_x: 0.25
     home_y: 0.0
