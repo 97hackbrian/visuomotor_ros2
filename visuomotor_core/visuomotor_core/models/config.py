@@ -141,6 +141,9 @@ class DiffusionConfig:
     # Gripper Integration
     use_gripper: bool = False
 
+    # Done Flag Integration
+    use_done_flag: bool = False
+
     # Temporal Ensemble
     use_temporal_ensemble: bool = False
     temporal_ensemble_k: float = 0.01
@@ -153,6 +156,11 @@ class DiffusionConfig:
             if self.input_shapes["observation.state"][0] in [6, 7]:  # 6(euler) or 7(quat)
                 self.input_shapes["observation.state"][0] += 1
             if self.output_shapes["action"][0] in [6, 7]:
+                self.output_shapes["action"][0] += 1
+                
+        if self.use_done_flag:
+            # Append 1 dimension to the action output for the 'done' task flag
+            if self.output_shapes["action"][0] in [7, 8]:  
                 self.output_shapes["action"][0] += 1
 
         if not self.vision_backbone.startswith("resnet"):

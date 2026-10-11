@@ -13,46 +13,58 @@
     # ── Dinámica Cartesiana (PID de Traslación) ──
     kp: 1.0                         # Ganancia Proporcional (Agresividad de movimiento en XYZ)
     ki: 0.001                       # Ganancia Integral (Corrección de error acumulado)
-    kd: 0.05                        # Ganancia Derivativa (Amortiguación para evitar oscilaciones)
-    max_speed_m_s: 0.05             # Límite absoluto de velocidad de traslación (m/s). Afectado por freno Z dinámico.
+    kd: 0.055                       # Ganancia Derivativa (Amortiguación para evitar oscilaciones)
+    max_speed_m_s: 0.067            # Límite absoluto de velocidad de traslación (m/s). Afectado por freno Z dinámico.
     turtle_descent_multiplier: 0.15 # Fracción de velocidad traslacional para "velocidad tortuga" mientras se alinea el Yaw
 
     
     # ── Dinámica Rotacional (PID Angular) ──
-    kp_rot: 1.5                     # Agresividad para alinear la orientación (Cuaterniones)
-    ki_rot: 0.0
+    kp_rot: 1.8                     # Agresividad para alinear la orientación (Cuaterniones)
+    ki_rot: 0.008
     kd_rot: 0.05
-    max_speed_rad_s: 0.645           # Límite de velocidad angular (rad/s). 0.66 equivale a ~37 grados/seg (giro suave)
+    max_speed_rad_s: 3.8           # Límite de velocidad angular (rad/s) aumentado para ALIGN_YAW y UNTILT
     
     # ── Secuencia Lógica (FSM) y Geometría ──
     init_x: 0.25                    # Posición de reposo X entre iteraciones (metros)
     init_y: 0.0                     # Posición de reposo Y entre iteraciones (metros)
     init_z_height: 0.40             # Posición de reposo Z (Altura ideal para panorama de cámara)
-    wait_time_s: 5.5                # Tiempo esperando en reposo para asimilar la caída del objeto previo
+    target_x: 0.25                  # Posición X destino donde deposita el objeto
+    target_y: 0.0                 # Posición Y destino donde deposita el objeto
+    target_z: 0.40                  # Posición Z destino donde deposita el objeto
+    target_roll: 3.14159            # Rotación final en el eje X (Roll). Por defecto viendo abajo (~180 grados = 3.14159 rad)
+    target_pitch: 0.0               # Rotación final en el eje Y (Pitch).
+    target_yaw: 0.0                 # Rotación final en el eje Z (Yaw). Por defecto de frente (0.0 rad)
+    wait_time_s: 6.9                # Tiempo esperando en reposo para asimilar la caída del objeto previo
+    reset_joints_duration_s: 5.0    # Tiempo (segundos) asignado al reset de articulaciones
+    hold_target_time_s: 3.5         # Tiempo esperando antes de finalizar episodio en posición objetivo
     hover_z_offset: 0.15            # Altura de seguridad sobre el objeto donde termina el embudo de aproximación
     funnel_curvature_multiplier: 1.5 # Factor de curvatura del vuelo de embudo (Mayor = Vuelo más parabólico)
     grasp_wait_time_s: 1.0          # Tiempo que el brazo queda congelado esperando que el hardware del gripper cierre
     settle_time_s: 0.5              # Tiempo de asimilación tras llegar al objeto antes de dar la orden de agarre
-    approach_timeout_s: 15.0        # Tiempo máximo antes de cancelar un intento atascado (segundos)
-    global_episode_timeout_s: 48.0  # Tiempo máximo total para todo el episodio desde que empieza a acercarse
+    untilt_settle_time_s: 1.5       # Tiempo de asimilación tras enderezar la herramienta
+    approach_timeout_s: 35.0        # Tiempo máximo antes de cancelar un intento atascado (segundos)
+    global_episode_timeout_s: 90.0  # Tiempo máximo total para todo el episodio desde que empieza a acercarse
     lift_z_offset: 0.20             # Altura en Z a la que levanta el objeto tras agarrarlo
     validate_grasp_success: true    # Si es true, descarta el episodio si el objeto no se elevó exitosamente
     grasp_success_fraction: 0.4     # Fracción de lift_z_offset requerida para dar por válido el agarre (0.5 = 50%)
+    record_done_flag: true          # Si es true, registra una 9na dimensión en las acciones indicando la finalización del episodio
+    
     
     # ── Aparición de Objetos (Secuencia Halton Quasi-Monte Carlo) ──
     random_spawn: true              # Activa la teletransportación automática del objeto
     spawn_x_min: 0.25               # Límite mínimo en el eje X (Profundidad)
-    spawn_x_max: 0.36   #0.32       # Límite máximo en el eje X
+    spawn_x_max: 0.365   #0.32      # Límite máximo en el eje X
     spawn_y_min: -0.64              # Límite derecho de la mesa en Y
     spawn_y_max: -1.14  #0.13       # Límite izquierdo de la mesa en Y
     spawn_z: 0.44                   # Altura estática de aparición del objeto (sobre la mesa)
-    spawn_yaw_min: -3.14159         # Límite mínimo de rotación del objeto (-180°).
-    spawn_yaw_max: 3.14159          # Límite máximo de rotación del objeto (+180°).
+    spawn_yaw_min: -3.1415         # Límite mínimo de rotación del objeto (-180°).
+    spawn_yaw_max: 3.1415          # Límite máximo de rotación del objeto (+180°).
     spawn_safe_margin_x: 0.0        # Distancia al borde X (metros) donde el objeto no rotará (0 = desactivado)
     spawn_safe_margin_y: 0.0225 #0.055# Distancia al borde Y (metros) donde el objeto no rotará
     
     # ── Tolerancias de Control de Bajo Nivel ──
     control_rate_hz: 100.0          # Velocidad interna del bucle PID en ROS 2 (Hz)
     goal_tolerance_m: 0.01          # Distancia Euclidiana (1cm) para declarar que el objetivo fue alcanzado
+    goal_tolerance_rad: 0.05        # Tolerancia Rotacional en radianes
     gripper_open_pos: 0.0           # Señal que representa el Gripper 100% abierto
     gripper_closed_pos: -0.01       # Señal que representa el Gripper 100% cerrado

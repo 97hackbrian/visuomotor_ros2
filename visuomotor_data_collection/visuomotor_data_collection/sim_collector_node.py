@@ -44,6 +44,9 @@ class SimCollectorNode(Node):
         self.declare_parameter('gripper_open_pos', 0.0)
         self.declare_parameter('gripper_closed_pos', -0.01)
         
+        # Parámetro para grabar la dimensión de Fin de Tarea
+        self.declare_parameter('record_done_flag', True)
+        
         storage_path = self.get_parameter('dataset_path').value
         if storage_path == 'AUTO':
             import glob
@@ -189,12 +192,18 @@ class SimCollectorNode(Node):
 
     def _sample_step(self):
         # Si somos el demostrador automático, generamos la acción
-# Grabación del estado si el episodio está activo
+        # Grabación del estado si el episodio está activo
         if self.is_recording and self.latest_img is not None and self.latest_state is not None and self.latest_action is not None:
+            action_to_save = self.latest_action.copy()
+            
+            if self.get_parameter('record_done_flag').value:
+                # Agregamos la 9na dimensión (0.0 por defecto, se cambiará a 1.0 al guardar)
+                action_to_save = np.append(action_to_save, 0.0)
+                
             self.buffer.append({
                 'image': self.latest_img.copy(),
                 'state': self.latest_state.copy(),
-                'action': self.latest_action.copy()
+                'action': action_to_save
             })
 
     def _srv_trigger(self, req, res):
@@ -213,6 +222,12 @@ class SimCollectorNode(Node):
                 res.success = False
                 res.message = "Secuencia insuficiente. Episodio descartado."
             else:
+                if self.get_parameter('record_done_flag').value:
+                    # Modificar los últimos 3 frames para que tengan la bandera en 1.0
+                    # (ponemos varios frames para que la red neuronal lo capte con mayor fuerza)
+                    for i in range(max(1, len(self.buffer)-3), len(self.buffer)):
+                        self.buffer[i]['action'][-1] = 1.0
+                
                 self.storage.append_episode(self.buffer)
                 res.success = True
                 res.message = f"Episodio registrado en Zarr ({len(self.buffer)} iteraciones temporales)."

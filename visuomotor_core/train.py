@@ -31,11 +31,18 @@ def main(root, epoch, batch_size, out_dir, save_every):
     checkpoint_freq = 2000
 
     cfg = DiffusionConfig()
-    cfg.input_shapes["observation.state"] = [8]
-    cfg.output_shapes["action"] = [8]
-    # No usaremos use_gripper del config porque ya pusimos explícitamente 8 dimensiones
     
+    # Primero inicializamos el dataset para poder leer cuántas dimensiones tiene la data (8 o 9)
     base_dataset = ZarrDataset(root=root, n_obs_steps=cfg.n_obs_steps, h_act=cfg.horizon)
+    
+    # Ajustamos dinámicamente el tamaño de la acción y del estado
+    obs_dim = base_dataset.stats["observation.state"]["mean"].shape[0]
+    act_dim = base_dataset.stats["action"]["mean"].shape[0]
+    
+    cfg.input_shapes["observation.state"] = [obs_dim]
+    cfg.output_shapes["action"] = [act_dim]
+    
+    print(f"Dataset stats loaded. Observation Dim: {obs_dim} | Action Dim: {act_dim}")
     
     dataloader = torch.utils.data.DataLoader(
         base_dataset,

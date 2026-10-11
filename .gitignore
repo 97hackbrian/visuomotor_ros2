@@ -80,3 +80,7 @@ append*
 visuomotor_pipeline_drawio.mmd
 plan_pose_smoother.md
 diagrama_pose_smoother.mmd
+fix_file.py
+fix_hardcoded.py
+update_yaml.py
+fix_lines.py

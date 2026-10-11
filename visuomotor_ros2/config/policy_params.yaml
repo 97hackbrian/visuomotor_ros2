@@ -5,7 +5,7 @@ policy_node:
     model_type: "diffusion"
     
     # Ruta absoluta al directorio que contiene los pesos (weights) y configuración del modelo entrenado
-    checkpoint_path: "/ros/visuomotor_core/outputs/train_502_dataV5/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_500_dataV7/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
     
     # --- Configuración de Inferencia y Rendimiento ---
     # Frecuencia (Hz) a la que corre el bucle principal del nodo de inferencia
@@ -27,9 +27,15 @@ policy_node:
     # 0.0 = promedio simple (máximo suavizado, posible mini-lag). 0.01 = default SOTA. >0.1 = más reactivo, menos suave.
     temporal_ensemble_k: 0.0
     
-    # --- Configuración de Sensores y TF ---
+    # --- Configuración de Sensores, Topics y TF ---
     # Topic de ROS 2 del que se lee la imagen de la cámara (RGB)
     camera_topic: "/rgb"
+    
+    # Topic de ROS 2 para leer las articulaciones del robot
+    joint_states_topic: "/joint_states"
+    
+    # Topic de ROS 2 para publicar las trayectorias predichas por la IA
+    action_chunk_topic: "policy/action_chunk"
     
     # Marco de referencia (Frame) del efector final
     ee_frame: "gripper_base_link"
@@ -37,7 +43,27 @@ policy_node:
     # Marco de referencia (Frame) base del robot
     base_frame: "link_base"
     
-    # --- Configuración de Pose Inicial (Home) ---
+    # --- Configuración de Preprocesamiento de Imagen ---
+    # Resolución cuadrada (ancho y alto en píxeles) a la que se escala la imagen de entrada para la red
+    image_size: 256
+    
+    # --- Configuración del Gripper ---
+    # Comando de posición cuando el gripper debe estar abierto
+    gripper_open_pos: 0.0
+    
+    # Comando de posición cuando el gripper debe estar cerrado
+    gripper_closed_pos: -0.01
+    
+    # Umbral por debajo del cual la predicción continua de la red se binariza a cerrado
+    gripper_binary_threshold: -0.001
+    
+    # Subcadena para identificar el joint del gripper en el topic /joint_states
+    gripper_joint_name_pattern: "gripper"
+    
+    # --- Configuración de Pose Inicial (Home) y Reset ---
+    # Tiempo en segundos asignado para volver a la pose inicial antes de iniciar la inferencia
+    reset_duration_s: 5.0
+    
     # Coordenada espacial en Metros (X, Y, Z) a la que se dirige el efector al arrancar, antes de ceder el control a la IA.
     home_x: 0.25
     home_y: 0.0
@@ -50,14 +76,30 @@ policy_node:
     home_yaw: 0.0
 
     # --- Condición de Fin de Tarea (Auto-Stop) ---
-    # Si es True, el modelo detectará automáticamente cuando el robot haya dejado de moverse 
-    # (por ejemplo, al finalizar la tarea) y congelará la posición en lugar de oscilar.
-    enable_auto_stop: False
+    # 1. Auto-Stop Neuronal (Dimensión 9):
+    # Activa la detección por bandera de la red neuronal. Si el modelo entrenado incluye la 9na 
+    # dimensión y predice done_flag >= neural_auto_stop_threshold, congela la posición y finaliza la tarea.
+    enable_neural_auto_stop: True
     
-    # Umbral de varianza. Si la posición (X, Y, Z) varía menos que este número (en metros cuadrados) 
-    # durante los últimos N pasos, se considera que la tarea terminó. Un valor de 0.00001 a 0.001 suele funcionar.
+    # Umbral de activación para la bandera neuronal (valor entre 0.0 y 1.0).
+    # Si la predicción de la 9na dimensión alcanza o supera este valor, se dispara el corte.
+    neural_auto_stop_threshold: 0.5
+    
+    # 2. Auto-Stop Heurístico (Basado en Varianza / Inactividad Física):
+    # Monitorea la posición cartesiana (X, Y, Z). Si el robot se queda quieto en el espacio
+    # (varianza < umbral) durante N pasos continuos, congela el brazo y finaliza la tarea.
+    # Ideal para modelos de 8 dimensiones o como método de respaldo independiente.
+    enable_heuristic_auto_stop: False
+    
+    # Interruptor Maestro / Retrocompatibilidad:
+    # Mantener en True para habilitar el sistema de auto-stop.
+    enable_auto_stop: True
+    
+    # --- Ajustes específicos del Auto-Stop Heurístico ---
+    # Umbral de varianza en metros cuadrados. Mide qué tan estática debe estar la posición (X, Y, Z).
+    # Valores entre 0.0000001 y 0.0001 suelen funcionar según el nivel de ruido/vibración.
     auto_stop_variance_threshold: 0.0000001
     
-    # Cantidad de pasos (ticks de inferencia) durante los cuales el robot debe estar "quieto"
-    # para activar el Auto-Stop. A 20 Hz, 20 pasos son 1 segundo continuo de inactividad.
+    # Cantidad de pasos (a 20 Hz de inferencia, 20 pasos = 1 segundo continuo) que el robot
+    # debe permanecer inmóvil antes de disparar el corte heurístico.
     auto_stop_patience_steps: 20
