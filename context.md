@@ -67,6 +67,8 @@ Si eres una Inteligencia Artificial operando sobre este repositorio en el futuro
 2. **ESPACIO DE ACCIONES CARTESIANAS:** Las acciones generadas por la política (`ActionChunk`) operan exclusivamente en espacio de tareas (Cartesiano `PoseStamped` absoluto basado en `base_link`). Evita mezclar comandos cartesianos con comandos de espacio articular a menos que instancies explícitamente un transformador cinemático.
 3. **MANTENIMIENTO DEL CORE SEPARADO:** Nunca intentes inyectar `cv2.imshow`, llamadas a la API de ROS 2 o `rospy` dentro de `visuomotor_core`. El código de ese paquete debe poder correr en un clúster remoto de GPUs que ni siquiera tenga instalado ROS.
 4. **PERFORMANCE EN LA INFERENCIA:** Al modificar `policy_node.py`, recuerda que el bucle `torch.inference_mode()` y el preprocesamiento de imágenes deben evitar sobrecargar el GIL (Global Interpreter Lock) de Python. Si realizas transformaciones intensivas, evalúa usar operaciones nativas en GPU mediante Tensores, no for loops sobre NumPy Arrays.
+5. **ENTORNO DE EJECUCIÓN (DOCKER vs HOST):** Todo lo relacionado con Python, ROS 2, scripts, entrenamiento y compilación (`colcon build`) se ejecuta DENTRO del contenedor Docker `visuomotor_ros2`.
+6. **PROHIBICIÓN DE GIT DENTRO DEL CONTENEDOR:** El control de versiones Git lo maneja exclusivamente el usuario desde su terminal local en el Host. NUNCA ejecutes comandos de Git (`git status`, `git add`, `git commit`, `git config`, etc.) dentro del contenedor Docker.
 
 ---
 *Fin del Contexto. Mantén este archivo actualizado conforme la arquitectura VLA / Flow Matching crezca.*
@@ -123,6 +125,28 @@ Durante las fases de integración (especialmente simulando con Omniverse Isaac S
    - *El Problema:* La IA navegaba hacia abajo (ej. `Z=0.08`), pero el actuador ignoraba las señales numéricas de cierre generadas por la red neuronal, escurriendo el objeto.
    - *La Solución:* En `action_executors.py`, el nodo de inferencia empaquetaba la acción del motor del gripper como un arreglo de 2 elementos `[val, val]`. No obstante, el colector de datos original estaba configurado para usar un controlador de articulación único (`[val]`). Al notar la discrepancia dimensional, Isaac Sim ignoraba la señal del ROS 2 Subscribe Node. Recortar la salida a una matriz unidimensional restableció el cierre físico guiado por IA.
 
+13. **Omisión de la Señal de Término (Auto-Stop y la 9ª Dimensión):**
+   - *El Problema:* Al completar la tarea (objeto depositado), el robot continuaba activo, vibrando o ejecutando micro-movimientos espurios. Al intentar implementar una 9ª dimensión (`done_flag`) en la acción, el modelo inferido no lograba activarla (`flag ~ 0.0002` constante).
+   - *Diagnóstico Raíz:* 
+     1. El dataset original (`demonstrations_v7.zarr`) solo contenía 3 fotogramas finales con `1.0`.
+     2. El dataloader (`zarr_dataset.py`) descartaba los últimos `h_act` (16) frames de cada episodio para evitar desbordar el horizonte temporal, lo que eliminaba el 100% de las muestras con `done_flag = 1.0` vistas por la red durante el entrenamiento.
+   - *La Solución Triple:*
+     1. **Copy-Padding en Dataset (`zarr_dataset.py`):** Cuando el índice se acerca al final del episodio, se completa el horizonte replicando el último estado/acción (`np.repeat(actual_actions[-1:], pad_len, axis=0)`), permitiendo que la red entrene sobre los frames finales de término.
+     2. **Parcheo Seguro de Datasets (`patch_dataset_done_flag.py`):** Script no destructivo que generó `demonstrations_v7_done_fixed.zarr` inyectando 20 frames (1.0 s a 20 Hz) con `done = 1.0` en cada episodio.
+     3. **Desacoplamiento en Inferencia (`policy_node.py`):** Separación total entre Auto-Stop Neuronal (`enable_neural_auto_stop`, umbral configurable `neural_auto_stop_threshold`) y Auto-Stop Heurístico (`enable_heuristic_auto_stop`, varianza de posición XYZ).
+
+14. **Arquitectura Causal: La 9ª Dimensión es Acción, NUNCA Observación:**
+   - *El Principio:* `observation.state` (8 dimensiones) modela propiocepción física medible por encoders/TF (`[X, Y, Z, Qx, Qy, Qz, Qw, Gripper]`). `action` (9 dimensiones) modela la intención motora y la decisión del agente (`[..., Gripper, Done]`).
+   - *Peligro Evitado (Fuga Causal / Causal Leakage):* Si `done` se incluyera en la observación, crearía una dependencia circular: en inferencia, el nodo necesitaría saber de antemano si la tarea terminó para poder pasárselo a la red como entrada.
+
+15. **Parametrización Completa y Eliminación de Hardcoded Values:**
+   - *Regla Aplicada:* Se purgaron todos los valores fijos en `policy_node.py` y `data_collection_params.yaml`:
+     - Tópicos (`joint_states_topic`, `action_chunk_topic`, `camera_topic`).
+     - Tiempos (`reset_duration_s`, `hold_target_time_s`, `wait_time_s`).
+     - Geometría y límites de gripper (`gripper_open_pos`, `gripper_closed_pos`, `gripper_binary_threshold`, `gripper_joint_name_pattern`).
+     - Tamaño de entrada visual (`image_size: 256`).
+
+---
 
 ### 6. Análisis de Fallas Cognitivas en la Inferencia (Falta de Generalización)
 Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 repeticiones por 2.5 horas, se detectaron los siguientes comportamientos deficientes:
@@ -135,7 +159,12 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
 - **Data Quantity (Sub-entrenamiento por escasez):** 60 demostraciones son absolutamente insuficientes para un modelo generativo visual continuo (Diffusion Policy). Con 50,000 steps, la red sobreajustó (overfitting) memorizando el ruido de fondo, pero no generalizó la silueta del objeto.
 - **Data Quality (Correlaciones Espurias):** Si el objetivo estaba sobre otros objetos en la demostración, la red neuronal (CNN) pudo haber prestado atención al objeto más brillante/grande del fondo (clutter), creyendo erróneamente que 'ir hacia la pila' era la instrucción correcta, ignorando el objeto real.
 
+**Hitos Logrados y Estado Actual:**
+- **Fase 1 (Limpieza del Entorno):** Completada. Escena purgada a solo mesa y pick_target.
+- **Fase 2 (Aumento de Demostraciones):** Dataset `v7` con ~500 demostraciones sintéticas con variación Halton (QMC) generado.
+- **Fase 3 (Variabilidad Total):** Respawn con Quasi-Monte Carlo en posición y orientación funcionando.
+- **Fase 4 (Auto-Stop Neuronal Validado):** Modelo entrenado con `demonstrations_v7_done_fixed.zarr` validó exitosamente la parada autónoma con la 9ª dimensión.
+
 **Roadmap y Siguientes Pasos (Proceder para Nueva Sesión):**
-- **Fase 1: Limpieza del Entorno (Data-Centric AI):** Para entrenar un modelo 'Zero-Shot' específico por objeto, la escena de recolección debe ser purgada. Solo debe existir la mesa y el objeto objetivo (sin distractores).
-- **Fase 2: Aumento Masivo de Demostraciones:** Se requieren un mínimo de 150 a 200 demostraciones exitosas.
-- **Fase 3: Variabilidad Total (Rotación y Posición):** El script de spawn aleatorio debe garantizar que el objeto aparezca en los 360 grados de Yaw (orientación). Si el modelo no ve el objeto girado durante el entrenamiento, no podrá extraer características invariantes a la rotación.
+- **Fase 5 (Generación Nativa V8):** Ejecutar toma de dataset fresco (`demonstrations_v8.zarr`) usando la recolección autónoma actualizada (`pickup_approximate.launch.py`) con `record_done_flag: true` y `hold_target_time_s: 3.5s`.
+- **Fase 6 (Validación Fina de Inferencia):** Evaluar en vivo la reactividad con `temporal_ensemble` y el registro periódico del valor de la 9ª dimensión en terminal.
