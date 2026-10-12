@@ -52,7 +52,7 @@ Abre `context.md` y:
 
 ### Paso 3: Actualización de `AGENTS.md`
 Abre `AGENTS.md` y:
-- Verifica que las reglas de tensores (observación vs acción), entorno Docker (Python/ROS) y gestión de Git exclusiva en el host local reflejen el estado exacto actual del proyecto.
+- Verifica que las reglas de tensores (observación vs acción), entorno Docker (ejecución con `-u hackbrian` solo bajo consentimiento explícito) y gestión de Git exclusiva en el host local reflejen el estado exacto actual del proyecto.
 - Si se añadieron nuevas variables de configuración en YAMLs, anótalas en la especificación.
 
 ### Paso 4: Actualización de Skills de Antigravity

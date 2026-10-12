@@ -68,6 +68,8 @@ Si eres una Inteligencia Artificial operando sobre este repositorio en el futuro
 3. **MANTENIMIENTO DEL CORE SEPARADO:** Nunca intentes inyectar `cv2.imshow`, llamadas a la API de ROS 2 o `rospy` dentro de `visuomotor_core`. El código de ese paquete debe poder correr en un clúster remoto de GPUs que ni siquiera tenga instalado ROS.
 4. **PERFORMANCE EN LA INFERENCIA:** Al modificar `policy_node.py`, recuerda que el bucle `torch.inference_mode()` y el preprocesamiento de imágenes deben evitar sobrecargar el GIL (Global Interpreter Lock) de Python. Si realizas transformaciones intensivas, evalúa usar operaciones nativas en GPU mediante Tensores, no for loops sobre NumPy Arrays.
 5. **ENTORNO DE EJECUCIÓN (DOCKER vs HOST):** Todo lo relacionado con Python, ROS 2, scripts, entrenamiento y compilación (`colcon build`) se ejecuta DENTRO del contenedor Docker `visuomotor_ros2`.
+   - **Usuario Obligatorio `hackbrian` (`-u hackbrian`):** Los comandos en el contenedor deben ejecutarse siempre bajo el usuario `hackbrian` para preservar los permisos de `hackbrian@robot_dev` y nunca generar archivos propiedad de `root`.
+   - **Consentimiento Expreso:** La IA ÚNICAMENTE ejecutará comandos en la terminal cuando el usuario lo exprese directamente en el chat.
 6. **PROHIBICIÓN DE GIT DENTRO DEL CONTENEDOR:** El control de versiones Git lo maneja exclusivamente el usuario desde su terminal local en el Host. NUNCA ejecutes comandos de Git (`git status`, `git add`, `git commit`, `git config`, etc.) dentro del contenedor Docker.
 
 ---
@@ -134,6 +136,7 @@ Durante las fases de integración (especialmente simulando con Omniverse Isaac S
      1. **Copy-Padding en Dataset (`zarr_dataset.py`):** Cuando el índice se acerca al final del episodio, se completa el horizonte replicando el último estado/acción (`np.repeat(actual_actions[-1:], pad_len, axis=0)`), permitiendo que la red entrene sobre los frames finales de término.
      2. **Parcheo Seguro de Datasets (`patch_dataset_done_flag.py`):** Script no destructivo que generó `demonstrations_v7_done_fixed.zarr` inyectando 20 frames (1.0 s a 20 Hz) con `done = 1.0` en cada episodio.
      3. **Desacoplamiento en Inferencia (`policy_node.py`):** Separación total entre Auto-Stop Neuronal (`enable_neural_auto_stop`, umbral configurable `neural_auto_stop_threshold`) y Auto-Stop Heurístico (`enable_heuristic_auto_stop`, varianza de posición XYZ).
+     4. **Trazabilidad y Logs en Tiempo Real:** El nodo de inferencia reporta a 1 Hz el valor instantáneo de la 9ª dimensión vs su umbral (`Dim 9 (Done): X.XXXX [Umbral: 0.50 -> No alcanzado/ALCANZADO]`), y al dispararse la parada, registra y retiene en el estado congelado el valor exacto que detonó el fin de la tarea.
 
 14. **Arquitectura Causal: La 9ª Dimensión es Acción, NUNCA Observación:**
    - *El Principio:* `observation.state` (8 dimensiones) modela propiocepción física medible por encoders/TF (`[X, Y, Z, Qx, Qy, Qz, Qw, Gripper]`). `action` (9 dimensiones) modela la intención motora y la decisión del agente (`[..., Gripper, Done]`).

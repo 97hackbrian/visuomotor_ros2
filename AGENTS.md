@@ -30,13 +30,14 @@ El repositorio se divide en 5 paquetes desacoplados:
 
 ## 2. Reglas Operativas del Entorno (No Negociables)
 
-1. **Entorno Docker Obligatorio (Python y ROS 2):**
+1. **Entorno Docker Obligatorio (Usuario `hackbrian` y Consentimiento Expreso):**
    - Todo lo relacionado con Python, ROS 2, scripts, entrenamiento, datasets y compilación opera dentro del contenedor Docker `visuomotor_ros2` (montado en `/ros`).
    - NUNCA ejecutes comandos de instalación o compilación de ROS directamente en el host Linux del usuario si alteran el entorno.
-   - Ejecuta comandos del workspace dentro del contenedor usando:
+   - **Permisos de Usuario Obligatorios (`hackbrian@robot_dev`):** Los comandos dentro del contenedor DEBEN ejecutarse siempre bajo el usuario `hackbrian` (`-u hackbrian`) para preservar los permisos y evitar que los archivos generados queden como propiedad de `root`:
      ```bash
-     docker exec -w /ros visuomotor_ros2 bash -c "<comando>"
+     docker exec -u hackbrian -w /ros visuomotor_ros2 bash -c "<comando>"
      ```
+   - **Condición de Consentimiento:** La IA ÚNICAMENTE ejecutará comandos en la terminal cuando el usuario lo exprese directamente en su instrucción. NUNCA ejecutes comandos proactivamente sin orden previa.
 2. **Gestión de Git Exclusiva en el Host Local:**
    - **NUNCA ejecutes comandos de Git (`git status`, `git add`, `git commit`, `git config`, etc.) dentro del contenedor Docker.**
    - El control de versiones Git lo gestiona exclusivamente el usuario desde su entorno local en el Host.
@@ -90,6 +91,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
 3. **Monitoreo en Logs:**
    - Durante inferencia regular: Log a 1 Hz reportando acción XYZ, estado del gripper y valor de la 9ª dimensión vs umbral.
    - Al activarse: Log explícito con el valor exacto de la 9ª dimensión que disparó la parada.
+   - En estado congelado (`DONE`): Log periódico cada 2 s reteniendo el valor y motivo exacto que detonó la parada.
 
 ---
 
@@ -110,16 +112,16 @@ El nodo de inferencia implementa dos capas independientes de detención:
 
 ```bash
 # 1. Compilación del workspace dentro del contenedor
-docker exec -w /ros visuomotor_ros2 bash -c "colcon build --symlink-install"
+docker exec -u hackbrian -w /ros visuomotor_ros2 bash -c "colcon build --symlink-install"
 
 # 2. Lanzar recolección autónoma de datos (genera automáticamente demonstrations_vX.zarr)
-docker exec -it visuomotor_ros2 bash -c "ros2 launch visuomotor_data_collection pickup_approximate.launch.py"
+docker exec -it -u hackbrian visuomotor_ros2 bash -c "ros2 launch visuomotor_data_collection pickup_approximate.launch.py"
 
 # 3. Entrenar Diffusion Policy con el dataset parchado o nuevo
-docker exec -it visuomotor_ros2 bash -c "python3 /ros/visuomotor_core/train.py --root /ros/visuomotor_core/datasets/demonstrations_v7_done_fixed.zarr --epoch 100 --batch_size 64 --out_dir /ros/visuomotor_core/outputs/train_500_dataV7_fixed"
+docker exec -it -u hackbrian visuomotor_ros2 bash -c "python3 /ros/visuomotor_core/train.py --root /ros/visuomotor_core/datasets/demonstrations_v7_done_fixed.zarr --epoch 100 --batch_size 64 --out_dir /ros/visuomotor_core/outputs/train_500_dataV7_fixed"
 
 # 4. Lanzar inferencia en vivo con el nodo de política
-docker exec -it visuomotor_ros2 bash -c "ros2 launch visuomotor_ros2 inference.launch.py"
+docker exec -it -u hackbrian visuomotor_ros2 bash -c "ros2 launch visuomotor_ros2 inference.launch.py"
 ```
 
 ---
