@@ -129,6 +129,7 @@ docker exec -it -u hackbrian visuomotor_ros2 bash -c "ros2 launch visuomotor_ros
 ## 7. Contrato de Mantenimiento Continuo (Agent Handoff)
 
 Al concluir cada sesión de desarrollo donde se hayan tomado decisiones arquitectónicas, solucionado bugs o actualizado datasets/pesos:
-1. El agente activo DEBE actualizar `context.md` y este archivo `AGENTS.md`.
-2. El agente activo DEBE registrar los nuevos hitos en la sección de progreso.
-3. Se puede invocar el protocolo automatizado definido en `UPDATE_KNOWLEDGE.md`.
+1. El agente activo DEBE auditar el código fuente línea por línea para certificar su estado funcional real.
+2. El agente activo DEBE actualizar `context.md` y este archivo `AGENTS.md`.
+3. El agente activo DEBE nutrir de forma aditiva la base de conocimiento modular en `.agents/knowledge/` (consultando los diffs reales de los commits).
+4. Se debe invocar el protocolo automatizado definido en `UPDATE_KNOWLEDGE.md` (`/update-knowledge`).

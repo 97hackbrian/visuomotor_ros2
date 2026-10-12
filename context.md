@@ -71,6 +71,7 @@ Si eres una Inteligencia Artificial operando sobre este repositorio en el futuro
    - **Usuario Obligatorio `hackbrian` (`-u hackbrian`):** Los comandos en el contenedor deben ejecutarse siempre bajo el usuario `hackbrian` para preservar los permisos de `hackbrian@robot_dev` y nunca generar archivos propiedad de `root`.
    - **Consentimiento Expreso:** La IA ÚNICAMENTE ejecutará comandos en la terminal cuando el usuario lo exprese directamente en el chat.
 6. **PROHIBICIÓN DE GIT DENTRO DEL CONTENEDOR:** El control de versiones Git lo maneja exclusivamente el usuario desde su terminal local en el Host. NUNCA ejecutes comandos de Git (`git status`, `git add`, `git commit`, `git config`, etc.) dentro del contenedor Docker.
+7. **MEMORIA INFINITA Y AUDITORÍA PREVIA:** La memoria a largo plazo modular reside en `.agents/knowledge/` y se nutre de forma aditiva. Antes de actualizar la documentación, la IA debe auditar los códigos fuente línea por línea y analizar los diffs reales de los commits recientes.
 
 ---
 *Fin del Contexto. Mantén este archivo actualizado conforme la arquitectura VLA / Flow Matching crezca.*

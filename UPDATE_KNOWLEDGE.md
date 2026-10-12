@@ -1,7 +1,7 @@
 ---
 name: update-knowledge
-description: Protocolo estandarizado para que cualquier agente de IA (Antigravity, Cursor, Claude Code, Windsurf, Copilot) extraiga los aprendizajes, soluciones de bugs y decisiones arquitectónicas de la sesión activa y actualice context.md, AGENTS.md y las skills de conocimiento.
-version: 1.0.0
+description: Protocolo estandarizado para que cualquier agente de IA (Antigravity, Cursor, Claude Code, Windsurf, Copilot) extraiga los aprendizajes, audite el código línea a línea, revise commits y nutra de forma aditiva la base de conocimientos (.agents/knowledge/), context.md, AGENTS.md y las skills especializadas.
+version: 2.0.0
 compatibility:
   - Antigravity CLI & IDE
   - Cursor
@@ -10,9 +10,9 @@ compatibility:
   - OpenAI Codex / Operator
 ---
 
-# UPDATE_KNOWLEDGE.md — Protocolo Universal de Sincronización de Conocimiento
+# UPDATE_KNOWLEDGE.md — Protocolo Universal de Sincronización y Memoria Infinita
 
-Este archivo define la rutina automatizada que cualquier agente de Inteligencia Artificial debe ejecutar cuando el usuario solicite:
+Este archivo define la rutina exhaustiva que cualquier agente de Inteligencia Artificial debe ejecutar cuando el usuario solicite:
 - *"actualiza la base de conocimientos"*
 - *"actualiza context y agents"*
 - *"guarda los aprendizajes de esta sesión"*
@@ -20,78 +20,87 @@ Este archivo define la rutina automatizada que cualquier agente de Inteligencia 
 
 ---
 
-## 1. Instrucción para el Agente (System Prompt de Ejecución)
+## 1. Misión del Agente (System Prompt de Ejecución)
 
-Al recibir este archivo como referencia, el agente debe asumir el rol de **Knowledge Engineer & System Architect** y ejecutar estrictamente los siguientes 5 pasos:
+Al recibir este archivo como referencia, el agente asume el rol de **Knowledge Engineer & System Architect** y debe seguir rigurosamente el siguiente flujo:
 
 ```mermaid
 flowchart TD
-    A[1. Analizar Historial de Sesión] --> B[2. Identificar Diagnósticos y Soluciones]
-    B --> C[3. Actualizar context.md]
-    C --> D[4. Actualizar AGENTS.md]
+    A[1. Auditoría Línea por Línea del Código] --> B[2. Análisis de Commits por Código Diffs]
+    B --> C[3. Control Aditivo de .agents/knowledge/]
+    C --> D[4. Sincronizar context.md y AGENTS.md]
     D --> E[5. Actualizar Skills Especializadas]
-    E --> F[6. Confirmar Cambios al Usuario]
+    E --> F[6. Resumen Ejecutivo al Usuario]
 ```
 
 ---
 
 ## 2. Pasos de Ejecución Obligatorios
 
-### Paso 1: Extracción de Aprendizajes de la Sesión
-Revisa todo el historial del chat actual e identifica:
-1. **Bugs resueltos:** Qué falló, cuál fue la causa raíz demostrada y qué cambio de código lo solucionó.
-2. **Decisiones arquitectónicas:** Modificaciones en espacios de observación vs acción, tensores, horizontes, normalización o protocolos de parada.
-3. **Parámetros y YAMLs:** Nuevos parámetros agregados, hardcoding eliminado y valores óptimos descubiertos.
-4. **Datasets y Modelos:** Nuevas versiones de datasets creadas (`demonstrations_vX.zarr`) o modelos entrenados.
+### Paso 1: Auditoría Previa Línea por Línea del Código
+> [!IMPORTANT]
+> **Antes de escribir o actualizar cualquier archivo de conocimiento**, el agente DEBE leer y auditar los programas fuente línea por línea para constatar la realidad fáctica del software y verificar que tal como está el código funciona y es correcto.
 
-### Paso 2: Actualización de `context.md`
-Abre `context.md` y:
-- Incorpora las nuevas soluciones en la sección de **Lecciones Aprendidas y Troubleshooting**.
-- Actualiza la sección de **Hitos Logrados** y el **Roadmap**.
-- Asegura que ninguna directriz técnica contradiga los descubrimientos más recientes.
+Archivos obligatorios a inspeccionar línea a línea según el tema trabajado:
+1. `visuomotor_ros2/visuomotor_ros2/policy_node.py` (Inferencia, Auto-Stop, logs, tensores de entrada/salida).
+2. `visuomotor_data_collection/visuomotor_data_collection/pickup_approximate.py` (FSM, PID cartesiano, inyección de `done_flag`, duración de `HOLD_TARGET`).
+3. `visuomotor_core/visuomotor_core/dataset/zarr_dataset.py` (Slicing de ventanas, Copy-Padding, dropout propioceptivo).
+4. `visuomotor_core/train.py` (Detección dinámica de dimensiones, loss, scheduler, device).
+5. Archivos de parámetros: `visuomotor_ros2/config/policy_params.yaml` y `visuomotor_data_collection/config/data_collection_params.yaml`.
 
-### Paso 3: Actualización de `AGENTS.md`
-Abre `AGENTS.md` y:
-- Verifica que las reglas de tensores (observación vs acción), entorno Docker (ejecución con `-u hackbrian` solo bajo consentimiento explícito) y gestión de Git exclusiva en el host local reflejen el estado exacto actual del proyecto.
-- Si se añadieron nuevas variables de configuración en YAMLs, anótalas en la especificación.
+### Paso 2: Análisis de Commits Recientes por Código (Diffs Reales)
+* El agente debe revisar las modificaciones de los commits recientes.
+* **Directriz estricta:** No guiarse únicamente por el mensaje descriptivo del commit. El agente debe examinar el **código real modificado (diffs)** para entender exactamente qué cambios se introdujeron, qué bugs se corrigieron y qué impacto tienen en la arquitectura.
+* *Nota de Entorno:* La gestión de Git se realiza en el Host local del usuario; el agente nunca debe ejecutar comandos de alteración de Git dentro de Docker.
 
-### Paso 4: Actualización de Skills de Antigravity
-Actualiza los archivos de habilidades permanentes en `~/.gemini/skills/` o `.agents/skills/`:
-- `diffusion-policy-expert`: Si hubo mejoras en la red, loss, dataloaders o inferencia.
-- `pytorch-dl-expert`: Si hubo optimizaciones de entrenamiento o tensores.
+### Paso 3: Control Aditivo de la Carpeta `.agents/knowledge/`
+La carpeta `.agents/knowledge/` es la **memoria a largo plazo persistente**. El agente debe gestionarla bajo un enfoque **estrictamente aditivo y acumulativo**:
+* **Nunca sobrescribir ni borrar información histórica válida:** El conocimiento nuevo debe sumarse a los módulos existentes o inaugurar un nuevo módulo temático (`06_...md`).
+* **Módulos obligatorios a nutrir:**
+  * `01_diffusion_policy_architecture.md`: Parámetros de red, DDIM, loss, FiLM.
+  * `02_tensors_and_autostop.md`: Formato 8D estado vs 9D acción, prevención de fuga causal, auto-stop desacoplado.
+  * `03_data_collection_and_fsm.md`: Secuencias FSM, freno Z dinámico, Halton QMC respawn, tiempos de hold.
+  * `04_dataloaders_and_datasets.md`: Copy-padding terminal, protección contra truncamiento del horizonte, copias seguras de datasets.
+  * `05_troubleshooting_and_environment.md`: Contrato Docker (`-u hackbrian`), reglas de consentimiento, CycloneDDS, dependencias.
 
-### Paso 5: Resumen al Usuario
-Presenta un informe conciso en español indicando:
-- Archivos modificados y secciones añadidas.
-- Próximos pasos recomendados para la siguiente sesión.
+### Paso 4: Sincronización de `context.md` y `AGENTS.md`
+* **`context.md`:** Actualizar la sección de **Lecciones Aprendidas y Troubleshooting** con los nuevos casos resueltos, y actualizar el **Roadmap y Estado Actual**.
+* **`AGENTS.md`:** Garantizar que el contrato maestro refleje las reglas operativas vigentes (ejecución Docker bajo `-u hackbrian`, Git en host local, dimensiones de tensores y comandos de referencia rápida).
+
+### Paso 5: Actualización de Skills de IA
+Actualizar las habilidades permanentes en `~/.gemini/skills/` (ej. `diffusion-policy-expert` o `pytorch-dl-expert`) para que futuros razonamientos aprovechen los nuevos conceptos.
+
+### Paso 6: Resumen Ejecutivo al Usuario
+Presentar un reporte conciso en español indicando:
+1. Códigos auditados y estado verificado.
+2. Archivos de `.agents/knowledge/` nutridos.
+3. Actualizaciones en `context.md` y `AGENTS.md`.
+4. Próximos pasos técnicos recomendados.
 
 ---
 
-## 3. Guía para el Usuario: Cómo Invocar este Archivo
+## 3. Cómo Invocar este Protocolo
 
 ### En Google Antigravity:
-Puedes invocarlo de cualquiera de las siguientes formas:
 1. **Mención directa de archivo (Recomendado):**
    ```text
-   @[UPDATE_KNOWLEDGE.md] actualiza todo con lo trabajado hoy
+   @[UPDATE_KNOWLEDGE.md] actualiza la base de conocimientos con lo trabajado hoy
    ```
-2. **Vía Skill nativa:**
-   Antigravity descubrirá la skill en `.agents/skills/update-knowledge/SKILL.md`:
+2. **Vía Skill de proyecto:**
    ```text
    /update-knowledge
    ```
-3. **Comando de aprendizaje integrado:**
+3. **Con el comando de aprendizaje integrado:**
    ```text
    /learn actualiza la base de conocimientos siguiendo UPDATE_KNOWLEDGE.md
    ```
 
 ### En Cursor o Windsurf:
-Escribe en el chat:
 ```text
-@UPDATE_KNOWLEDGE.md ejecuta este protocolo y actualiza la documentación del proyecto.
+@UPDATE_KNOWLEDGE.md audita el código línea por línea y nutre la carpeta .agents/knowledge/ y la documentación.
 ```
 
-### En Anthropic Claude Code o Terminal CLI:
+### En Anthropic Claude Code:
 ```text
-Sigue las instrucciones de UPDATE_KNOWLEDGE.md y sincroniza context.md y AGENTS.md con los cambios recientes.
+Sigue UPDATE_KNOWLEDGE.md para auditar el código y actualizar context.md, AGENTS.md y .agents/knowledge/.
 ```
