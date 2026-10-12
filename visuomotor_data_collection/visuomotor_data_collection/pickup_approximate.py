@@ -712,8 +712,10 @@ class PickupApproximateNode(Node):
         action_to_save = self.latest_action.copy()
         
         if self.get_parameter('record_done_flag').value:
-            # Agregamos la 9na dimensión (0.0 por defecto, se cambiará a 1.0 al guardar)
-            action_to_save = np.append(action_to_save, 0.0)
+            # La 9na dimensión se activa en 1.0 ÚNICAMENTE cuando el robot alcanza la posición
+            # objetivo deseada y entra al estado HOLD_TARGET para asentar
+            done_flag_val = 1.0 if self.state == 'HOLD_TARGET' else 0.0
+            action_to_save = np.append(action_to_save, done_flag_val)
             
         self.buffer.append({
             'image': self.latest_img.copy(),
@@ -727,8 +729,11 @@ class PickupApproximateNode(Node):
             self.get_logger().warn(f"Secuencia insuficiente ({len(self.buffer)} pasos guardados). Episodio descartado.")
         else:
             if self.get_parameter('record_done_flag').value:
-                # Modificar los últimos 3 frames para que tengan la bandera en 1.0
-                for i in range(max(1, len(self.buffer)-3), len(self.buffer)):
+                # Asegurar que al menos los últimos 2.0 segundos (mínimo 40 frames a 20Hz)
+                # tengan la bandera en 1.0 de forma garantizada
+                min_hold_frames = int(self.get_parameter('sampling_rate_hz').value * 2.0)
+                start_idx = max(0, len(self.buffer) - min_hold_frames)
+                for i in range(start_idx, len(self.buffer)):
                     self.buffer[i]['action'][-1] = 1.0
             
             self.storage.append_episode(self.buffer)

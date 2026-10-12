@@ -16,8 +16,8 @@ class ZarrDataset(Dataset):
         self.frames = []
         for ep_name, ep_group in self.episodes:
             num_frames = ep_group['image'].shape[0]
-            # Solo frames donde podamos mirar atrás `n_obs_steps` y hacia adelante `h_act`
-            for i in range(n_obs_steps - 1, num_frames - h_act):
+            # Permitir indexar hasta el final del episodio mediante copy-padding
+            for i in range(n_obs_steps - 1, num_frames):
                 self.frames.append((ep_name, i))
                 
         self.stats = self._compute_stats()
@@ -72,11 +72,21 @@ class ZarrDataset(Dataset):
         if torch.rand(1).item() < 0.15:
             states = torch.zeros_like(states)
         
-        actions = group['action'][frame_idx : frame_idx + self.h_act]
-        actions = torch.tensor(actions, dtype=torch.float32)
+        total_ep_frames = group['action'].shape[0]
+        actual_actions = group['action'][frame_idx : min(total_ep_frames, frame_idx + self.h_act)]
+        actual_len = len(actual_actions)
         
-        # Como solo iteramos por ventanas válidas completas, nunca hay padding
-        action_is_pad = torch.zeros(self.h_act, dtype=torch.bool)
+        if actual_len < self.h_act:
+            pad_len = self.h_act - actual_len
+            pad_actions = np.repeat(actual_actions[-1:], pad_len, axis=0)
+            actions = np.concatenate([actual_actions, pad_actions], axis=0)
+            action_is_pad = torch.zeros(self.h_act, dtype=torch.bool)
+            action_is_pad[actual_len:] = True
+        else:
+            actions = actual_actions
+            action_is_pad = torch.zeros(self.h_act, dtype=torch.bool)
+            
+        actions = torch.tensor(actions, dtype=torch.float32)
         
         return {
             "observation.image": imgs,

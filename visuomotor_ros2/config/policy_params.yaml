@@ -5,7 +5,7 @@ policy_node:
     model_type: "diffusion"
     
     # Ruta absoluta al directorio que contiene los pesos (weights) y configuración del modelo entrenado
-    checkpoint_path: "/ros/visuomotor_core/outputs/train_500_dataV7/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_500_dataV7_fixed/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
     
     # --- Configuración de Inferencia y Rendimiento ---
     # Frecuencia (Hz) a la que corre el bucle principal del nodo de inferencia
@@ -79,17 +79,17 @@ policy_node:
     # 1. Auto-Stop Neuronal (Dimensión 9):
     # Activa la detección por bandera de la red neuronal. Si el modelo entrenado incluye la 9na 
     # dimensión y predice done_flag >= neural_auto_stop_threshold, congela la posición y finaliza la tarea.
-    enable_neural_auto_stop: False
+    enable_neural_auto_stop: True
     
     # Umbral de activación para la bandera neuronal (valor entre 0.0 y 1.0).
     # Si la predicción de la 9na dimensión alcanza o supera este valor, se dispara el corte.
-    neural_auto_stop_threshold: 0.5
+    neural_auto_stop_threshold: 0.05
     
     # 2. Auto-Stop Heurístico (Basado en Varianza / Inactividad Física):
     # Monitorea la posición cartesiana (X, Y, Z). Si el robot se queda quieto en el espacio
     # (varianza < umbral) durante N pasos continuos, congela el brazo y finaliza la tarea.
     # Ideal para modelos de 8 dimensiones o como método de respaldo independiente.
-    enable_heuristic_auto_stop: True
+    enable_heuristic_auto_stop: False
     
     # Interruptor Maestro / Retrocompatibilidad:
     # Mantener en True para habilitar el sistema de auto-stop.
