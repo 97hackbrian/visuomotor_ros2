@@ -116,6 +116,8 @@ class PolicyNode(Node):
         self.action_history = []
         self.frozen_pose = None
         self.frozen_gripper = None
+        self.done_trigger_value = None
+        self.done_trigger_reason = ""
         
         rate = self.get_parameter('inference_hz').value
         self.timer = self.create_timer(1.0 / rate, self._inference_step, callback_group=self.cbg)
@@ -206,7 +208,8 @@ class PolicyNode(Node):
                 msg.gripper_states.append(self.frozen_gripper)
                 self.action_pub.publish(msg)
                 self.action_executor.execute(msg)
-                self.get_logger().info("Tarea completada (Auto-Stop). Manteniendo posición fija.", throttle_duration_sec=2.0)
+                trigger_info = f" ({self.done_trigger_reason})" if self.done_trigger_reason else ""
+                self.get_logger().info(f"Tarea completada (Auto-Stop){trigger_info}. Manteniendo posición fija.", throttle_duration_sec=2.0)
             return
 
         if self.policy is not None:
@@ -282,9 +285,11 @@ class PolicyNode(Node):
             if len(action_np) >= 9:
                 done_flag = float(action_np[8])
                 if neural_stop_active and done_flag >= neural_threshold:
+                    self.done_trigger_value = done_flag
+                    self.done_trigger_reason = f"Neuronal: 9na dim = {done_flag:.4f} >= umbral {neural_threshold:.2f}"
                     self.get_logger().info(
                         f"¡Auto-Stop Neuronal Activado! La red predijo FIN DE TAREA "
-                        f"(flag={done_flag:.4f} >= umbral={neural_threshold:.2f})."
+                        f"(Valor de 9na dimensión: {done_flag:.4f} >= umbral: {neural_threshold:.2f})."
                     )
                     self.state = 'DONE'
                     self.frozen_pose = p
@@ -305,7 +310,12 @@ class PolicyNode(Node):
                     variance = np.max(np.var(history_np, axis=0))
                     
                     if variance < self.get_parameter('auto_stop_variance_threshold').value:
-                        self.get_logger().info(f"¡Auto-Stop Heurístico Activado! Varianza por debajo del umbral ({variance:.6f}).")
+                        self.done_trigger_value = done_flag
+                        dim9_text = f" | 9na dim: {done_flag:.4f}" if done_flag is not None else ""
+                        self.done_trigger_reason = f"Heurístico: varianza = {variance:.6f}{dim9_text}"
+                        self.get_logger().info(
+                            f"¡Auto-Stop Heurístico Activado! Varianza por debajo del umbral ({variance:.6f}){dim9_text}."
+                        )
                         self.state = 'DONE'
                         self.frozen_pose = p
                         self.frozen_gripper = gripper_val
