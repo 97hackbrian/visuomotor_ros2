@@ -1,0 +1,106 @@
+rl_train_node:
+  ros__parameters:
+    # ── Modelo Preentrenado y Salida ──
+    # Ruta absoluta al checkpoint supervisado con arquitectura Chi (1D U-Net + ResNet-18 + SpatialSoftmax)
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_500_dataV7_fixed/"
+    # Directorio de salida donde se exportarán los pesos fine-tuned compatibles con from_pretrained()
+    output_dir: "/ros/visuomotor_core/outputs/dppo_v7_rl_finetuned/"
+    save_every_iterations: 10
+    # Tipo de crítico: "vit" (reutiliza el encoder visual con Spatial Softmax) o "state" (solo propiocepción)
+    critic_type: "vit"
+
+    # ── Configuración DPPO & Denoising MDP ──
+    # Pasos totales del solver DDIM en inferencia
+    denoising_steps: 10
+    # Cantidad de pasos finales de denoising optimizados por gradiente PPO (1 <= ft <= denoising_steps)
+    ft_denoising_steps: 5
+    # Factor de descuento a través de la cadena inversa de difusión
+    gamma_denoising: 0.99
+    # Parámetro eta de estocasticidad DDIM (0 = determinista, >0 = estocástico para exploración PPO)
+    eta: 0.1
+    # Suelos de varianza para estabilidad numérica en exploración y verosimilitud
+    min_sampling_denoising_std: 0.01
+    min_logprob_denoising_std: 0.01
+
+    # ── Hiperparámetros de Optimización PPO ──
+    actor_lr: 1.0e-5
+    critic_lr: 5.0e-4
+    actor_weight_decay: 1.0e-6
+    critic_weight_decay: 1.0e-4
+    n_iterations: 200
+    n_steps_per_iteration: 160
+    update_epochs: 8
+    batch_size: 40
+    target_kl: 0.05
+    n_critic_warmup_itr: 5
+    vf_coef: 0.5
+
+    # ── PPO Clipping Adaptativo ──
+    clip_ploss_coef: 0.01
+    clip_ploss_coef_base: 0.001
+    clip_ploss_coef_rate: 3.0
+    clip_vloss_coef: 0.5
+
+    # ── Regularización Behavior Cloning (Anti-Forgetting) ──
+    use_bc_loss: true
+    bc_loss_coef: 0.02
+
+    # ── GAE & Descuento Temporal ──
+    gamma: 0.99
+    gae_lambda: 0.95
+
+    # ── Control Temporal y Receding Horizon ──
+    n_obs_steps: 2
+    n_action_steps: 3
+    max_episode_steps: 480
+    step_timeout_s: 1.5
+    reset_stabilize_s: 2.0
+    reset_duration_s: 4.0
+
+    # ── Geometría y Objetos (Heredados de data_collection_params.yaml) ──
+    object_frame: "pick_target"
+    ee_frame: "gripper_base_link"
+    base_frame: "link_base"
+    tcp_offset_z: 0.079
+    hover_z_offset: 0.15
+    lift_required_z: 0.08
+    target_x: 0.25
+    target_y: 0.0
+    target_z: 0.40
+
+    # ── Pseudo-Sensor de Fuerza Propioceptivo ──
+    # Discrepancia mínima (p_actual - p_cmd) que certifica compresión mecánica contra el cubo
+    pseudo_force_clamped_threshold: 0.0025
+    gripper_binary_closed_threshold: -0.005
+
+    # ── Pesos de la Función de Recompensa FSM-Aligned ──
+    reward_approach_weight: 1.0
+    reward_dist_sigma: 0.05
+    reward_orient_weight: 0.2
+    reward_grasp_clamped_bonus: 1.0
+    reward_grasp_lifted_bonus: 5.0
+    reward_empty_grasp_penalty: -0.5
+    reward_transport_weight: 2.0
+    reward_done_success_bonus: 15.0
+    reward_early_stop_bonus: 0.05
+    reward_false_done_penalty: -5.0
+    reward_accel_penalty: 0.005
+
+    # ── Configuración de Tópicos y Preprocesamiento ──
+    camera_topic: "/rgb"
+    joint_states_topic: "/joint_states"
+    target_frame_topic: "/target_frame_raw"
+    gripper_command_topic: "/position_controller/commands"
+    respawn_topic: "/respawn"
+    image_size: 256
+
+    # ── Gripper y Postura Home ──
+    gripper_open_pos: 0.0
+    gripper_closed_pos: -0.01
+    gripper_joint_name_pattern: "gripper"
+    home_x: 0.25
+    home_y: 0.0
+    home_z: 0.40
+    home_roll: 3.14159
+    home_pitch: 0.0
+    home_yaw: 0.0

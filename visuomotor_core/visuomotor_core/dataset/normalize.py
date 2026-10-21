@@ -47,7 +47,10 @@ class Normalize(nn.Module):
     # TODO(rcadene): should we remove torch.no_grad?
     @torch.no_grad
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
+        out = dict(batch)
         for key, mode in self.modes.items():
+            if key not in batch:
+                continue
             buffer = getattr(self, "buffer_" + key.replace(".", "_"))
 
             if mode == "mean_std":
@@ -55,19 +58,19 @@ class Normalize(nn.Module):
                 std = buffer["std"]
                 assert not torch.isinf(mean).any(), _no_stats_error_str("mean")
                 assert not torch.isinf(std).any(), _no_stats_error_str("std")
-                batch[key] = (batch[key] - mean) / (std + 1e-8)
+                out[key] = (batch[key] - mean) / (std + 1e-8)
             elif mode == "min_max":
                 min = buffer["min"]
                 max = buffer["max"]
                 assert not torch.isinf(min).any(), _no_stats_error_str("min")
                 assert not torch.isinf(max).any(), _no_stats_error_str("max")
                 # normalize to [0,1]
-                batch[key] = (batch[key] - min) / (max - min)
+                val = (batch[key] - min) / (max - min)
                 # normalize to [-1, 1]
-                batch[key] = batch[key] * 2 - 1
+                out[key] = val * 2 - 1
             else:
                 raise ValueError(mode)
-        return batch
+        return out
 
 
 class Unnormalize(nn.Module):
@@ -112,7 +115,10 @@ class Unnormalize(nn.Module):
     # TODO(rcadene): should we remove torch.no_grad?
     @torch.no_grad
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
+        out = dict(batch)
         for key, mode in self.modes.items():
+            if key not in batch:
+                continue
             buffer = getattr(self, "buffer_" + key.replace(".", "_"))
 
             if mode == "mean_std":
@@ -120,15 +126,15 @@ class Unnormalize(nn.Module):
                 std = buffer["std"]
                 assert not torch.isinf(mean).any(), _no_stats_error_str("mean")
                 assert not torch.isinf(std).any(), _no_stats_error_str("std")
-                batch[key] = batch[key] * std + mean
+                out[key] = batch[key] * std + mean
             elif mode == "min_max":
                 min = buffer["min"]
                 max = buffer["max"]
                 assert not torch.isinf(min).any(), _no_stats_error_str("min")
                 assert not torch.isinf(max).any(), _no_stats_error_str("max")
-                batch[key] = (batch[key] + 1) / 2
-                batch[key] = batch[key] * (max - min) + min
+                val = (batch[key] + 1) / 2
+                out[key] = val * (max - min) + min
             else:
                 raise ValueError(mode)
-        return batch
+        return out
 

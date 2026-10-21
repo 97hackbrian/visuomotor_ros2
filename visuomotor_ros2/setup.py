@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'policy_node = visuomotor_ros2.policy_node:main',
+            'rl_train_node = visuomotor_ros2.rl_train_node:main',
         ],
     },
 )
