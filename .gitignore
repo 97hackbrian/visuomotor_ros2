@@ -85,3 +85,15 @@ fix_hardcoded.py
 update_yaml.py
 fix_lines.py
 diagrama_composicion_filtros.mmd
+
+infografia_innovafest2026/
+presentacion_innovafest2026/
+assets/
+
+*.aux
+*.out
+*.toc
+*.bbl
+*.snm
+*.gz
+*.nav
