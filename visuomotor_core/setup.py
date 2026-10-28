@@ -10,6 +10,8 @@ setup(
         'zarr',
         'numpy',
         'pyyaml',
+        'coloredlogs',
+        'humanize',
     ],
     author='Brayan Durán Toconás',
     author_email='brayandurantoconas@gmail.com',

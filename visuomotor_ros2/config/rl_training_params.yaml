@@ -17,10 +17,10 @@ rl_train_node:
     # Factor de descuento a través de la cadena inversa de difusión
     gamma_denoising: 0.99
     # Parámetro eta de estocasticidad DDIM (0 = determinista, >0 = estocástico para exploración PPO)
-    eta: 0.1
-    # Suelos de varianza para estabilidad numérica en exploración y verosimilitud
-    min_sampling_denoising_std: 0.01
-    min_logprob_denoising_std: 0.01
+    eta: 0.4
+    # Suelos de varianza para estabilidad numérica en exploración y verosimilitud (estimula exploración activa)
+    min_sampling_denoising_std: 0.04
+    min_logprob_denoising_std: 0.04
 
     # ── Hiperparámetros de Optimización PPO ──
     actor_lr: 1.0e-5
@@ -28,9 +28,9 @@ rl_train_node:
     actor_weight_decay: 1.0e-6
     critic_weight_decay: 1.0e-4
     n_iterations: 200
-    n_steps_per_iteration: 160
+    n_steps_per_iteration: 400
     update_epochs: 8
-    batch_size: 40
+    batch_size: 80
     target_kl: 0.05
     n_critic_warmup_itr: 5
     vf_coef: 0.5
@@ -52,10 +52,12 @@ rl_train_node:
     # ── Control Temporal y Receding Horizon ──
     n_obs_steps: 2
     n_action_steps: 3
-    max_episode_steps: 480
+    max_episode_steps: 1200
     step_timeout_s: 1.5
     reset_stabilize_s: 2.0
     reset_duration_s: 4.0
+    spawn_tolerance_xy: 0.035       # Tolerancia radial XY para confirmar llegada física del objeto al respawn
+    spawn_tolerance_z: 0.05        # Tolerancia vertical Z para confirmar apoyo sobre la mesa
 
     # ── Geometría y Objetos (Heredados de data_collection_params.yaml) ──
     object_frame: "pick_target"
@@ -70,8 +72,8 @@ rl_train_node:
 
     # ── Pseudo-Sensor de Fuerza Propioceptivo ──
     # Discrepancia mínima (p_actual - p_cmd) que certifica compresión mecánica contra el cubo
-    pseudo_force_clamped_threshold: 0.0025
-    gripper_binary_closed_threshold: -0.005
+    pseudo_force_clamped_threshold: 0.0007
+    gripper_binary_closed_threshold: -0.001
 
     # ── Pesos de la Función de Recompensa FSM-Aligned ──
     reward_approach_weight: 1.0
@@ -81,6 +83,7 @@ rl_train_node:
     reward_grasp_lifted_bonus: 5.0
     reward_empty_grasp_penalty: -0.5
     reward_transport_weight: 2.0
+    reward_transport_sigma: 0.20
     reward_done_success_bonus: 15.0
     reward_early_stop_bonus: 0.05
     reward_false_done_penalty: -5.0
@@ -93,6 +96,19 @@ rl_train_node:
     gripper_command_topic: "/position_controller/commands"
     respawn_topic: "/respawn"
     image_size: 256
+
+    # ── Cuadrícula y Límites de Respawn Aleatorio (Halton Quasi-Monte Carlo) ──
+    random_spawn: true
+    respawn_mode: "on_success"      # "on_success" (reintenta en fallo) o "always" (cambia en cada episodio)
+    spawn_x_min: -0.38              # Límite mínimo en el eje X (Profundidad)
+    spawn_x_max: -0.42              # Límite máximo en el eje X
+    spawn_y_min: -0.6              # Límite derecho de la mesa en Y
+    spawn_y_max: -1.02              # Límite izquierdo de la mesa en Y
+    spawn_z: 0.44                   # Altura estática de aparición del objeto sobre la mesa
+    spawn_yaw_min: -3.1415          # Rotación mínima de orientación (-180°)
+    spawn_yaw_max: 3.1415           # Rotación máxima de orientación (+180°)
+    spawn_safe_margin_x: 0.02       # Margen de seguridad en bordes para no caer
+    spawn_safe_margin_y: 0.02
 
     # ── Gripper y Postura Home ──
     gripper_open_pos: 0.0

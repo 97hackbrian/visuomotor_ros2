@@ -738,6 +738,26 @@ class PickupApproximateNode(Node):
             
             self.storage.append_episode(self.buffer)
             self.get_logger().info(f"Episodio guardado exitosamente: {len(self.buffer)} pasos.")
+
+            # Hook Relacional SQLite Fail-Safe y No Intrusivo
+            try:
+                from visuomotor_core.utils.tracker import record_dataset
+                total_eps = len(list(self.storage.root.groups()))
+                dataset_name = os.path.basename(self.storage.path)
+                record_dataset(
+                    dataset_id=dataset_name,
+                    path_str=str(self.storage.path),
+                    demonstrator_type="PID_PILOT",
+                    total_episodes=total_eps,
+                    duration_s=round(len(self.buffer) / self.get_parameter('sampling_rate_hz').value, 2),
+                    has_done_flag=bool(self.get_parameter('record_done_flag').value),
+                    metadata={
+                        "sampling_rate_hz": float(self.get_parameter('sampling_rate_hz').value),
+                        "hold_target_time_s": float(self.get_parameter('hold_target_time_s').value),
+                    },
+                )
+            except Exception as e:
+                self.get_logger().debug(f"[DB Fail-Safe] Error no crítico al registrar dataset: {e}")
         self.buffer.clear()
 
     def _respawn_object(self):

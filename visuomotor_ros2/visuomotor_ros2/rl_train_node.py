@@ -9,17 +9,23 @@ Orquesta el ciclo de aprendizaje por refuerzo:
 5. Exportación periódica de checkpoints listos para inference.launch.py.
 """
 
+import csv
 import os
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+import matplotlib
+matplotlib.use('Agg')  # Backend headless obligatorio para Docker sin servidor X11
+import matplotlib.pyplot as plt
 import numpy as np
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from std_msgs.msg import Float32
 import torch
 
 from visuomotor_core.models.dppo_adapter import DPPOConfig, DPPOPolicyAdapter
@@ -47,9 +53,9 @@ class RLTrainNode(Node):
         self.declare_parameter("actor_weight_decay", 1.0e-6)
         self.declare_parameter("critic_weight_decay", 1.0e-4)
         self.declare_parameter("n_iterations", 200)
-        self.declare_parameter("n_steps_per_iteration", 60)
+        self.declare_parameter("n_steps_per_iteration", 300)
         self.declare_parameter("update_epochs", 8)
-        self.declare_parameter("batch_size", 30)
+        self.declare_parameter("batch_size", 60)
         self.declare_parameter("target_kl", 0.05)
         self.declare_parameter("n_critic_warmup_itr", 5)
         self.declare_parameter("clip_ploss_coef", 0.01)
@@ -65,7 +71,7 @@ class RLTrainNode(Node):
         self.declare_parameter("gae_lambda", 0.95)
 
         # Entorno de Simulación
-        self.declare_parameter("max_episode_steps", 300)
+        self.declare_parameter("max_episode_steps", 900)
         self.declare_parameter("step_timeout_s", 1.5)
         self.declare_parameter("reset_stabilize_s", 2.0)
         self.declare_parameter("reset_duration_s", 4.0)
@@ -95,6 +101,7 @@ class RLTrainNode(Node):
         self.declare_parameter("reward_grasp_lifted_bonus", 5.0)
         self.declare_parameter("reward_empty_grasp_penalty", -0.5)
         self.declare_parameter("reward_transport_weight", 2.0)
+        self.declare_parameter("reward_transport_sigma", 0.20)
         self.declare_parameter("reward_done_success_bonus", 15.0)
         self.declare_parameter("reward_early_stop_bonus", 0.05)
         self.declare_parameter("reward_false_done_penalty", -5.0)
@@ -117,6 +124,19 @@ class RLTrainNode(Node):
         self.declare_parameter("home_pitch", 0.0)
         self.declare_parameter("home_yaw", 0.0)
 
+        # Parámetros de Cuadrícula de Respawn Aleatorio (Halton QMC)
+        self.declare_parameter("random_spawn", True)
+        self.declare_parameter("respawn_mode", "on_success")
+        self.declare_parameter("spawn_x_min", -0.35)
+        self.declare_parameter("spawn_x_max", -0.52)
+        self.declare_parameter("spawn_y_min", -0.56)
+        self.declare_parameter("spawn_y_max", -1.08)
+        self.declare_parameter("spawn_z", 0.44)
+        self.declare_parameter("spawn_yaw_min", -3.1415)
+        self.declare_parameter("spawn_yaw_max", 3.1415)
+        self.declare_parameter("spawn_safe_margin_x", 0.02)
+        self.declare_parameter("spawn_safe_margin_y", 0.02)
+
         # ── 2. Cargar Diccionario de Configuración para el Entorno ─────────
         env_config = {
             param_name: self.get_parameter(param_name).value
@@ -129,9 +149,12 @@ class RLTrainNode(Node):
                 "gripper_joint_name_pattern", "camera_topic", "joint_states_topic",
                 "target_frame_topic", "gripper_command_topic", "respawn_topic",
                 "home_x", "home_y", "home_z", "home_roll", "home_pitch", "home_yaw",
+                "random_spawn", "respawn_mode", "spawn_x_min", "spawn_x_max",
+                "spawn_y_min", "spawn_y_max", "spawn_z", "spawn_yaw_min", "spawn_yaw_max",
+                "spawn_safe_margin_x", "spawn_safe_margin_y",
                 "reward_approach_weight", "reward_dist_sigma", "reward_orient_weight",
                 "reward_grasp_clamped_bonus", "reward_grasp_lifted_bonus",
-                "reward_empty_grasp_penalty", "reward_transport_weight",
+                "reward_empty_grasp_penalty", "reward_transport_weight", "reward_transport_sigma",
                 "reward_done_success_bonus", "reward_early_stop_bonus",
                 "reward_false_done_penalty", "reward_accel_penalty"
             ]
@@ -145,8 +168,34 @@ class RLTrainNode(Node):
         # ── 3. Inicializar Entorno Gymnasium ──────────────────────────────
         self.env = GymROS2Env(node=self, config=env_config)
 
+        # ── Telemetría y Métricas en Tiempo Real (para rqt_plot) ──────────
+        self.declare_parameter("enable_metrics_publish", True)
+        self.declare_parameter("metrics_prefix", "/rl/metrics")
+        self.enable_metrics = self.get_parameter("enable_metrics_publish").value
+        prefix = self.get_parameter("metrics_prefix").value
+
+        self.pub_instant_reward = self.create_publisher(Float32, f"{prefix}/instant_reward", 10)
+        self.pub_episode_reward = self.create_publisher(Float32, f"{prefix}/episode_reward", 10)
+        self.pub_critic_value = self.create_publisher(Float32, f"{prefix}/critic_value", 10)
+        self.pub_done_flag = self.create_publisher(Float32, f"{prefix}/done_flag", 10)
+        self.pub_pseudo_force = self.create_publisher(Float32, f"{prefix}/pseudo_force", 10)
+        self.pub_dist_hover = self.create_publisher(Float32, f"{prefix}/dist_hover", 10)
+        self.pub_dist_target = self.create_publisher(Float32, f"{prefix}/dist_target", 10)
+        self.pub_r_approach = self.create_publisher(Float32, f"{prefix}/r_approach", 10)
+        self.pub_r_orient = self.create_publisher(Float32, f"{prefix}/r_orient", 10)
+        self.pub_r_grasp = self.create_publisher(Float32, f"{prefix}/r_grasp", 10)
+        self.pub_r_transport = self.create_publisher(Float32, f"{prefix}/r_transport", 10)
+        self.pub_iter_mean_reward = self.create_publisher(Float32, f"{prefix}/iter_mean_reward", 10)
+        self.pub_iter_policy_loss = self.create_publisher(Float32, f"{prefix}/iter_policy_loss", 10)
+        self.pub_iter_critic_loss = self.create_publisher(Float32, f"{prefix}/iter_critic_loss", 10)
+        self.pub_iter_approx_kl = self.create_publisher(Float32, f"{prefix}/iter_approx_kl", 10)
+
+        # Historial persistente para gráficos offline y archivo CSV
+        self.metrics_history = []
+
         # ── 4. Inicializar DPPO Adapter y Modelo de Difusión ──────────────
         ckpt_path = self.get_parameter("checkpoint_path").value
+        self.ckpt_path = ckpt_path
         assert ckpt_path and Path(ckpt_path).exists(), f"checkpoint_path inválido o inexistente: {ckpt_path}"
 
         dppo_cfg = DPPOConfig(
@@ -233,6 +282,7 @@ class RLTrainNode(Node):
             self.buffer.reset()
             episode_rewards = []
             cur_ep_reward = 0.0
+            task_success_in_iter = False
 
             # ── FASE 1: RECOLECCIÓN DE ROLLOUTS ────────────────────────────
             self.dppo.eval()
@@ -265,11 +315,41 @@ class RLTrainNode(Node):
                     next_obs, r, term, trunc, info = self.env.step(a_sub)
                     step_accum_reward += r
                     cur_ep_reward += r
+
+                    # Publicar métricas en tiempo real a tópicos ROS 2 para rqt_plot
+                    self._publish_rl_step_metrics(r, cur_ep_reward, val, a_sub, info)
+
                     if term or trunc:
                         done = True
                         episode_rewards.append(cur_ep_reward)
+
+                        is_success = bool(term or info.get("task_success", False))
+                        if is_success:
+                            task_success_in_iter = True
+                            self.get_logger().info(
+                                f"\n{'='*75}\n"
+                                f"🎉 [RL EPISODIO {itr}] ¡TAREA COMPLETADA CON ÉXITO!\n"
+                                f"   • Duración: Paso {info.get('step', self.env.current_step)}/{self.env.max_episode_steps}\n"
+                                f"   • Retorno del Episodio: {cur_ep_reward:.2f}\n"
+                                f"   • Agarre: Clamped={info.get('is_clamped', False)} | Elevación={info.get('delta_z_obj', 0.0):.3f}m | Fuerza={info.get('pseudo_force', 0.0):.4f}\n"
+                                f"   • Destino Home: Dist Obj={info.get('dist_target', 0.0)*100:.1f} cm | Dist TCP={info.get('dist_ee_home', 0.0)*100:.1f} cm\n"
+                                f"   • Done Flag Neuronal: {info.get('done_flag', 0.0):.4f}\n"
+                                f"{'='*75}"
+                            )
+                        else:
+                            self.get_logger().warn(
+                                f"\n{'-'*75}\n"
+                                f"⚠️  [RL EPISODIO {itr}] TAREA NO COMPLETADA (Episodio Finalizado)\n"
+                                f"   • Motivo: {'Límite de tiempo agotado (Truncado)' if trunc else 'Parada prematura en falso'}\n"
+                                f"   • Paso alcanzado: {info.get('step', self.env.current_step)}/{self.env.max_episode_steps}\n"
+                                f"   • Retorno del Episodio: {cur_ep_reward:.2f}\n"
+                                f"   • Agarre: Clamped={info.get('is_clamped', False)} | Elevación={info.get('delta_z_obj', 0.0):.3f}m | PseudoFuerza={info.get('pseudo_force', 0.0):.4f}\n"
+                                f"   • Distancia restante a Home: Obj={info.get('dist_target', 0.0)*100:.1f} cm | TCP={info.get('dist_ee_home', 0.0)*100:.1f} cm\n"
+                                f"   • Done Flag Neuronal: {info.get('done_flag', 0.0):.4f}\n"
+                                f"{'-'*75}"
+                            )
+
                         cur_ep_reward = 0.0
-                        next_obs, _ = self.env.reset()
                         break
 
                 # Guardar en el buffer
@@ -283,6 +363,9 @@ class RLTrainNode(Node):
                     done=done,
                 )
                 obs = next_obs
+
+                if done:
+                    break
 
             # Último valor para GAE
             with torch.no_grad():
@@ -358,9 +441,26 @@ class RLTrainNode(Node):
             mean_kl = float(np.mean([l["approx_kl"] for l in losses_tracker]))
             elapsed = time.time() - iter_start_time
 
+            task_status_txt = "¡COMPLETADA (ÉXITO)!" if task_success_in_iter else "NO COMPLETADA"
             self.get_logger().info(
-                f"Iteración {itr} en {elapsed:.1f}s | Reward Medio: {mean_ret:.2f} | "
+                f"Iteración {itr} en {elapsed:.1f}s | Tarea: {task_status_txt} | Reward Medio: {mean_ret:.2f} | "
                 f"Policy Loss: {mean_p_loss:.4f} | Critic Loss: {mean_c_loss:.4f} | KL: {mean_kl:.4f}"
+            )
+
+            # Publicar métricas de la iteración en tiempo real para rqt_plot
+            self._publish_rl_iter_metrics(mean_ret, mean_p_loss, mean_c_loss, mean_kl)
+
+            # Guardar registros en CSV y actualizar curvas gráficas offline
+            self._save_rl_metrics_and_plots(
+                output_dir=output_dir,
+                itr=itr,
+                elapsed=elapsed,
+                mean_ret=mean_ret,
+                mean_p_loss=mean_p_loss,
+                mean_c_loss=mean_c_loss,
+                mean_kl=mean_kl,
+                is_warmup=is_warmup,
+                task_success=task_success_in_iter,
             )
 
             # Exportar checkpoints compatibles con inference.launch.py
@@ -380,6 +480,159 @@ class RLTrainNode(Node):
                 self.get_logger().info(f"Checkpoint periódico guardado en: {periodic_path}")
 
         self.get_logger().info("¡Entrenamiento DPPO completado con éxito!")
+
+    def _publish_rl_step_metrics(self, r: float, cur_ep_reward: float, critic_val: float, action_sub: np.ndarray, info: Dict[str, Any]):
+        """Publica métricas escalares paso a paso durante los rollouts de RL para monitoreo en rqt_plot."""
+        if not self.enable_metrics:
+            return
+
+        self.pub_instant_reward.publish(Float32(data=float(r)))
+        self.pub_episode_reward.publish(Float32(data=float(cur_ep_reward)))
+        self.pub_critic_value.publish(Float32(data=float(critic_val)))
+
+        done_flag = float(action_sub[8]) if len(action_sub) >= 9 else 0.0
+        self.pub_done_flag.publish(Float32(data=done_flag))
+
+        if info:
+            if "pseudo_force" in info:
+                self.pub_pseudo_force.publish(Float32(data=float(info["pseudo_force"])))
+            if "dist_hover" in info:
+                self.pub_dist_hover.publish(Float32(data=float(info["dist_hover"])))
+            if "dist_target" in info:
+                self.pub_dist_target.publish(Float32(data=float(info["dist_target"])))
+            if "r_approach" in info:
+                self.pub_r_approach.publish(Float32(data=float(info["r_approach"])))
+            if "r_orient" in info:
+                self.pub_r_orient.publish(Float32(data=float(info["r_orient"])))
+            if "r_grasp" in info:
+                self.pub_r_grasp.publish(Float32(data=float(info["r_grasp"])))
+            if "r_transport" in info:
+                self.pub_r_transport.publish(Float32(data=float(info["r_transport"])))
+
+    def _publish_rl_iter_metrics(self, mean_ret: float, mean_p_loss: float, mean_c_loss: float, mean_kl: float):
+        """Publica el resumen de optimización por iteración a tópicos ROS 2 para rqt_plot."""
+        if not self.enable_metrics:
+            return
+        self.pub_iter_mean_reward.publish(Float32(data=float(mean_ret)))
+        self.pub_iter_policy_loss.publish(Float32(data=float(mean_p_loss)))
+        self.pub_iter_critic_loss.publish(Float32(data=float(mean_c_loss)))
+        self.pub_iter_approx_kl.publish(Float32(data=float(mean_kl)))
+
+    def _save_rl_metrics_and_plots(
+        self, output_dir: Path, itr: int, elapsed: float, mean_ret: float,
+        mean_p_loss: float, mean_c_loss: float, mean_kl: float, is_warmup: bool,
+        task_success: bool = False
+    ):
+        """Registra métricas en un archivo .csv y genera gráficos de entrenamiento con matplotlib."""
+        csv_path = output_dir / "rl_training_metrics.csv"
+        file_exists = csv_path.exists()
+
+        row = {
+            "iteration": itr,
+            "elapsed_s": round(elapsed, 2),
+            "mean_reward": round(mean_ret, 4),
+            "task_completed": int(task_success),
+            "policy_loss": round(mean_p_loss, 6),
+            "critic_loss": round(mean_c_loss, 6),
+            "approx_kl": round(mean_kl, 6),
+            "is_warmup": int(is_warmup),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.metrics_history.append(row)
+
+        try:
+            with open(csv_path, mode="a" if file_exists else "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(row)
+                f.flush()
+        except Exception as e:
+            self.get_logger().warn(f"Error escribiendo rl_training_metrics.csv: {e}")
+
+        # Generar gráficas con matplotlib (4 paneles de alto impacto)
+        try:
+            itrs = [r["iteration"] for r in self.metrics_history]
+            rewards = [r["mean_reward"] for r in self.metrics_history]
+            p_losses = [r["policy_loss"] for r in self.metrics_history]
+            c_losses = [r["critic_loss"] for r in self.metrics_history]
+            kls = [r["approx_kl"] for r in self.metrics_history]
+
+            fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+            fig.suptitle("Dinámica de Entrenamiento DPPO RL (Online Fine-Tuning)", fontsize=16, fontweight='bold')
+
+            # 1. Recompensa Media Episódica
+            axs[0, 0].plot(itrs, rewards, color="#1f77b4", marker='o', markersize=3, alpha=0.6, label="Reward Medio")
+            if len(rewards) >= 5:
+                smooth = np.convolve(rewards, np.ones(5)/5, mode='valid')
+                axs[0, 0].plot(itrs[4:], smooth, color="#d62728", linewidth=2.0, label="Media Móvil (5 iters)")
+            axs[0, 0].set_title("Retorno Episódico (Reward)")
+            axs[0, 0].set_xlabel("Iteración")
+            axs[0, 0].set_ylabel("Recompensa Total")
+            axs[0, 0].grid(True, linestyle="--", alpha=0.6)
+            axs[0, 0].legend()
+
+            # 2. Pérdida del Crítico V(s)
+            axs[0, 1].plot(itrs, c_losses, color="#ff7f0e", marker='s', markersize=3, label="Critic Loss (MSE)")
+            axs[0, 1].set_title("Pérdida del Crítico $V(s)$")
+            axs[0, 1].set_xlabel("Iteración")
+            axs[0, 1].set_ylabel("MSE Loss")
+            axs[0, 1].grid(True, linestyle="--", alpha=0.6)
+            axs[0, 1].legend()
+
+            # 3. Pérdida de la Política
+            axs[1, 0].plot(itrs, p_losses, color="#2ca02c", marker='^', markersize=3, label="Policy Loss")
+            axs[1, 0].set_title("Pérdida de la Política (Actor PPO + BC)")
+            axs[1, 0].set_xlabel("Iteración")
+            axs[1, 0].set_ylabel("Pérdida")
+            axs[1, 0].grid(True, linestyle="--", alpha=0.6)
+            axs[1, 0].legend()
+
+            # 4. Divergencia KL
+            axs[1, 1].plot(itrs, kls, color="#9467bd", marker='d', markersize=3, label="Approx KL")
+            target_kl = self.get_parameter("target_kl").value
+            axs[1, 1].axhline(y=target_kl, color="r", linestyle="--", label=f"Target KL ({target_kl})")
+            axs[1, 1].set_title("Divergencia KL (Desplazamiento de Política)")
+            axs[1, 1].set_xlabel("Iteración")
+            axs[1, 1].set_ylabel("KL")
+            axs[1, 1].grid(True, linestyle="--", alpha=0.6)
+            axs[1, 1].legend()
+
+            plt.tight_layout()
+            plot_png = output_dir / "rl_training_curves.png"
+            plot_pdf = output_dir / "rl_training_curves.pdf"
+            plt.savefig(plot_png, dpi=200, bbox_inches="tight")
+            plt.savefig(plot_pdf, bbox_inches="tight")
+            plt.close(fig)
+        except Exception as e:
+            self.get_logger().warn(f"Error generando gráficas de RL con matplotlib: {e}")
+
+        # Hook Relacional SQLite Fail-Safe y No Intrusivo
+        try:
+            from visuomotor_core.utils.tracker import record_rl_run
+            success_count = sum(r.get("task_completed", 0) for r in self.metrics_history)
+            sr_percent = (success_count / len(self.metrics_history)) * 100.0 if self.metrics_history else 0.0
+
+            record_rl_run(
+                run_id=f"rl_{output_dir.name}",
+                base_checkpoint=str(getattr(self, "ckpt_path", "")),
+                iterations_completed=itr,
+                mean_reward=float(mean_ret),
+                policy_loss=float(mean_p_loss),
+                critic_loss=float(mean_c_loss),
+                approx_kl=float(mean_kl),
+                task_success_rate=round(sr_percent, 2),
+                duration_s=round(elapsed, 2),
+                checkpoint_dir=str(output_dir),
+                metadata={
+                    "respawn_mode": str(self.get_parameter("respawn_mode").value) if self.has_parameter("respawn_mode") else "unknown",
+                    "target_kl": float(self.get_parameter("target_kl").value) if self.has_parameter("target_kl") else 0.05,
+                    "ft_denoising_steps": int(self.get_parameter("ft_denoising_steps").value) if self.has_parameter("ft_denoising_steps") else 5,
+                    "is_warmup": bool(is_warmup),
+                },
+            )
+        except Exception as e:
+            self.get_logger().debug(f"[DB Tracker Fail-Safe] Error no crítico al registrar corrida RL en SQLite: {e}")
 
 
 def main(args=None):

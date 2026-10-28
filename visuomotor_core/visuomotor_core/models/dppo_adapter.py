@@ -270,6 +270,8 @@ class DPPOPolicyAdapter(nn.Module):
                     # Amortiguar fuertemente el ruido en las dimensiones de rotación [3:7]
                     # para preservar la orientación aprendida y evitar que el efector se tuerza
                     std_eff[:, :, 3:7] *= 0.05
+                    # Estimular exploración activa del gripper [7] para descubrir timing óptimo de agarre
+                    std_eff[:, :, 7] *= 1.8
                     noise = torch.randn_like(pred_mean)
                     next_sample = pred_mean + std_eff * noise
                 else:
@@ -352,8 +354,9 @@ class DPPOPolicyAdapter(nn.Module):
             std_scalar = max(std_val, self.cfg.min_logprob_denoising_std)
             std_eff[mask] = std_scalar
 
-        # Escalar rotación para coincidir exactamente con el sampling
+        # Escalar rotación y gripper para coincidir exactamente con el sampling
         std_eff[:, :, 3:7] *= 0.05
+        std_eff[:, :, 7] *= 1.8
         var = std_eff ** 2
 
         logprob = -0.5 * (

@@ -7,7 +7,8 @@ from visuomotor_ros2.action_executors import ActionExecutor
 import torch
 import numpy as np
 import cv_bridge
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PointStamped
+from std_msgs.msg import Float32
 import tf2_ros
 from tf2_ros import TransformException
 import time
@@ -104,6 +105,25 @@ class PolicyNode(Node):
         self.action_executor = ActionExecutor(self)
         chunk_topic = self.get_parameter('action_chunk_topic').value
         self.action_pub = self.create_publisher(ActionChunk, chunk_topic, 10)
+
+        # --- Telemetría y Métricas en Tiempo Real (para rqt_plot) ---
+        self.declare_parameter('enable_metrics_publish', True)
+        self.declare_parameter('metrics_prefix', '/policy/metrics')
+        self.enable_metrics = self.get_parameter('enable_metrics_publish').value
+        prefix = self.get_parameter('metrics_prefix').value
+        self.pub_done_flag = self.create_publisher(Float32, f'{prefix}/done_flag', 10)
+        self.pub_done_threshold = self.create_publisher(Float32, f'{prefix}/done_threshold', 10)
+        self.pub_gripper_cmd = self.create_publisher(Float32, f'{prefix}/gripper_cmd', 10)
+        self.pub_gripper_state = self.create_publisher(Float32, f'{prefix}/gripper_state', 10)
+        self.pub_tracking_error = self.create_publisher(Float32, f'{prefix}/tracking_error_xyz', 10)
+        self.pub_tcp_speed = self.create_publisher(Float32, f'{prefix}/tcp_speed_m_s', 10)
+        self.pub_action_variance = self.create_publisher(Float32, f'{prefix}/action_variance', 10)
+        self.pub_dist_home = self.create_publisher(Float32, f'{prefix}/dist_to_home', 10)
+        self.pub_tcp_cmd = self.create_publisher(PointStamped, f'{prefix}/tcp_cmd_xyz', 10)
+        self.pub_tcp_actual = self.create_publisher(PointStamped, f'{prefix}/tcp_actual_xyz', 10)
+
+        self.last_ee_pos = None
+        self.last_pose_time = time.time()
         
         self.latest_img = None
         self.latest_state = None
@@ -210,6 +230,12 @@ class PolicyNode(Node):
                 self.action_executor.execute(msg)
                 trigger_info = f" ({self.done_trigger_reason})" if self.done_trigger_reason else ""
                 self.get_logger().info(f"Tarea completada (Auto-Stop){trigger_info}. Manteniendo posición fija.", throttle_duration_sec=2.0)
+                
+                # Publicar telemetría constante en estado DONE
+                if self.enable_metrics:
+                    dummy_act = np.zeros(9, dtype=np.float32)
+                    dummy_act[8] = float(self.done_trigger_value) if self.done_trigger_value is not None else 1.0
+                    self._publish_telemetry(self.frozen_pose, dummy_act, self.frozen_gripper, self.get_parameter('neural_auto_stop_threshold').value, variance=0.0)
             return
 
         if self.policy is not None:
@@ -321,6 +347,10 @@ class PolicyNode(Node):
                         self.frozen_gripper = gripper_val
                         return
                         
+            # Publicar telemetría en tiempo real para rqt_plot
+            var_val = variance if 'variance' in locals() else None
+            self._publish_telemetry(p, action_np, binary_gripper, neural_threshold, variance=var_val)
+
             # Log periódico (1 Hz) mostrando acciones, gripper y estado de la última dimensión
             log_msg = f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {raw_gripper:.7f} ({gripper_str})"
             if done_flag is not None:
@@ -333,6 +363,56 @@ class PolicyNode(Node):
                 log_msg += f" | Ultima Dim ({len(action_np)}): {float(action_np[-1]):.4f}"
                 
             self.get_logger().info(log_msg, throttle_duration_sec=1.0)
+
+    def _publish_telemetry(self, target_pose, action_np, gripper_cmd, neural_threshold, variance=None):
+        """Publica métricas escalares y poses en tópicos de ROS 2 para monitoreo con rqt_plot."""
+        if not self.enable_metrics:
+            return
+
+        done_val = float(action_np[8]) if len(action_np) >= 9 else 0.0
+        self.pub_done_flag.publish(Float32(data=done_val))
+        self.pub_done_threshold.publish(Float32(data=float(neural_threshold)))
+        self.pub_gripper_cmd.publish(Float32(data=float(gripper_cmd)))
+        self.pub_gripper_state.publish(Float32(data=float(self.current_gripper_state)))
+
+        if variance is not None:
+            self.pub_action_variance.publish(Float32(data=float(variance)))
+
+        if self.latest_state is not None:
+            actual_pos = self.latest_state[:3]
+            cmd_pos = np.array([target_pose.position.x, target_pose.position.y, target_pose.position.z])
+            err = float(np.linalg.norm(cmd_pos - actual_pos))
+            self.pub_tracking_error.publish(Float32(data=err))
+
+            now_t = time.time()
+            if self.last_ee_pos is not None:
+                dt = max(now_t - self.last_pose_time, 1e-4)
+                spd = float(np.linalg.norm(actual_pos - self.last_ee_pos) / dt)
+                self.pub_tcp_speed.publish(Float32(data=spd))
+            self.last_ee_pos = actual_pos.copy()
+            self.last_pose_time = now_t
+
+            hx = self.get_parameter('home_x').value
+            hy = self.get_parameter('home_y').value
+            hz = self.get_parameter('home_z').value
+            dist_h = float(np.linalg.norm(actual_pos - np.array([hx, hy, hz])))
+            self.pub_dist_home.publish(Float32(data=dist_h))
+
+            now_msg = self.get_clock().now().to_msg()
+            frame_id = self.get_parameter('base_frame').value
+
+            ps_cmd = PointStamped()
+            ps_cmd.header.stamp = now_msg
+            ps_cmd.header.frame_id = frame_id
+            ps_cmd.point.x, ps_cmd.point.y, ps_cmd.point.z = float(cmd_pos[0]), float(cmd_pos[1]), float(cmd_pos[2])
+            self.pub_tcp_cmd.publish(ps_cmd)
+
+            ps_act = PointStamped()
+            ps_act.header.stamp = now_msg
+            ps_act.header.frame_id = frame_id
+            ps_act.point.x, ps_act.point.y, ps_act.point.z = float(actual_pos[0]), float(actual_pos[1]), float(actual_pos[2])
+            self.pub_tcp_actual.publish(ps_act)
+
 
 def main(args=None):
     rclpy.init(args=args)

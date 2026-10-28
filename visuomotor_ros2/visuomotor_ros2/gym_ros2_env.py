@@ -31,9 +31,10 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Empty, Float64MultiArray
+from scipy.stats import qmc
 import tf2_ros
 from tf2_ros import TransformException
 
@@ -71,7 +72,7 @@ class GymROS2Env(ENV_BASE):
         self.act_dim = self.cfg.get("act_dim", 9)
         self.image_size = self.cfg.get("image_size", 256)
         self.n_obs_steps = self.cfg.get("n_obs_steps", 2)
-        self.max_episode_steps = self.cfg.get("max_episode_steps", 300)
+        self.max_episode_steps = self.cfg.get("max_episode_steps", 1200)
         self.step_timeout_s = self.cfg.get("step_timeout_s", 1.5)
         self.reset_stabilize_s = self.cfg.get("reset_stabilize_s", 2.0)
 
@@ -93,8 +94,8 @@ class GymROS2Env(ENV_BASE):
         # Parámetros del Gripper y Pseudo-Sensor
         self.gripper_open_pos = self.cfg.get("gripper_open_pos", 0.0)
         self.gripper_closed_pos = self.cfg.get("gripper_closed_pos", -0.01)
-        self.pseudo_force_thresh = self.cfg.get("pseudo_force_clamped_threshold", 0.0025)
-        self.gripper_closed_thresh = self.cfg.get("gripper_binary_closed_threshold", -0.005)
+        self.pseudo_force_thresh = float(self.cfg.get("pseudo_force_clamped_threshold", 0.0007))
+        self.gripper_closed_thresh = float(self.cfg.get("gripper_binary_closed_threshold", -0.001))
         self.gripper_joint_pattern = self.cfg.get("gripper_joint_name_pattern", "gripper")
 
         # Estado interno del Pseudo-Sensor
@@ -137,13 +138,33 @@ class GymROS2Env(ENV_BASE):
         self.node.create_subscription(Image, camera_topic, self._img_cb, image_qos)
         self.node.create_subscription(JointState, joint_topic, self._joint_cb, 10)
 
+        # Cuadrícula y Límites de Respawn Aleatorio (Halton Quasi-Monte Carlo)
+        self.random_spawn = bool(self.cfg.get("random_spawn", True))
+        self.respawn_mode = str(self.cfg.get("respawn_mode", "on_success"))  # "on_success", "always", "fixed"
+        self.spawn_x_min = float(self.cfg.get("spawn_x_min", -0.35))
+        self.spawn_x_max = float(self.cfg.get("spawn_x_max", -0.52))
+        self.spawn_y_min = float(self.cfg.get("spawn_y_min", -0.56))
+        self.spawn_y_max = float(self.cfg.get("spawn_y_max", -1.08))
+        self.spawn_z = float(self.cfg.get("spawn_z", 0.44))
+        self.spawn_yaw_min = float(self.cfg.get("spawn_yaw_min", -3.1415))
+        self.spawn_yaw_max = float(self.cfg.get("spawn_yaw_max", 3.1415))
+        self.spawn_safe_margin_x = float(self.cfg.get("spawn_safe_margin_x", 0.02))
+        self.spawn_safe_margin_y = float(self.cfg.get("spawn_safe_margin_y", 0.02))
+        self.reset_stabilize_s = float(self.cfg.get("reset_stabilize_s", 2.0))
+        self.reset_duration_s = float(self.cfg.get("reset_duration_s", 4.0))
+        self.spawn_tolerance_xy = float(self.cfg.get("spawn_tolerance_xy", 0.035))
+        self.spawn_tolerance_z = float(self.cfg.get("spawn_tolerance_z", 0.05))
+        self.halton_obj = qmc.Halton(d=3, scramble=True)
+        self.current_spawn_pose = None
+        self.last_episode_success = False
+
         # Publicadores
         target_topic = self.cfg.get("target_frame_topic", "/target_frame_raw")
         gripper_topic = self.cfg.get("gripper_command_topic", "/position_controller/commands")
         respawn_topic = self.cfg.get("respawn_topic", "/respawn")
         self.pose_pub = self.node.create_publisher(PoseStamped, target_topic, control_qos)
         self.gripper_pub = self.node.create_publisher(Float64MultiArray, gripper_topic, control_qos)
-        self.respawn_pub = self.node.create_publisher(Empty, respawn_topic, 10)
+        self.respawn_pub = self.node.create_publisher(Twist, respawn_topic, 10)
 
         # Buffers temporales de observación
         self.latest_cv_img = None
@@ -200,7 +221,12 @@ class GymROS2Env(ENV_BASE):
     def _get_object_pose(self) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """Extrae la posición y orientación del objeto pick_target desde TF."""
         try:
-            t_obj = self.tf_buffer.lookup_transform(self.base_frame, self.object_frame, rclpy.time.Time())
+            t_obj = self.tf_buffer.lookup_transform(
+                self.base_frame,
+                self.object_frame,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.05)
+            )
             pos = np.array([
                 t_obj.transform.translation.x,
                 t_obj.transform.translation.y,
@@ -215,7 +241,7 @@ class GymROS2Env(ENV_BASE):
             if q[3] < 0.0:
                 q = -q
             return pos, q
-        except TransformException:
+        except Exception:
             return None
 
     def _format_image(self, img_np: np.ndarray) -> np.ndarray:
@@ -234,27 +260,157 @@ class GymROS2Env(ENV_BASE):
             "observation.image": img_arr,
         }
 
+    def _generate_halton_spawn_pose(self) -> Tuple[float, float, float, float]:
+        """Genera una nueva pose Quasi-Monte Carlo (Halton) dentro de los límites de la mesa."""
+        x_low, x_high = min(self.spawn_x_min, self.spawn_x_max), max(self.spawn_x_min, self.spawn_x_max)
+        y_low, y_high = min(self.spawn_y_min, self.spawn_y_max), max(self.spawn_y_min, self.spawn_y_max)
+        yaw_low, yaw_high = min(self.spawn_yaw_min, self.spawn_yaw_max), max(self.spawn_yaw_min, self.spawn_yaw_max)
+
+        sample = self.halton_obj.random(1)[0]
+        target_x = x_low + sample[0] * (x_high - x_low)
+        target_y = y_low + sample[1] * (y_high - y_low)
+
+        dist_x = min(abs(target_x - x_low), abs(target_x - x_high))
+        dist_y = min(abs(target_y - y_low), abs(target_y - y_high))
+        if dist_x < self.spawn_safe_margin_x or dist_y < self.spawn_safe_margin_y:
+            target_yaw = 0.0
+        else:
+            target_yaw = yaw_low + sample[2] * (yaw_high - yaw_low)
+
+        return float(target_x), float(target_y), float(self.spawn_z), float(target_yaw)
+
+    def _send_respawn_twist(self, tx: float, ty: float, tz: float, tyaw: float):
+        """
+        Dispara un pulso bifásico con micro-jitter para forzar al OmniGraph de Isaac Sim
+        a actualizar la transformación del USD prim incluso en reintentos idénticos.
+        """
+        micro_dx, micro_dy = np.random.uniform(-0.0005, 0.0005, size=2)
+
+        # Fase 1: Pre-pulso elevado para romper el dirty check de OmniGraph
+        pre_twist = Twist()
+        pre_twist.linear.x = float(tx + micro_dx)
+        pre_twist.linear.y = float(ty + micro_dy)
+        pre_twist.linear.z = float(tz + 0.04)
+        pre_twist.angular.z = float(tyaw)
+        self.respawn_pub.publish(pre_twist)
+        time.sleep(0.08)
+
+        # Fase 2: Ráfaga de 5 pulsos a la cota real de la mesa a 20 Hz
+        target_twist = Twist()
+        target_twist.linear.x = float(tx)
+        target_twist.linear.y = float(ty)
+        target_twist.linear.z = float(tz)
+        target_twist.angular.z = float(tyaw)
+
+        for _ in range(5):
+            self.respawn_pub.publish(target_twist)
+            time.sleep(0.05)
+
+    def _respawn_object_in_sim(self):
+        """Gestiona la generación de pose y el comando inicial de respawn en Isaac Sim."""
+        if not self.random_spawn:
+            return
+
+        should_generate_new = True
+        if self.respawn_mode == "manual":
+            should_generate_new = (self.current_spawn_pose is None)
+        elif self.respawn_mode == "on_success":
+            # Si el episodio anterior fue exitoso o es el primero, generamos una nueva pose
+            # Si falló, repetimos la misma pose para que el RL aprenda a corregir ese punto difícil
+            should_generate_new = self.last_episode_success or (self.current_spawn_pose is None)
+        elif self.respawn_mode == "fixed":
+            should_generate_new = (self.current_spawn_pose is None)
+
+        if should_generate_new:
+            self.current_spawn_pose = self._generate_halton_spawn_pose()
+
+        tx, ty, tz, tyaw = self.current_spawn_pose
+        self._send_respawn_twist(tx, ty, tz, tyaw)
+
+        mode_desc = "Nueva pose (éxito previo)" if should_generate_new else "Misma pose (reintento por fallo)"
+        self.node.get_logger().info(
+            f"[RESPAWN ORDENADO] Comando emitido a Isaac Sim: X={tx:.3f}, Y={ty:.3f}, Z={tz:.3f}, Yaw={tyaw:.2f} rad | {mode_desc}"
+        )
+
+    def _wait_and_stabilize_at_home(self):
+        """
+        Mantiene al robot inmóvil en Home con la pinza abierta durante el tiempo de reposo
+        (reset_stabilize_s), permitiendo que el objeto caiga y se asiente físicamente en la mesa
+        antes de permitir cualquier movimiento de la política en RL.
+        """
+        self.node.get_logger().info(
+            f"[RESPAWN ASENTAMIENTO] Esperando {self.reset_stabilize_s:.1f}s a que el objeto asiente en la mesa antes de mover el robot..."
+        )
+        stabilize_steps = int(self.reset_stabilize_s * 20.0)
+        hx = float(self.cfg.get("home_x", 0.25))
+        hy = float(self.cfg.get("home_y", 0.0))
+        hz = float(self.cfg.get("home_z", 0.40))
+        hr = float(self.cfg.get("home_roll", 3.14159))
+        hp = float(self.cfg.get("home_pitch", 0.0))
+        hyaw = float(self.cfg.get("home_yaw", 0.0))
+        home_q = euler_to_quat(hr, hp, hyaw)
+
+        home_hold_msg = PoseStamped()
+        home_hold_msg.header.frame_id = self.base_frame
+        home_hold_msg.pose.position.x = hx
+        home_hold_msg.pose.position.y = hy
+        home_hold_msg.pose.position.z = hz
+        home_hold_msg.pose.orientation.x = float(home_q[0])
+        home_hold_msg.pose.orientation.y = float(home_q[1])
+        home_hold_msg.pose.orientation.z = float(home_q[2])
+        home_hold_msg.pose.orientation.w = float(home_q[3])
+
+        grip_msg = Float64MultiArray()
+        grip_msg.data = [float(self.gripper_open_pos)]
+
+        for _ in range(stabilize_steps):
+            home_hold_msg.header.stamp = self.node.get_clock().now().to_msg()
+            self.pose_pub.publish(home_hold_msg)
+            self.gripper_pub.publish(grip_msg)
+            time.sleep(0.05)
+
+        # Confirmación final de la pose del objeto ya asentado desde TF
+        obj_data = self._get_object_pose()
+        if obj_data is not None:
+            self.initial_obj_pos = obj_data[0].copy()
+            self.node.get_logger().info(
+                f"[RESPAWN ASENTADO] pick_target verificado en TF: X={self.initial_obj_pos[0]:.3f}, "
+                f"Y={self.initial_obj_pos[1]:.3f}, Z={self.initial_obj_pos[2]:.3f}. ¡Iniciando ejecución de política!"
+            )
+        elif self.current_spawn_pose is not None:
+            tx, ty, tz, _ = self.current_spawn_pose
+            self.initial_obj_pos = np.array([tx, ty, tz], dtype=np.float32)
+            self.node.get_logger().info(
+                f"[RESPAWN ASENTADO] pick_target en X={tx:.3f}, Y={ty:.3f}, Z={tz:.3f}. ¡Iniciando ejecución de política!"
+            )
+
     def reset(self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
              ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         """
         Reinicio completo de episodio:
-        1. Respawn de objetos vía OmniGraph en Isaac Sim.
-        2. Regreso del manipulador a la postura de Home.
-        3. Espera de reposo físico de 2.0s (auto-resetea además el filtro 1-Euro por timeout).
+        1. Apertura inmediata del gripper y regreso del manipulador a la postura de Home.
+        2. Respawn del objeto en la mesa vía OmniGraph en Isaac Sim mediante Twist (Halton QMC),
+           garantizando que el robot ya esté arriba en Home y libre de contacto.
+        3. Espera de reposo físico de 1.0s para asentamiento gravitacional del cubo.
         """
         if gym is not None:
             try:
                 super().reset(seed=seed)
             except Exception:
                 pass
+        if options and "spawn_pose" in options:
+            self.current_spawn_pose = tuple(options["spawn_pose"])
+            self.respawn_mode = "manual"
         self.current_step = 0
         self.prev_action_real = None
         self.obs_state_history.clear()
         self.obs_image_history.clear()
 
-        # 1. Teletransportar/Respawnear objeto en simulación
-        self.respawn_pub.publish(Empty())
-        time.sleep(0.5)
+        # 1. Abrir gripper de inmediato para liberar cualquier objeto sostenido
+        grip_msg = Float64MultiArray()
+        grip_msg.data = [float(self.gripper_open_pos)]
+        self.last_cmd_gripper_pos = self.gripper_open_pos
+        self.gripper_pub.publish(grip_msg)
 
         # 2. Mover manipulador a Home transmitiendo continuamente a 20 Hz
         hx = float(self.cfg.get("home_x", 0.25))
@@ -274,11 +430,6 @@ class GymROS2Env(ENV_BASE):
         home_msg.pose.orientation.y = float(home_q[1])
         home_msg.pose.orientation.z = float(home_q[2])
         home_msg.pose.orientation.w = float(home_q[3])
-
-        # Abrir gripper
-        grip_msg = Float64MultiArray()
-        grip_msg.data = [float(self.gripper_open_pos)]
-        self.last_cmd_gripper_pos = self.gripper_open_pos
 
         reset_duration = float(self.cfg.get("reset_duration_s", 4.0))
         rate_hz = 20.0
@@ -300,23 +451,30 @@ class GymROS2Env(ENV_BASE):
                     self.node.get_logger().info(f"Home alcanzado correctamente (error residual: {err*100:.1f} cm).")
                     break
 
-        # 3. Breve reposo físico para estabilización
-        time.sleep(1.0)
+        # 3. Teletransportar/Respawnear objeto en simulación (Halton QMC con Twist)
+        # Se ejecuta AHORA que el manipulador está arriba en Home y con las pinzas abiertas
+        self._respawn_object_in_sim()
 
-        # Capturar observación inicial (esperar a que el bridge de Isaac Sim publique)
-        while self.latest_cv_img is None or self.latest_state is None:
-            self.node.get_logger().info("Esperando stream de /rgb y TF desde Isaac Sim...", throttle_duration_sec=2.0)
-            self._obs_event.clear()
-            self._obs_event.wait(timeout=1.0)
+        # 4. Esperar el tiempo de reposo para asentamiento físico del cubo en la mesa
+        # manteniendo al robot quieto en Home antes de permitir cualquier movimiento en RL
+        self._wait_and_stabilize_at_home()
 
-        # Registrar posición inicial de reposo del objeto
+        # 5. Capturar observación inicial FRESCA con el objeto ya asentado y el robot quieto en Home
+        self._obs_event.clear()
+        arrived = self._obs_event.wait(timeout=2.0)
+        if not arrived:
+            self.node.get_logger().warn("Timeout esperando nuevo stream de /rgb y TF tras asentamiento.")
+
+        # Registrar posición inicial de reposo confirmada del objeto
         obj_data = self._get_object_pose()
         if obj_data is not None:
             self.initial_obj_pos = obj_data[0].copy()
+        elif self.current_spawn_pose is not None:
+            self.initial_obj_pos = np.array([self.current_spawn_pose[0], self.current_spawn_pose[1], self.current_spawn_pose[2]], dtype=np.float32)
         else:
-            self.initial_obj_pos = np.array([0.28, -0.85, 0.44], dtype=np.float32)
+            self.initial_obj_pos = np.array([float(self.spawn_x_min), float(self.spawn_y_min), float(self.spawn_z)], dtype=np.float32)
 
-        # Pre-llenar historial con la observación inicial
+        # Pre-llenar historial con la observación inicial confirmada
         init_img = self._format_image(self.latest_cv_img)
         init_state = self.latest_state.copy()
         for _ in range(self.n_obs_steps):
@@ -382,6 +540,9 @@ class GymROS2Env(ENV_BASE):
         reward, terminated, info = self._compute_reward_and_termination(action_real, cur_state)
         truncated = (self.current_step >= self.max_episode_steps)
 
+        if terminated or truncated:
+            self.last_episode_success = bool(info.get("task_success", False))
+
         self.prev_action_real = action_real.copy()
         return obs, reward, terminated, truncated, info
 
@@ -402,7 +563,22 @@ class GymROS2Env(ENV_BASE):
             obj_pos = self.initial_obj_pos.copy()
             obj_quat = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
 
-        # 1. Hito 1: Aproximación en Embudo hacia (pick_target + hover_z)
+        # 1. Hito 1: Aproximación en Embudo hacia (pick_target + hover_z) y proyección TCP
+        # Proyección cinemática al Tool Center Point (TCP / Centro de contacto de las pinzas)
+        qx, qy, qz, qw = ee_quat
+        norm_q = np.linalg.norm([qx, qy, qz, qw])
+        if norm_q > 1e-6:
+            qx, qy, qz, qw = qx / norm_q, qy / norm_q, qz / norm_q, qw / norm_q
+
+        vz_x = 2.0 * (qx * qz + qw * qy)
+        vz_y = 2.0 * (qy * qz - qw * qx)
+        vz_z = 1.0 - 2.0 * (qx * qx + qy * qy)
+        tcp_pos = ee_pos + np.array([vz_x, vz_y, vz_z], dtype=np.float32) * self.tcp_offset_z
+
+        # Distancia real entre la superficie de contacto del gripper y el objeto
+        dist_tcp_obj = float(np.linalg.norm(tcp_pos - obj_pos))
+        dist_ee_obj = float(np.linalg.norm(ee_pos - obj_pos))
+
         p_hover = obj_pos + np.array([0.0, 0.0, self.tcp_offset_z + self.hover_z_offset], dtype=np.float32)
         dist_hover = float(np.linalg.norm(ee_pos - p_hover))
         r_approach = self.cfg.get("reward_approach_weight", 1.0) * np.exp(-dist_hover / self.cfg.get("reward_dist_sigma", 0.05))
@@ -415,7 +591,12 @@ class GymROS2Env(ENV_BASE):
         delta_z_obj = float(obj_pos[2] - self.initial_obj_pos[2])
         is_closing = (self.last_cmd_gripper_pos <= self.gripper_closed_thresh)
         is_stationary = (abs(self.gripper_velocity) < 0.0015)
-        is_clamped = (self.pseudo_force >= self.pseudo_force_thresh) and is_closing and is_stationary
+
+        # En vuelo (elevación confirmada >= 8 cm) con pinza cerrada, el objeto está sostenido contra la gravedad
+        if delta_z_obj >= self.lift_required_z and is_closing:
+            is_clamped = True
+        else:
+            is_clamped = (self.pseudo_force >= self.pseudo_force_thresh) and is_closing and is_stationary
 
         r_grasp = 0.0
         if is_clamped:
@@ -429,24 +610,37 @@ class GymROS2Env(ENV_BASE):
             # Penalización por cerrar las pinzas al aire sin objeto
             r_grasp = self.cfg.get("reward_empty_grasp_penalty", -0.5)
 
-        # 4. Hito 4: Transporte del Objeto al Destino
-        dist_target = float(np.linalg.norm(obj_pos - self.target_pos))
+        # 4. Hito 4: Transporte del Objeto al Destino (Home)
+        # La pose esperada del cubo sostenido en Home considera el offset vertical de las pinzas
+        expected_obj_target = self.target_pos - np.array([0.0, 0.0, self.tcp_offset_z], dtype=np.float32)
+        dist_target = float(np.linalg.norm(obj_pos - expected_obj_target))
+        dist_ee_home = float(np.linalg.norm(ee_pos - self.target_pos))
+
         r_transport = 0.0
         if is_clamped and (delta_z_obj >= self.lift_required_z):
-            r_transport = self.cfg.get("reward_transport_weight", 2.0) * np.exp(-dist_target / 0.05)
+            transport_sigma = self.cfg.get("reward_transport_sigma", 0.20)
+            r_transport = self.cfg.get("reward_transport_weight", 2.0) * np.exp(-dist_target / transport_sigma)
 
-        # 5. Hito 5: Auto-Stop Terminal (done_flag >= 0.50)
+        # 5. Hito 5: Auto-Stop Terminal o Conclusión Exitosa
         r_done = 0.0
         terminated = False
-        if done_flag >= 0.50:
-            if dist_target < 0.05 and is_clamped:
+        task_success = False
+
+        # Validación integral de tarea completada:
+        # El objeto está aprisionado, fue elevado >= 8 cm y llegó a Home (error <= 8 cm en objeto o <= 6 cm en TCP)
+        at_home = (dist_target < 0.08 or dist_ee_home < 0.06)
+        if is_clamped and at_home and (delta_z_obj >= self.lift_required_z):
+            task_success = True
+
+        if done_flag >= 0.50 or task_success:
+            if task_success:
                 # ¡Éxito Total de la Tarea!
-                time_bonus = self.cfg.get("reward_early_stop_bonus", 0.05) * (self.max_episode_steps - self.current_step)
-                r_done = self.cfg.get("reward_done_success_bonus", 15.0) + time_bonus
+                time_bonus = self.cfg.get("reward_early_stop_bonus", 0.05) * max(0, self.max_episode_steps - self.current_step)
+                r_done = self.cfg.get("reward_done_success_bonus", 20.0) + time_bonus
                 terminated = True
-                self.node.get_logger().info(f"[RL ÉXITO] ¡Tarea completada y validada! (Paso {self.current_step}).")
+                self.node.get_logger().info(f"[ÉXITO VALIDADO] ¡Tarea completada y validada en Home! (Paso {self.current_step}, Dist Obj: {dist_target*100:.1f}cm).")
             else:
-                # Parada prematura en falso
+                # Parada prematura en falso (señaló done sin haber completado el transporte)
                 r_done = self.cfg.get("reward_false_done_penalty", -5.0)
 
         # 6. Penalización de Aceleración Brusca
@@ -459,12 +653,17 @@ class GymROS2Env(ENV_BASE):
 
         info = {
             "step": self.current_step,
+            "dist_tcp_obj": dist_tcp_obj,
+            "dist_ee_obj": dist_ee_obj,
             "dist_hover": dist_hover,
             "dist_target": dist_target,
+            "dist_ee_home": dist_ee_home,
             "delta_z_obj": delta_z_obj,
             "pseudo_force": self.pseudo_force,
             "is_clamped": is_clamped,
             "done_flag": done_flag,
+            "task_success": task_success,
+            "terminated": terminated,
             "r_approach": r_approach,
             "r_orient": r_orient,
             "r_grasp": r_grasp,

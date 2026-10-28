@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'policy_node = visuomotor_ros2.policy_node:main',
             'rl_train_node = visuomotor_ros2.rl_train_node:main',
+            'calibrate_gripper = visuomotor_ros2.calibrate_gripper:main',
         ],
     },
 )

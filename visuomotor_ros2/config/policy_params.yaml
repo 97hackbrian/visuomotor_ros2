@@ -1,6 +1,6 @@
 policy_node:
   ros__parameters:
-    # --- Configuración del Modelo ---
+    # --- Configuración del Modelo --- comparar la losse de entrenamiento y de perdido.
     # Tipo de arquitectura de red neuronal a utilizar
     model_type: "diffusion"
     
@@ -103,3 +103,7 @@ policy_node:
     # Cantidad de pasos (a 20 Hz de inferencia, 20 pasos = 1 segundo continuo) que el robot
     # debe permanecer inmóvil antes de disparar el corte heurístico.
     auto_stop_patience_steps: 20
+
+    # --- Telemetría y Métricas en Tiempo Real (para rqt_plot) ---
+    enable_metrics_publish: True
+    metrics_prefix: "/policy/metrics"

@@ -181,3 +181,50 @@ Para mitigar el jitter sin retrasar la respuesta:
    - Timeout de 0.5 s para resetear memorias si la inferencia se suspende.
 3. **Capa 3: Publicación Unidimensional del Gripper:**
    El controlador en simulación espera un `Float64MultiArray` con **estrictamente 1 elemento** `[pos]`. Publicar arreglos bidimensionales produce el rechazo silencioso de la orden.
+
+---
+
+## 7. El Paradigma Dual: Diffusion Policy vs. RL Fine-Tuning (DPPO)
+
+En robótica visuomotora generativa, no se debe confundir el aprendizaje por refuerzo con un explorador de espacio abierto desde cero:
+
+1. **Diffusion Policy (Behavior Cloning):**
+   - Modela la distribución multimodal global $p(A_{t:t+H} \mid O_t)$ a partir de las demostraciones expertas.
+   - Es el responsable de la navegación global, el acercamiento macro y la cobertura espacial aprendida por el generador Halton Quasi-Monte Carlo.
+2. **DPPO (RL Fine-Tuning):**
+   - Opera como un **optimizador local fino (*micro-tuning*)** sobre la cadena de difusión inversa.
+   - Su objetivo científico es mitigar el *covariate shift*, absorber micro-deslizamientos durante el contacto físico y calibrar el instante exacto de detención del auto-stop neuronal (`done_flag`).
+3. **Calibración Empírica del Pseudo-Sensor de Contacto:**
+   - Para evitar falsos positivos o negativos al validar el agarre, la discrepancia elástica $\delta = p_{\text{medida}} - p_{\text{cmd}}$ se calibra empíricamente:
+     - En vacío: $\delta = 0.0000\text{ m}$.
+     - Con objeto rígido: $\delta = +0.0014\text{ m}$ ($1.4\text{ mm}$).
+     - Umbral óptimo de decisión: $\theta = 0.0007\text{ m}$ ($0.7\text{ mm}$).
+   - En vuelo libre ($\Delta z \ge 8\text{ cm}$ con orden de cierre activa), el agarre se certifica incondicionalmente para evitar falsos descartes provocados por oscilaciones inerciales.
+4. **Sincronización Determinista de Respawn en Simulador:**
+   - Para invalidar el filtro de caché en nodos Script de OmniGraph (`last_lin_processed`), el reset debe inyectar un **pulso bifásico con micro-jitter** ($Z+4\text{ cm}$, $\pm 0.5\text{ mm}$) seguido del pulso en cota de mesa.
+   - Requiere $2.0\text{ s}$ de retención gravitacional en Home con pinza abierta y purgado de semáforo de cámara antes de computar acciones de RL.
+
+---
+
+## 8. Eje de Demostradores Expertos y Controladores SOTA (MPC, cuRobo, CRISP)
+
+El rendimiento final de la política visuomotora depende fuertemente de la calidad de las demostraciones y del controlador de bajo nivel:
+
+1. **Demostrador Experto Piloto (PID Cartesiano):**
+   - Sirve como prueba de concepto para recolectar datos rápidamente (`pickup_approximate.py`), pero adolece de rigidez ante colisiones y posibles sobreimpulsos.
+2. **Demostradores Expertos SOTA para Generación de Datasets:**
+   - **Model Predictive Control (cuRobo GPU MPC):** Optimización cinemática acelerada en GPU sujeta a restricciones de barrera, suavidad y evasión de singularidades.
+   - **Cartesian Impedance Control (CRISP):** Framework en `ros2_control` para acoplar la inferencia de políticas de aprendizaje con control de rigidez ($K$) y amortiguamiento ($D$) compliante a $1\text{ kHz}$.
+3. **Diseño Factorial para Publicaciones Científicas:**
+   - Se debe cruzar sistemáticamente:
+     $$\text{Dataset}(D_{\text{PID}}, D_{\text{MPC}}, D_{\text{CIC}}) \times \text{Modelo}(\text{Solo DP}, \text{DP + RL})$$
+     Permitiendo aislar qué porcentaje de la precisión y robustez proviene de la red generativa frente al controlador de ejecución.
+
+---
+
+## 9. Estándar de Logging y Benchmarking Científico Off-ROS
+
+Todo código dentro de `visuomotor_core` debe implementar:
+1. `configure_logging(level=logging.DEBUG, log_file=...)`: Integración con `coloredlogs`, resolución en milisegundos, identificación de hilos de DataLoaders y supresión de librerías externas.
+2. `@contextmanager def benchmark(operation_name, log, track_gpu=True)`: Monitoreo con `time.perf_counter_ns()`, formateo con `humanize` y reporte de pico de memoria VRAM GPU (`torch.cuda.max_memory_allocated()`).
+3. Cero llamadas a `print()` en bucles de entrenamiento y estricta ausencia de dependencias de ROS (`rclpy`) en el núcleo de Deep Learning.
