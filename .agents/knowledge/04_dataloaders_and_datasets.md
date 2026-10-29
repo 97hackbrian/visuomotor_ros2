@@ -124,3 +124,46 @@ Las estadísticas globales ($x_{\min}, x_{\max}, \mu, \sigma$) se computan una s
     --done_frames 20
   ```
   Esto preserva la integridad del historial experimental original.
+
+---
+
+## 7. Tip Metodológico para Machine Learning: El Error Fuera de Bolsa (OOB - Out-of-Bag)
+
+En machine learning tradicional, para medir generalización se suele apartar un conjunto de prueba (*test set*). El Bagging (*Bootstrap Aggregating*) ofrece una alternativa gratuita y honesta sin necesidad de apartar datos:
+
+* **Identificación de Muestras OOB:** Para cada fila $i$, identificamos qué árboles no la incluyeron en su muestra bootstrap (`fuera[bolsa] == False`).
+* **Evaluación Fuera de Distribución Local:** Esos árboles específicos nunca vieron a la observación $i$ durante su entrenamiento: para ellos, $i$ es un dato de prueba nuevo.
+* **Votación / Agregación:** Hacemos votar a esos árboles sobre la fila $i$ y comparamos la predicción agregada con la etiqueta real $y_i$.
+* **Exclusión de Casos Límite:** Si alguna fila quedó dentro de la bolsa de todos los árboles, no puede evaluarse y se excluye del cómputo del error global.
+
+---
+
+## 8. Tip Metodológico para Machine Learning: AdaBoost con Tocones de Decisión
+
+A diferencia de *Bagging* (árboles independientes entrenados en paralelo), **AdaBoost** entrena modelos en secuencia (*boosting*) adaptativo:
+
+### Algoritmo Paso a Paso:
+1. **Inicialización:** Comenzamos con un vector de pesos uniforme:
+   $$w_n = \frac{1}{N}, \quad \forall n \in \{1, \dots, N\}$$
+
+2. **Iteración en cada ronda $t \in \{1, \dots, T\}$:**
+   * **Entrenamiento Débil:** Entrenamos un modelo simple: un **tocón de decisión** (*decision stump*, árbol con una sola pregunta/corte binario) ponderado por el vector de pesos actual $\mathbf{w}$.
+   * **Cálculo del Error Ponderado:**
+     $$\epsilon_t = \sum_{n:\text{pred}_n \neq y_n} w_n$$
+   * **Criterio de Parada:** Si $\epsilon_t \ge 0.5$, el modelo no supera al azar: se detiene el algoritmo sin incluirlo.
+   * **Importancia del Modelo en la Votación ($\alpha_t$):**
+     $$\alpha_t = \frac{1}{2} \ln\left( \frac{1 - \epsilon_t}{\epsilon_t} \right)$$
+     *(Con un recorte numérico a $[10^{-10}, 1 - 10^{-10}]$ para evitar $\ln(0)$ o división por cero si $\epsilon_t = 0$)*.
+   * **Actualización de los Pesos de los Datos:**
+     $$w_n \leftarrow w_n \cdot \exp(-\alpha_t y_n \text{pred}_n)$$
+     * Si el dato fue **bien clasificado**: $y_n \text{pred}_n = 1 \implies w_n \cdot e^{-\alpha_t}$ (el peso disminuye).
+     * Si el dato fue **mal clasificado**: $y_n \text{pred}_n = -1 \implies w_n \cdot e^{+\alpha_t}$ (el peso aumenta).
+   * **Renormalización:** Dividir por $\sum_{n=1}^N w_n$ para que la distribución de pesos vuelva a sumar $1$.
+
+3. **Inferencia sobre una Muestra Nueva:**
+   $$\text{predicción} = \text{signo}\left( \sum_{t=1}^T \alpha_t \cdot \text{tocón}_t(x) \right)$$
+   Los tocones más precisos tienen un $\alpha_t$ grande y ejercen mayor influencia en la decisión; los tocones mediocres tienen un peso marginal.
+
+### Aplicación Robótica en este Proyecto:
+* **Clasificador Interpretable de Éxito/Fallo de Agarre:** Generar tocones sobre variables físicas continuas ($\delta_{\text{elastic}}$, velocidad en $Z$, orientación $q_w$) para obtener umbrales analíticos verificables y explicables.
+* **Minería Activa de Demostraciones Difíciles (*Hard-Trajectory Mining*):** Utilizar la reponderación de AdaBoost para concentrar la recolección experta y el buffer de RL en regiones del espacio de trabajo donde la política actual comete fallos sistemáticos.

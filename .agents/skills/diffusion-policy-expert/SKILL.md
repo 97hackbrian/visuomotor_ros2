@@ -228,3 +228,29 @@ Todo código dentro de `visuomotor_core` debe implementar:
 1. `configure_logging(level=logging.DEBUG, log_file=...)`: Integración con `coloredlogs`, resolución en milisegundos, identificación de hilos de DataLoaders y supresión de librerías externas.
 2. `@contextmanager def benchmark(operation_name, log, track_gpu=True)`: Monitoreo con `time.perf_counter_ns()`, formateo con `humanize` y reporte de pico de memoria VRAM GPU (`torch.cuda.max_memory_allocated()`).
 3. Cero llamadas a `print()` en bucles de entrenamiento y estricta ausencia de dependencias de ROS (`rclpy`) en el núcleo de Deep Learning.
+
+---
+
+## 10. Evolución hacia Visión 3D: Principios y Patrones de 3D Diffusion Policy (DP3)
+
+Para superar la limitación de extrapolación plana de los modelos 2D (que requieren cientos de demostraciones), la arquitectura **DP3** (Ze et al., 2024) establece los siguientes patrones de diseño:
+
+1. **Representación por Nubes de Puntos Dispersas:**
+   - Desproyección de mapas de profundidad a coordenadas cartesianas mediante la matriz intrínseca $K$ de la cámara.
+   - **Workspace Bounding Box Cropping:** Recorte estricto del volumen de la mesa ($X, Y, Z$). Omitir este recorte reduce la tasa de éxito de $78.3\%$ a $45.3\%$.
+   - **Farthest Point Sampling (FPS):** Reducción determinista a $512$ o $1024$ puntos geométricos.
+   - **Supresión de Canales RGB:** Procesar únicamente $(X, Y, Z)$ desvincula la política de texturas y colores, otorgando invarianza de apariencia inmediata.
+
+2. **Arquitectura del `DP3Encoder` (Por Qué PointNet Clásico Falla):**
+   - El PointNet estándar (con T-Net y `BatchNorm`) colapsa en control continuo ($15.7\%$ de éxito).
+   - La eliminación de T-Net y `BatchNorm`, sustituidos por `LayerNorm` en un MLP de 3 etapas con proyección latente a 64D, eleva el éxito al **$78.3\%$**:
+     ```python
+     Linear(3, 64) -> LayerNorm -> ReLU ->
+     Linear(64, 128) -> LayerNorm -> ReLU ->
+     Linear(128, 256) -> LayerNorm -> ReLU ->
+     max_pool(dim=1) -> Linear(256, 64) -> LayerNorm(64)
+     ```
+3. **Predicción de Muestra ($x_0$-prediction) vs. Ruido ($\epsilon$-prediction):**
+   - En espacios de acción continuos ($16 \times 9$), predecir directamente la trayectoria limpia desruidizada $A^0$ en el solver DDIM converge significativamente más rápido que predecir el ruido residual $\epsilon$.
+4. **Simple DP3 para Inferencia de Alta Velocidad (25.3 FPS):**
+   - Poda de canales internos en la U-Net temporal 1D que duplica la frecuencia de ejecución ($12.7 \to 25.3\text{ FPS}$) preservando más del $95\%$ del desempeño.

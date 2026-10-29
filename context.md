@@ -277,6 +277,45 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       5. **Control Estricto de Paginación:** Inserción de `\clearpage` antes de diagramas metodológicos flotantes y antes de bibliografía, logrando 0 errores, 0 *overfull \hbox* y exactamente 14 páginas con bibliografía iniciando en la línea 1.
       6. **Estandarización:** Creación del módulo `.agents/knowledge/06_scientific_latex_reporting_and_tikz.md` y de la skill `.agents/skills/scientific-latex-reporting/SKILL.md`.
 
+32. **Validación sin Conjunto de Prueba mediante Error Fuera de Bolsa (OOB - Out-of-Bag):**
+    - *Fundamento:* En machine learning tradicional, para medir generalización se suele apartar un conjunto de prueba (*test set*). El *Bagging* (*Bootstrap Aggregating*) ofrece una alternativa gratuita y honesta sin necesidad de apartar datos.
+    - *Mecanismo Operativo:*
+      1. Para cada fila $i$, se identifican qué árboles o estimadores base no la incluyeron en su muestra bootstrap (`fuera[bolsa] == False`).
+      2. Esos árboles específicos nunca vieron a la observación $i$ durante su entrenamiento: para ellos, $i$ es un dato de prueba estrictamente nuevo.
+      3. Se hace votar o promediar a esos árboles sobre la fila $i$ y se compara la predicción agregada con la etiqueta real $y_i$.
+      4. Si alguna fila quedó dentro de la bolsa de todos los árboles, no puede evaluarse y se excluye del cómputo del error global.
+
+33. **AdaBoost con Tocones de Decisión y Diagnóstico Físico de Modos de Fallo:**
+    - *Fundamento:* A diferencia de *Bagging*, AdaBoost entrena modelos en secuencia (*boosting*) adaptativo con reponderación exponencial de muestras erróneas:
+      1. Pesos uniformes iniciales: $w_n = 1/N$.
+      2. En cada ronda $t$: ajuste de un tocón de decisión (corte univariado $\mathbb{I}(x_j \ge \theta)$), error ponderado $\epsilon_t = \sum_{\text{err}} w_n$, cálculo de importancia $\alpha_t = \frac{1}{2}\ln \frac{1-\epsilon_t}{\epsilon_t}$ (con recorte $[10^{-10}, 1-10^{-10}]$), y actualización $w_n \leftarrow w_n \exp(-\alpha_t y_n \text{pred}_n)$ seguida de renormalización.
+      3. Predicción final: $\text{signo}(\sum_t \alpha_t \cdot \text{tocón}_t(x))$.
+    - *Aplicación Robótica:* Clasificación explicable de éxito/fallo a partir de telemetría tabular (`benchmark_comparison_results.csv`), aislando qué variables físicas ($\delta_{\text{elastic}}$, $\Delta Z$, distancia TCP) determinan el fallo cinemático, y minería activa de trayectorias difíciles (*Hard-Negative Mining*).
+
+34. **Evaluación SOTA para Políticas Visuomotoras (Conformal Prediction, Diff-DAgger UQ y Verificadores):**
+    - *Dilema Multimodalidad vs. Incertidumbre:* La varianza simple de acciones confunde opciones multimodales válidas (ej. esquivar por izquierda o derecha) con confusión del modelo.
+    - *Métodos Avanzados Incorporados:*
+      1. **Diff-DAgger / Consistencia de Score:** Evaluar la discrepancia en la función de ruido predicha $\epsilon_\theta(A^k, k, O_t)$ para detectar estados fuera de distribución (OOD) antes de la divergencia física.
+      2. **Predicción Conforme (PlanCP):** Generación de tubos de trayectoria con garantías estadísticas de cobertura libre de distribución ($1 - \alpha = 95\%$).
+      3. **Verificadores en Tiempo de Test (Best-of-N):** Usar el Crítico $V_\phi$ entrenado en DPPO para filtrar y seleccionar en tiempo real la mejor trayectoria entre múltiples hipótesis generadas en GPU.
+    - *Estandarización:* Creación del módulo `.agents/knowledge/07_sota_visuomotor_evaluation_and_uncertainty.md`.
+
+35. **Transición hacia 3D Diffusion Policy (DP3): Nubes de Puntos, DP3Encoder sin BatchNorm y Cropping Espacial:**
+    - *El Problema:* Las políticas visuomotoras 2D proyectan el mundo a una imagen plana, perdiendo la métrica de profundidad $Z$ y necesitando $>100-200$ demostraciones para generalizar en 3D.
+    - *La Solución (DP3, Ze et al. 2024):*
+      1. **Nubes de Puntos Dispersas:** Muestreo de $512$ a $1024$ puntos por FPS (Farthest Point Sampling) a partir de desproyección de mapas de profundidad.
+      2. **DP3Encoder sin T-Net ni BatchNorm:** PointNet tradicional colapsa ($15.7\%$ éxito). Al suprimir T-Net y BatchNorm (inhibidores de correlación y EMA) e intercalar `LayerNorm` en un MLP de 3 niveles con proyección a 64D, el éxito se eleva al $78.3\%$.
+      3. **Workspace Cropping Obligatorio:** Recortar los puntos fuera del volumen de trabajo de la mesa es fundamental (sin recorte el éxito cae al $45.3\%$).
+      4. **Invarianza de Apariencia:** Procesar únicamente coordenadas $(X, Y, Z)$ sin canales de color permite generalizar automáticamente a objetos de colores y texturas no vistos.
+      5. **Predicción de Muestra ($x_0$):** Predecir la trayectoria limpia $A^0$ en vez del ruido $\epsilon$ acelera la convergencia en acciones de alta dimensión.
+      6. **Simple DP3:** Versión podada de U-Net que eleva la frecuencia de inferencia a $25.3\text{ FPS}$ manteniendo alta precisión.
+
+36. **Rigor Metodológico en Machine Learning para Trayectorias Robóticas:**
+    - *Fuga de Información Temporal (Data Leakage):* Prohibición absoluta de particionar datos aleatoriamente por fotogramas. Debido a la fuerte correlación temporal entre pasos contiguos, la partición (ej. split 80/20) debe realizarse **estrictamente a nivel de episodio completo**.
+    - *Ley de Kolter y Test de Sobreajuste:* Antes de entrenar a gran escala, realizar un test de sanidad sobreajustando a 1 solo episodio/mini-batch. Si la pérdida no converge a cero, existe un error arquitectónico o de gradientes en el código.
+    - *Normalizaciones Inmunes al Tamaño de Lote:* `LayerNorm` y `GroupNorm` preservan el comportamiento idéntico entre entrenamiento e inferencia, a diferencia de `BatchNorm`.
+    - *Estandarización:* Creación del módulo `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
+
 ---
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
@@ -298,6 +337,7 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 - **Fase 5 (Infraestructura de Logging Off-ROS):** Logger científico `coloredlogs` + `humanize` + `@benchmark` desplegado en `visuomotor_core`.
 - **Fase 6 (Benchmarking Pareado y Modelo Cinemático TCP):** Campaña comparativa ejecutada (10 episodios pareados, 20 vuelos) en Isaac Sim, proyección TCP validada ($79.0\text{ mm}$), panel gráfico $2 \times 3$ de publicación optimizado y skill `visuomotor-benchmark-evaluator` creada.
 - **Fase 7 (Ingeniería Editorial Académica y LaTeX Riguroso):** Informe de avance (`informe_avance_visuomotor_cd.tex`) refinado a estilo humano sin metalenguaje de IA, diagramas TikZ coherentes dimensionalmente, justificación formal de Wilcoxon, citas de DPPO (ICLR 2025), 0 errores y 14 páginas consolidadas. Skill `scientific-latex-reporting` desplegada.
+- **Fase 8 (Evolución hacia Visión 3D con DP3):** Mapeo arquitectónico de 3D Diffusion Policy (DP3Encoder, FPS a 512/1024 pts, cropping espacial, sample-prediction y Simple DP3) documentado en `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
 
 **Roadmap Experimental Inmediato:**
 1. **Toma de Dataset Fresco V8:** Generar `demonstrations_v8.zarr` con el demostrador experto PID actualizado (`hold_target_time_s: 3.5s`, `record_done_flag: true`).

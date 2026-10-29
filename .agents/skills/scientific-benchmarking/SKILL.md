@@ -88,3 +88,17 @@ timestamp,experiment_id,dataset_demonstrator,learning_paradigm,episode_idx,step_
 3. **Incertidumbre y Dispersión:**
    - En curvas de aprendizaje y trayectorias, nunca mostrar solo la media. Graficar el intervalo de confianza del 95% ($\bar{x} \pm 1.96 \cdot \text{SE}$) como banda sombreada (`alpha=0.2`).
    - En comparativas de error milimétrico o tiempos de ciclo, preferir **Boxplots** con puntos dispersos (*jittered strip plots*) o **Violin Plots** para mostrar la distribución empírica completa.
+
+---
+
+## 6. Metodologías SOTA de Evaluación y Calibración (2024–2026)
+
+1. **Predicción Conforme (*Conformal Prediction / PlanCP*):**
+   - Evaluar regiones de cobertura $1 - \alpha = 95\%$ sobre la variedad de trayectorias generadas, reportando la cobertura empírica y el volumen medio del tubo de incertidumbre $\hat{q}$.
+2. **Cuantificación de Incertidumbre Epistémica (*Diff-DAgger*):**
+   - Evitar la varianza cartesiana simple entre trayectorias en tareas con multimodalidad legítima (ej. esquivar por la izquierda o por la derecha). Evaluar la consistencia interna del score de difusión $\epsilon_\theta$ o el desacuerdo en el campo de velocidades (*Velocity-Field Disagreement - VFD*).
+3. **Escalado en Tiempo de Inferencia con Verificador (*Test-Time Best-of-N*):**
+   - Medir el incremento en la tasa de éxito al generar $B \in \{1, 4, 8\}$ hipótesis candidatas en paralelo en GPU y seleccionar la de mayor valor predicho por el Crítico $V_\phi(s, a)$.
+4. **Diagnóstico Interpretable de Fallos mediante AdaBoost con Tocones:**
+   - Entrenar tocones de decisión sobre las variables continuas de `metrics.csv` ($\delta_{\text{elastic}}$, $\Delta Z$, error terminal) para identificar los umbrales mecánicos exactos que separan el éxito del fallo.
+

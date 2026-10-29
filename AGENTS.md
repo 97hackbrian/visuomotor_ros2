@@ -147,6 +147,16 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - Fundamentación estadística formal del test de rangos con signo de Wilcoxon para distribuciones asimétricas y *outliers* cinemáticos en robótica manipuladora.
    - Reconciliación empírica con telemetría real: justificación de dinámicas de divergencia KL discretas acotadas por recorte PPO ($\epsilon = 0{,}2$) y pérdida de imitación ($\lambda_{\text{BC}}$), diferenciación entre retornos por lote y episodios individuales, y cita de DPPO fundacional (Allen Z. Ren et al., ICLR 2025).
    - Habilidad operativa documentada en `.agents/skills/scientific-latex-reporting/SKILL.md` y memoria modular en `.agents/knowledge/06_scientific_latex_reporting_and_tikz.md`.
+8. **Evaluación Avanzada SOTA y Cuantificación de Incertidumbre en Políticas Generativas:**
+   - Superación del dilema multimodalidad vs. incertidumbre epistémica (Diff-DAgger / consistencia de score y desacuerdo en campo de velocidades).
+   - Predicción Conforme (PlanCP) para tubos de trayectoria con garantía matemática de cobertura libre de distribución ($1 - \alpha = 95\%$).
+   - Escalado en tiempo de inferencia (*Test-Time Scaling / Best-of-N*) con el Crítico $V_\phi$ como verificador de trayectorias generadas en paralelo.
+   - Diagnóstico interpretable de modos de fallo mediante AdaBoost con tocones de decisión sobre telemetría tabular.
+   - Memoria modular documentada en `.agents/knowledge/07_sota_visuomotor_evaluation_and_uncertainty.md`.
+9. **Visión 3D (DP3) y Rigor Metodológico en Machine Learning:**
+   - Transición hacia 3D Diffusion Policy (DP3) con nubes de puntos dispersas ($512/1024$ pts por FPS), `DP3Encoder` sin T-Net ni BatchNorm (con LayerNorm), recorte espacial de volumen de trabajo y predicción de muestra ($x_0$).
+   - Rigor en datos secuenciales: prohibición de partición por fotogramas (*data leakage* temporal), partición estricta por episodios completos (split 80/20), test de sanidad de sobreajuste (Ley de Kolter) y normalizaciones independientes de batch size (`LayerNorm` / `GroupNorm`).
+   - Memoria modular documentada en `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
 
 ---
 
