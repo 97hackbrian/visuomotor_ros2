@@ -1,0 +1,160 @@
+\RequirePackage{fix-cm}
+\documentclass[aspectratio=169,10pt,xcolor={dvipsnames,table}]{beamer}
+
+\usepackage{iftex}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit, backgrounds}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins}
+
+\definecolor{InfonorBlue}{HTML}{0E2849}
+\definecolor{InfonorOrange}{HTML}{F57F19}
+\definecolor{BgLight}{HTML}{F8FAFC}
+\definecolor{TextDark}{HTML}{1B263B}
+\definecolor{WhiteBg}{HTML}{FFFFFF}
+
+\setbeamersize{text margin left=4mm, text margin right=4mm}
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{normal text}{fg=TextDark, bg=BgLight}
+
+\newcommand{\SlideTitleFont}{\fontsize{10.5}{12}\selectfont\bfseries}
+\newcommand{\BannerFont}{\fontsize{7.5}{9.2}\selectfont\bfseries}
+\newcommand{\FootnoteFont}{\fontsize{5.2}{6.5}\selectfont}
+
+\setbeamertemplate{headline}{%
+  \leavevmode%
+  \rlap{\includegraphics[width=\paperwidth, height=13.3mm]{assets/infonor_header_wave_cropped.png}}%
+  \hfill%
+  \raisebox{7.5mm}{\textcolor{InfonorBlue}{\fontsize{7.5}{8.5}\selectfont\bfseries\insertframenumber}}\hspace{4mm}%
+  \vskip0pt%
+}
+
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip%
+  \vspace{1.2mm}%
+  \noindent
+  \begin{tikzpicture}[baseline=-0.5ex]
+    \fill[InfonorOrange, rounded corners=1pt] (0,0) rectangle (9mm, 1.4mm);
+  \end{tikzpicture}\hspace{2mm}%
+  {\SlideTitleFont\textcolor{InfonorBlue}{\insertframetitle}}\par
+  \vspace{0.8mm}%
+}
+
+\setbeamertemplate{footline}{%
+  \begin{beamercolorbox}[wd=\paperwidth, ht=4mm, dp=1.2mm, leftskip=4mm, rightskip=4mm]{normal text}
+    \textcolor{InfonorBlue!80}{\FootnoteFont Doctorado en Inteligencia Artificial (PDIA) $\cdot$ Universidad Católica del Norte $\cdot$ INFONOR 2026}
+    \hfill
+    \textcolor{InfonorOrange}{\FootnoteFont\textbf{INFO 2026}}
+  \end{beamercolorbox}
+}
+
+\begin{document}
+
+% SLIDE 1: PORTADA
+{
+\setbeamertemplate{background canvas}{\includegraphics[width=\paperwidth,height=\paperheight]{assets/infonor_bg_cover.jpg}}
+\begin{frame}[plain]
+  % Logos superiores
+  \begin{tikzpicture}[remember picture, overlay]
+    % Logos de Universidades + Infonor a la derecha
+    \node[anchor=north east] at ([xshift=-4mm, yshift=-3mm]current page.north east) {
+      \includegraphics[height=11mm, keepaspectratio]{assets/infonor_logo_2026.png}%
+      \hspace{3mm}%
+      {\color{white}\rule{0.6pt}{10mm}}%
+      \hspace{3mm}%
+      \includegraphics[height=8.5mm, keepaspectratio]{assets/infonor_logos_univ.png}%
+    };
+    % Logos institucionales a la izquierda
+    \node[anchor=north west] at ([xshift=4mm, yshift=-4mm]current page.north west) {
+      \includegraphics[height=7mm, keepaspectratio]{assets/logo_ucn.png}%
+      \hspace{2.5mm}%
+      \includegraphics[height=7mm, keepaspectratio]{assets/logo_pdia.png}%
+      \hspace{2.5mm}%
+      \includegraphics[height=7mm, keepaspectratio]{assets/logo_gore.png}%
+    };
+  \end{tikzpicture}
+
+  \vspace{10mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.62\textwidth}
+      {\fontsize{13}{15.5}\selectfont\bfseries\textcolor{white}{Imitation Learning and Diffusion Models for Agricultural Tasks}}\\[2.5mm]
+      {\color{InfonorOrange}\rule{0.9\linewidth}{1.2mm}}\\[3.5mm]
+      {\fontsize{7.5}{9.5}\selectfont\bfseries\textcolor{white}{Brayan Gerson Duran Toconas}}\\[1mm]
+      {\fontsize{6.2}{8}\selectfont\textcolor{white!90}{Investigador Doctoral $\cdot$ Doctorado en Inteligencia Artificial (PDIA-UCN)}}\\[0.6mm]
+      {\fontsize{6.2}{8}\selectfont\textcolor{white!90}{Profesor Guía: Dr. Álvaro Prado Romo $\cdot$ DISC UCN}}\\[0.6mm]
+      {\fontsize{6.2}{8}\selectfont\textcolor{white!90}{Tesis financiada por GORE Antofagasta (Convenio BIP 40074839-0)}}\\[4mm]
+      \begin{tikzpicture}
+        \node[draw=white, rounded corners=3.5pt, inner sep=2.5pt, font=\fontsize{6}{7}\selectfont\bfseries, text=white] {Iquique - Chile};
+      \end{tikzpicture}
+    \end{column}
+
+    \begin{column}{0.36\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=white,
+        colframe=InfonorOrange,
+        arc=2pt,
+        boxrule=0.7pt,
+        title={\fontsize{7}{8.5}\selectfont\bfseries\color{white} Agro-Robótica en Acción},
+        colbacktitle=InfonorBlue,
+        top=1mm, bottom=1mm, left=1mm, right=1mm
+      ]
+        \centering
+        \includegraphics[height=35mm, keepaspectratio]{assets/demo1.png}\\[0.6mm]
+        {\fontsize{5}{6.2}\selectfont\textcolor{TextDark!80}{Cosecha reactiva en huerto frutal (20 Hz en Isaac Sim).}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+}
+
+% SLIDE 2: TABLA DE CONTENIDOS
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture, overlay]
+    % Panel izquierdo azul
+    \fill[InfonorBlue] (current page.north west) rectangle ([xshift=0.32\paperwidth]current page.south west);
+    \draw[InfonorOrange, line width=2.5pt] ([xshift=0.32\paperwidth]current page.north west) -- ([xshift=0.32\paperwidth]current page.south west);
+    
+    % Título Tabla de contenidos
+    \node[anchor=west, text width=42mm, font=\fontsize{17}{21}\selectfont\bfseries, align=left] at ([xshift=6mm, yshift=6mm]current page.west) {
+      \textcolor{white}{Tabla de}\\[2.5mm]
+      \textcolor{InfonorOrange}{contenidos}
+    };
+    
+    % Número de diapositiva
+    \node[anchor=north east, font=\fontsize{7}{8}\selectfont\bfseries\color{InfonorBlue}] 
+      at ([xshift=-4mm, yshift=-2.5mm]current page.north east) {2};
+  \end{tikzpicture}
+
+  \vspace{-2mm}
+  \hspace*{0.33\paperwidth}
+  \begin{minipage}{0.62\paperwidth}
+    \fontsize{7.2}{11}\selectfont
+    \begin{enumerate}[\textcolor{InfonorOrange}{\textbf{01}}]
+      \setlength{\itemsep}{2.5mm}
+      \item \textbf{De la Certeza Geométrica a la IA Encarnada en Agricultura}\par\vspace{0.8mm}\hrule height 0.4pt
+      \item \textbf{El Paradigma de Diffusion Policy y Temporal U-Net}\par\vspace{0.8mm}\hrule height 0.4pt
+      \item \textbf{Despliegue Reactivo a 20 Hz y Auto-Stop Neuronal}\par\vspace{0.8mm}\hrule height 0.4pt
+      \item \textbf{Fine-Tuning con RL (DPPO) y Percepción Háptica}\par\vspace{0.8mm}\hrule height 0.4pt
+      \item \textbf{Benchmarking Pareado, Telemetría y Validación Estadística}\par\vspace{0.8mm}\hrule height 0.4pt
+      \item \textbf{Visión 3D (DP3), Desafíos Abiertos y Transferencia Regional}\par\vspace{0.8mm}\hrule height 0.4pt
+    \end{enumerate}
+  \end{minipage}
+\end{frame}
+
+% SLIDE 3: DIAPOSITIVA DE CONTENIDO DE PRUEBA
+\begin{frame}{Robótica Agrícola y el Colapso de la Certidumbre Geométrica}
+  \begin{tcolorbox}[colback=white, colframe=InfonorBlue, arc=2pt, boxrule=0.6pt]
+    Prueba de contenido con la cabecera oficial INFONOR 2026.
+  \end{tcolorbox}
+\end{frame}
+
+\end{document}
