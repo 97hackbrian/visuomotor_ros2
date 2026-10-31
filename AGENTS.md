@@ -157,6 +157,11 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - Transición hacia 3D Diffusion Policy (DP3) con nubes de puntos dispersas ($512/1024$ pts por FPS), `DP3Encoder` sin T-Net ni BatchNorm (con LayerNorm), recorte espacial de volumen de trabajo y predicción de muestra ($x_0$).
    - Rigor en datos secuenciales: prohibición de partición por fotogramas (*data leakage* temporal), partición estricta por episodios completos (split 80/20), test de sanidad de sobreajuste (Ley de Kolter) y normalizaciones independientes de batch size (`LayerNorm` / `GroupNorm`).
    - Memoria modular documentada en `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
+10. **Transferencia Sim-to-Real: Few-Shot Fine-Tuning y Políticas Residuales (ResiP/TRANSIC):**
+   - Espacio de acción cartesiano de alto nivel ($16 \times 9$) absorbe el $90\%$ de discrepancias inerciales y de torque motor, focalizando la brecha en visión y contacto mecánico.
+   - SOTA en Fine-Tuning: prevención de olvido catastrófico mediante Co-Fine-Tuning ($20\%$ real, $80\%$ sim) y LoRA en capas visuales.
+   - SOTA en Residual Policy Learning: desacoplamiento en macro-planificador congelado $\pi_{\text{sim}}$ y residuo reactivo $\pi_{\text{res}}$ acotado con $\pm \delta_{\max} \tanh(\cdot)$ para micro-contacto y cumplimiento fino (ResiP / TRANSIC).
+   - Memoria modular documentada en `.agents/knowledge/10_sim_to_real_finetuning_and_residual_policies.md`.
 
 ---
 

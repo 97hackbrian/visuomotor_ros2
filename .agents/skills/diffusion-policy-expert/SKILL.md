@@ -254,3 +254,69 @@ Para superar la limitación de extrapolación plana de los modelos 2D (que requi
    - En espacios de acción continuos ($16 \times 9$), predecir directamente la trayectoria limpia desruidizada $A^0$ en el solver DDIM converge significativamente más rápido que predecir el ruido residual $\epsilon$.
 4. **Simple DP3 para Inferencia de Alta Velocidad (25.3 FPS):**
    - Poda de canales internos en la U-Net temporal 1D que duplica la frecuencia de ejecución ($12.7 \to 25.3\text{ FPS}$) preservando más del $95\%$ del desempeño.
+
+---
+
+## 11. Transferencia Sim-to-Real: Few-Shot Fine-Tuning vs. Residual Policy Learning (ResiP/TRANSIC)
+
+Al transferir políticas generativas desde simulación (Isaac Sim) al hardware físico (ej. xArm Lite6 en entornos agrícolas o industriales), el ingeniero debe evaluar la interacción entre la representación de acción, la adaptación perceptual y la física de contacto:
+
+### 1. Amortiguamiento Inductivo por Espacio Cartesiano ($16 \times 9$ SE(3))
+- **Aislamiento Dinámico:** La política visuomotora no emite torques ni voltajes directos ($\boldsymbol{\tau}$), sino secuencias temporales de poses cartesianas absolutas $[X, Y, Z, q_x, q_y, q_z, q_w, \text{gripper}, \text{done}] \in \mathbb{R}^{16 \times 9}$.
+- **Absorción de la Brecha:** El controlador de bajo nivel (FZI Cartesian Controller o PID articular a 100 Hz) absorbe más del **$90\%$ de las discrepancias dinámicas** (masa de eslabones, fricción de cajas reductoras armónicas, curvas térmicas de motores).
+- **Concentración de la Brecha:** El *Sim-to-Real gap* se circunscribe estrictamente a:
+  1. *Brecha Perceptual (Visual):* Texturas, sombras dinámicas y variaciones fotométricas por radiación solar directa.
+  2. *Brecha de Contacto (Mecánica):* Rigidez de sustratos/pedúnculos, micro-deslizamiento y fricción interfacial de la pinza.
+
+---
+
+### 2. Opción 2: Few-Shot Fine-Tuning y Prevención de Olvido Catastrófico
+El ajuste fino supervisado inicializa los pesos con el modelo preentrenado en simulación ($\boldsymbol{\theta}_{\text{sim}}$) y continúa la optimización con pocas demostraciones humanas reales ($\mathcal{D}_{\text{real}}$, 15–40 episodios teleoperados):
+
+- **Patología del Fine-Tuning Ingenuo:** En modelos de difusión (*Denoising Score Matching*), reentrenar únicamente sobre $\mathcal{D}_{\text{real}}$ distorsiona gravemente el gradiente $\nabla_{\mathbf{A}} \log p(\mathbf{A}|\mathbf{O})$ fuera del soporte reducido de los datos reales, destruyendo las cuencas de atracción (*recovery behaviors*) aprendidas en simulación.
+- **Co-Fine-Tuning (Data Mixing Ratio 20/80):**
+  Cada minilote durante el ajuste fino se muestrea combinando datos reales y sintéticos:
+  $$\mathcal{L}_{\text{total}}(\boldsymbol{\theta}) = \alpha \mathbb{E}_{\mathcal{D}_{\text{real}}}[\mathcal{L}_{\text{MSE}}(\boldsymbol{\theta})] + (1 - \alpha) \mathbb{E}_{\mathcal{D}_{\text{sim}}}[\mathcal{L}_{\text{MSE}}(\boldsymbol{\theta})], \quad \alpha \in [0.2, 0.3]$$
+  Esto adapta el codificador a la iluminación del huerto sin desmoronar la cinemática global.
+- **PEFT / LoRA en Bloques FiLM (IEEE RA-L / ICANN 2024–2025):**
+  Congelar los pesos base $W_0$ de la U-Net temporal y adaptar las proyecciones mediante matrices de bajo rango:
+  $$W = W_0 + \frac{\alpha_{\text{lora}}}{r} B A, \quad A \in \mathbb{R}^{r \times d_{\text{in}}}, \, B \in \mathbb{R}^{d_{\text{out}} \times r}, \, r \in [8, 16, 32]$$
+  Reduce los parámetros entrenables en $>90\%$ y previene el sobreajuste.
+- **Congelamiento Selectivo:** Congelar la U-Net 1D temporal y descongelar únicamente la `ResNet-18` + Spatial Softmax para cerrar exclusivamente la brecha visual.
+
+---
+
+### 3. Opción 3: Residual Policy Learning (RPL) para Contacto y Agarre Milimétrico
+Descompone la acción final en una macro-trayectoria de horizonte abierto y una micro-corrección reactiva de lazo cerrado:
+$$\mathbf{a}_{\text{final}} = \pi_{\text{base}}(\mathbf{s}) + \pi_{\text{res}}(\mathbf{s})$$
+
+- **ResiP (CoRL 2024 / MIT & Harvard - Ankile et al., arXiv:2407.16677):**
+  - La Diffusion Policy permanece **$100\%$ congelada** ($\nabla_{\boldsymbol{\theta}} = 0$) actuando como planificador cinemático macro ($H=16$, $\Delta t = 50\text{ ms}$).
+  - Una política residual liviana $\pi_{\text{res}}$ (entrenada por PPO on-policy o supervisada) emite correcciones paso a paso.
+  - **Acotamiento Seguro por Tangente Hiperbólica:**
+    $$\mathbf{a}_t = \mathbf{a}_{t, \text{diffusion}} + \delta_{\max} \tanh(\pi_{\text{res}}(\mathbf{s}_t))$$
+    Donde $\delta_{\max}$ impone una cota física rígida (ej. $\pm 10\text{ mm}$ en traslación, $\pm 2^\circ$ en rotación), garantizando que el residuo no vulnere la cinemática ni colisione contra la estructura.
+  - Eleva el éxito en tareas de ensamblaje y contacto crítico de $5\text{--}50\%$ a **$>95\%$**.
+- **TRANSIC (CoRL 2024 / Stanford & UT Austin - Jiang et al., arXiv:2405.10315):**
+  - El robot ejecuta la política de simulación en el mundo real. Ante titubeos o atascos mecánicos, el operador humano interviene en vivo mediante un gamepad.
+  - Se registra directamente la discrepancia residual:
+    $$\Delta \mathbf{a}_{\text{target}} = \mathbf{a}_{\text{humano}} - \mathbf{a}_{\text{sim}}$$
+  - Un MLP residual compacto ($< 50\text{k}$ parámetros) aprende a predecir $\Delta \mathbf{a}$ en regresión MSE con solo **15–20 minutos de intervenciones humanas**.
+- **SGFT (ICLR / CoRL 2025 - Yin et al., arXiv:2502.02515):**
+  - Utiliza la función de valor aprendida en simulación ($V_{\text{sim}}$) como prior estructurado para moldear la función de recompensa real y guiar la exploración on-policy, evitando movimientos aleatorios destructivos en hardware físico.
+
+---
+
+### 4. Guía de Selección para Ingeniería y Despliegue en Campo
+
+| Criterio de Selección | Usar Few-Shot Fine-Tuning (Co-FT / LoRA) | Usar Residual Policy Learning (ResiP / TRANSIC) |
+| :--- | :--- | :--- |
+| **Origen del Fallo** | **Visual / Perceptual** (luz solar, texturas, sombras). | **Mecánico / Contacto** (rigidez de ramas, deslizamiento de uña). |
+| **Integridad de la Red Base** | Acepta modificación leve de pesos base. | **Requiere garantía absoluta de no alteración ($\nabla_{\boldsymbol{\theta}} = 0$).** |
+| **Frecuencia de Corrección** | 20 Hz por lotes de horizonte ($H=16$). | **Lazo cerrado reactivo a 20–100 Hz paso a paso.** |
+| **Muestras Reales Disponibles** | 20–50 episodios completos con teleoperador. | **15–20 minutos de intervenciones enfocadas solo en fallos.** |
+| **Garantía de Seguridad** | Sujeta a distribución de datos de entrada. | **Garantizada matemáticamente por acotamiento $\pm \delta_{\max}$.** |
+
+> [!TIP]
+> **Estrategia Híbrida Óptima para Agro-Robótica:**
+> Aplicar **LoRA en ResNet-18** con Co-Fine-Tuning (20% real / 80% sim) para adaptar la visión al sol desértico (Etapa 2), y superponer una **capa residual ResiP/TRANSIC acotada** ($\pm 10\text{ mm}$) condicionada por la pseudo-fuerza elástica ($\delta_{\text{elastic}} \ge 0.7\text{ mm}$) para garantizar el corte o sujeción del pedúnculo sin dañar el fruto (Etapa 3).

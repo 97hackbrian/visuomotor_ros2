@@ -316,6 +316,13 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Normalizaciones Inmunes al Tamaño de Lote:* `LayerNorm` y `GroupNorm` preservan el comportamiento idéntico entre entrenamiento e inferencia, a diferencia de `BatchNorm`.
     - *Estandarización:* Creación del módulo `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
 
+37. **Transferencia Sim-to-Real: Few-Shot Fine-Tuning y Políticas Residuales (ResiP/TRANSIC):**
+    - *Diagnóstico Arquitectónico:* La política de `visuomotor_ros2` predice acciones cartesianas de alto nivel ($16 \times 9$: poses $X, Y, Z, q_x, q_y, q_z, q_w$, pinza y auto-stop) resueltas por controladores cinemáticos a 100 Hz, lo que absorbe discrepancias inerciales y de torque motor.
+    - *Comparación SOTA:*
+      1. **Few-Shot Fine-Tuning (Opción 2):** Ajustar pesos con teleoperación real (gamepad). Riesgo de olvido catastrófico resuelto mediante Co-Fine-Tuning ($20\%$ real, $80\%$ sim) o LoRA/PEFT en el codificador visual.
+      2. **Residual Policy Learning (Opción 3 - ResiP/TRANSIC):** Desacoplamiento total entre un macro-planificador congelado $\pi_{\text{sim}}$ y una política residual $\pi_{\text{res}}$ ligera en bucle cerrado que emite micro-correcciones $\Delta \mathbf{a}$ acotadas por $\pm \delta_{\max}$. Ideal para contacto fino, fricción de la pinza y agarre delicado sin riesgo de desestabilizar la política principal.
+    - *Estandarización:* Creación del módulo `.agents/knowledge/10_sim_to_real_finetuning_and_residual_policies.md`.
+
 ---
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
@@ -345,3 +352,4 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 3. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
 4. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
 5. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.
+6. **Transferencia Sim-to-Real y Políticas Residuales (ResiP / TRANSIC):** Validación experimental de Co-Fine-Tuning visual (LoRA en ResNet-18) y arquitectura residual reactiva ($\pi_{\text{res}}$) sobre el espacio cartesiano de alto nivel del xArm Lite6.
