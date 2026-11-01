@@ -323,6 +323,33 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       2. **Residual Policy Learning (Opción 3 - ResiP/TRANSIC):** Desacoplamiento total entre un macro-planificador congelado $\pi_{\text{sim}}$ y una política residual $\pi_{\text{res}}$ ligera en bucle cerrado que emite micro-correcciones $\Delta \mathbf{a}$ acotadas por $\pm \delta_{\max}$. Ideal para contacto fino, fricción de la pinza y agarre delicado sin riesgo de desestabilizar la política principal.
     - *Estandarización:* Creación del módulo `.agents/knowledge/10_sim_to_real_finetuning_and_residual_policies.md`.
 
+38. **Infraestructura de Aceleración Headless de Isaac Sim y Reducción en Memoria ($3\times\text{--}7\times$):**
+    - *El Problema:* El renderizado gráfico por GUI a resolución completa ($1280 \times 720$) consumía $6\text{--}7\text{ GB}$ de VRAM y limitaba la simulación a $30\text{--}60\text{ FPS}$ debido a la tasa de refresco del compositor de ventanas.
+    - *La Solución Desplegada:*
+      1. **Lanzador Headless (`tools/sim/run_headless_stage.py`):** Instanciación de `SimulationApp` con `headless=True` y renderizador offscreen `RayTracedLighting`.
+      2. **Reajuste en Memoria a $256 \times 256$:** Recorrido no destructivo del grafo USD (`stage.Traverse()`) que reconfigura los `RenderProduct` de `/rgb` directamente en memoria sin invocar `stage.Save()`, preservando al $100\%$ los archivos `.usda` en disco.
+      3. **Desactivación de Rate Limiting:** Supresión de `rateLimitEnabled` y `rateLimitFrequency` en Omniverse Kit para liberar el paso físico a la máxima velocidad del hardware GPU.
+      4. **Orquestador Maestro (`tools/sim/run_headless_system.sh`):** Control del ciclo de vida (arranque de contenedores, sondeo CycloneDDS de `/rgb` e `/isaac/joint_states`, lanzamiento de `lite6_cartesian`, despacho modular bajo `-u hackbrian`, banderas de recolección rápida `--episodes N` y `--dataset RUTA`, modo dedicado `stop` y `trap cleanup` para liberar VRAM automáticamente al terminar o cancelar).
+      5. **Micro-Daemon TCP (`tools/sim/isaac_sim_daemon.py` y `sim_client.py`):** Control inter-contenedor en `127.0.0.1:9999` para iniciar y detener Isaac Sim directamente desde el interior de `visuomotor_ros2`.
+      6. **Bypass de Diálogo Modal de Seguridad (ScriptNode Opt-In):** Supresión del bloqueo de scripts en headless mediante `--/app/omni.graph.scriptnode/enable_opt_in=false --/app/omni.graph.scriptnode/opt_in=true` y reactivación dinámica en memoria RAM de todos los OmniGraphs (`graph.set_disabled(False)`).
+      7. **Resolución de Dependencia `xarm_description`:** Sourcing automático de `/tmp/xarm_ws/install/setup.bash` en el orquestador para permitir que `lite6_cartesian.launch.py` inicialice los controladores cartesianos sin fallos de importación.
+      8. **Validación Experimental Completa (Campaña 10 Episodios Acelerada):** Recolección autónoma exitosa de 10 episodios ($10/10$, $3.652$ pasos, $50$ pasos de piso de parada terminal con `done=1.0` por episodio) en `datasets/demonstrations_headless_10ep.zarr`. Reducción de tiempo humano comprobada de ~20 min (manual GUI) a 13.3 min (headless optimizado), con certificación estricta de frecuencia $dt=50\text{ ms}$ ($20\text{ Hz}$) y velocidades cartesianas máximas $\le 0.1144\text{ m/s}$ (bajo el umbral límite de $0.15\text{ m/s}$).
+      9. **Aceleración con Real-Time 2.0 (RTPT) + NVIDIA DLSS Performance (x2) y Eco Mode:**
+         - *Mapeo canónico:* Identificación de que en Isaac Sim 6.0 la opción "Real-Time 2.0" de la GUI corresponde internamente al backend `RealTimePathTracing` (`RTPT`).
+         - *Resolución de Crash de Hydra:* Eliminación de `CreateAttribute` dinámico en texturas de render activo en tiempo de carga (`_MarkSprimDirty` assertion failure en `changeTracker.cpp`), restringiendo la actualización en RAM a atributos existentes.
+         - *Inyección validada:* `--/rtx/ecoMode/enabled=true`, `--/rtx/post/aa/op=3` (DLSS), `--/rtx/post/dlss/execMode=0` (Performance), `--/rtx-transient/internal/dlssg/rtpt/interpolatedFrameCount=1` (Frame Generation x2).
+         - *Campaña V2 Certificada:* Recolección autónoma de 5 episodios ($5/5$, $1.588$ pasos, 51 frames de piso `done=1.0` por episodio) en `datasets/demonstrations_test_headless_v2.zarr`, con wall time de grabación de sólo $43.07\text{ s} - 55.23\text{ s}$ por episodio ($v_{\max} \le 0.1140\text{ m/s}$) y restauración total de GPU a $56\text{ MiB}$ VRAM.
+      10. **Aceleración Cinemática y Purga de Tiempos Muertos:**
+          - `max_speed_m_s = 0.30 m/s`: Duplicación de velocidad cartesiana traslacional sin perder estabilidad.
+          - `wait_time_s = 0.8 s`: Reducción del ciclo de espera (con respawn estocástico de Halton a $0.3\text{ s}$ y asentamiento físico de $0.5\text{ s}$).
+          - `reset_joints_duration_s = 1.5 s`: Retorno dinámico a Home de articulaciones acelerado.
+          - `settle_time_s = 0.1 s`: Transición instantánea a cierre de garra tras descender.
+          - `hold_target_time_s = 2.0 s`: Piso matemático garantizado de 40 frames ($2.0\text{ s}$ exactos a $20\text{ Hz}$) con `done=1.0`.
+      11. **Calibración Óptima de Velocidad Cinemática (`max_speed_m_s = 0.20 m/s`):**
+          - *Diagnóstico y Calibración:* Mientras que $0.30\text{ m/s}$ maximizaba la velocidad de vuelo libre, en $0.20\text{ m/s}$ se logra el equilibrio perfecto entre agilidad y suavidad en las aproximaciones finas y rotaciones de agarre (`ALIGN_ROTATION`, `DESCEND`).
+          - *Campaña Speed02 Certificada:* Recolección autónoma de 4 episodios ($4/4$, $1.060$ pasos totales) en `datasets/demonstrations_test_speed02_4eps.zarr`. Tiempos de grabación de $31.1\text{ s} - 49.5\text{ s}$ por episodio (ciclo total promedio de $56.1\text{ s}$), con piso garantizado de 40 frames ($2.0\text{ s}$) de señal `done=1.0` y extracción visual completa en `datasets/visualizations_speed02_4eps/`.
+      12. *Estandarización:* Creación y actualización del módulo `.agents/knowledge/11_isaac_sim_headless_acceleration.md`.
+
 ---
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación

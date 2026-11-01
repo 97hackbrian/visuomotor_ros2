@@ -65,7 +65,7 @@ def launch_setup(context):
         package='controller_manager',
         executable='ros2_control_node',
         parameters=[
-            {'robot_description': robot_description},
+            {'robot_description': robot_description, 'use_sim_time': True},
             controllers
         ],
         remappings=[
@@ -96,7 +96,7 @@ def launch_setup(context):
         executable="robot_state_publisher",
         output="both",
         parameters=[
-            {'robot_description': robot_description},
+            {'robot_description': robot_description, 'use_sim_time': True},
         ]
     )
 
@@ -138,7 +138,7 @@ def launch_setup(context):
         executable='pose_smoother.py',
         name='pose_smoother',
         output='screen',
-        parameters=[pose_smoother_config]
+        parameters=[pose_smoother_config, {'use_sim_time': True}]
     )
 
     realsence_camera = Node(

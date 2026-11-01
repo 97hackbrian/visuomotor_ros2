@@ -101,3 +101,5 @@ informe_avance_visuomotor_cd.*
 *.bib
 *.fls
 *.fdb_latexmk
+datasets/visualizations_frameskip_v1/*
+datasets/visualizations_speed02_4eps/*

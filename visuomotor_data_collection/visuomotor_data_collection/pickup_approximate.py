@@ -6,6 +6,7 @@ from geometry_msgs.msg import PoseStamped, Twist
 from std_msgs.msg import Float64MultiArray  # noqa: kept for legacy compatibility
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from controller_manager_msgs.srv import SwitchController
+from rcl_interfaces.msg import ParameterDescriptor
 from cv_bridge import CvBridge
 import numpy as np
 import random
@@ -66,7 +67,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('kp', 1.0)
         self.declare_parameter('ki', 0.0)
         self.declare_parameter('kd', 0.05)
-        self.declare_parameter('max_speed_m_s', 0.15) # Límite de velocidad
+        self.declare_parameter('max_speed_m_s', 0.20) # Límite de velocidad traslacional (0.20 m/s)
         
         self.declare_parameter('kp_rot', 1.5)
         self.declare_parameter('ki_rot', 0.0)
@@ -85,7 +86,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('target_pitch', 0.0)
         self.declare_parameter('target_yaw', 0.0)
         
-        self.declare_parameter('wait_time_s', 2.0)    # Tiempo de espera arriba
+        self.declare_parameter('wait_time_s', 0.8)    # Tiempo de espera arriba (acelerado a 0.8s)
         self.declare_parameter('record_done_flag', True) # Grabar la dimensión 9 para Auto-Stop
         
         # Parámetros para aleatorización del objeto (respawn)
@@ -100,7 +101,7 @@ class PickupApproximateNode(Node):
         self.declare_parameter('spawn_safe_margin_x', 0.0) # Margen de seguridad en el eje X
         self.declare_parameter('spawn_safe_margin_y', 0.0555) # Margen de seguridad en el eje Y
         self.declare_parameter('grasp_wait_time_s', 1.0) # Tiempo esperando que cierre
-        self.declare_parameter('settle_time_s', 0.5)  # Tiempo inmóvil antes de cerrar
+        self.declare_parameter('settle_time_s', 0.1)  # Tiempo inmóvil antes de cerrar (acelerado a 0.1s)
         self.declare_parameter('approach_timeout_s', 15.0) # Timeout máximo por fase
         self.declare_parameter('global_episode_timeout_s', 48.0) # Timeout global de todo el episodio
         self.declare_parameter('hover_z_offset', 0.15) # Altura extra sobre el objeto al alinearse (metros)
@@ -110,9 +111,9 @@ class PickupApproximateNode(Node):
         self.declare_parameter('turtle_descent_multiplier', 0.10) # Freno en Z (velocidad tortuga) al rotar
         
         # Nuevos parámetros extraídos
-        self.declare_parameter('reset_joints_duration_s', 2.0)
+        self.declare_parameter('reset_joints_duration_s', 1.5) # Reset de articulaciones a Home (acelerado a 1.5s)
         self.declare_parameter('goal_tolerance_rad', 0.05)
-        self.declare_parameter('hold_target_time_s', 1.5)
+        self.declare_parameter('hold_target_time_s', 2.0) # Piso garantizado de 2.0s con done=1.0
         self.declare_parameter('untilt_settle_time_s', 0.5)
         
         # Parámetros avanzados de Control y Tolerancias
@@ -120,6 +121,8 @@ class PickupApproximateNode(Node):
         self.declare_parameter('goal_tolerance_m', 0.03)
         self.declare_parameter('gripper_open_pos', 0.0)
         self.declare_parameter('gripper_closed_pos', -0.01)
+        self.declare_parameter('max_episodes', 0, ParameterDescriptor(dynamic_typing=True))
+        self.declare_parameter('auto_start', False, ParameterDescriptor(dynamic_typing=True))
         
         dataset_path = self.get_parameter('dataset_path').value
         if dataset_path == 'AUTO':
@@ -198,6 +201,19 @@ class PickupApproximateNode(Node):
         self.current_jitter_pitch = 0.0
         self.current_jitter_yaw = 0.0
 
+        max_eps_val = 0
+        try:
+            max_eps_val = int(self.get_parameter('max_episodes').value)
+        except Exception:
+            pass
+        auto_start_param = False
+        try:
+            val = self.get_parameter('auto_start').value
+            auto_start_param = bool(val) if not isinstance(val, str) else val.lower() in ('true', '1')
+        except Exception:
+            pass
+        self.auto_start_pending = auto_start_param or (max_eps_val > 0)
+
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
 
         # Timer para el control a 100 Hz (frecuencia de FZI)
@@ -216,6 +232,31 @@ class PickupApproximateNode(Node):
             self.current_joint_positions = [pos_dict[j] for j in self.joint_names]
         except KeyError:
             pass
+
+        if getattr(self, 'auto_start_pending', False) and self.state == 'IDLE' and self.current_joint_positions is not None:
+            self.auto_start_pending = False
+            self.home_joint_positions = self.current_joint_positions.copy()
+            self.get_logger().info(f"Auto-Start activo. Ángulos Home guardados: {self.home_joint_positions}")
+            self.pid.reset()
+            self.fixed_orientation = None
+            self.target_orientation_quat = None
+            self.grasp_position = None
+            self.grasp_orientation_quat = None
+            self.wait_reached_time = None
+            self.untilt_reached_time = None
+            self.episode_start_time = None
+            self.is_recording = False
+            self.buffer.clear()
+            self.state = 'WAIT'
+            self.state_start_time = self._now()
+            self.cycle_wall_start = time.perf_counter()
+            self.has_respawned_this_wait = False
+            try:
+                max_eps = int(self.get_parameter('max_episodes').value)
+            except Exception:
+                max_eps = 0
+            self.remaining_repetitions = max_eps - 1 if max_eps > 0 else 999999
+            self.get_logger().info(f"=== INICIANDO SECUENCIA AUTOMÁTICA (Repeticiones: {max_eps if max_eps > 0 else 'Continuo'}) ===")
 
     def _img_cb(self, msg):
         img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
@@ -388,7 +429,7 @@ class PickupApproximateNode(Node):
         error_rot_mag = 2.0 * np.arccos(dot_product)
 
         # ── Transiciones de estado ─────────────────────────────────────────
-        now     = time.time()
+        now     = self._now()
         timeout = self.get_parameter('approach_timeout_s').value
         global_timeout = self.get_parameter('global_episode_timeout_s').value
         
@@ -414,7 +455,7 @@ class PickupApproximateNode(Node):
                 
                 def cb(f):
                     self.state = 'RESET_JOINTS_MOVE'
-                    self.state_start_time = time.time()
+                    self.state_start_time = self._now()
                     self.switch_pending = False
                 future.add_done_callback(cb)
 
@@ -459,7 +500,7 @@ class PickupApproximateNode(Node):
                 
                 def cb(f):
                     self.state = 'WAIT'
-                    self.state_start_time = time.time()
+                    self.state_start_time = self._now()
                     # No reiniciamos el flag aquí porque en iteraciones continuas el objeto ya hizo respawn en _trigger_next_episode
                     self.switch_pending = False
                     self.get_logger().info("Reset de joints completado. Cambiando a WAIT.")
@@ -475,8 +516,8 @@ class PickupApproximateNode(Node):
                 self.pid.reset()
                 return
 
-            # Teletransportar el objeto a mitad del WAIT (da 1 segundo para soltar, y N segundos para asentar)
-            if now - self.state_start_time > 1.0 and not self.has_respawned_this_wait:
+            # Teletransportar el objeto a mitad del WAIT (da 0.3s para soltar, y 0.5s para asentar físicamente)
+            if now - self.state_start_time > 0.3 and not self.has_respawned_this_wait:
                 self._respawn_object()
                 self.has_respawned_this_wait = True
                 
@@ -492,6 +533,7 @@ class PickupApproximateNode(Node):
                     self.buffer.clear()
                     self.is_recording = True
                     self.episode_start_time = now
+                    self.episode_wall_start = time.perf_counter()
 
         elif self.state == 'APPROACH_XY':
             dist_z = abs(target_z - ee_z)
@@ -737,12 +779,22 @@ class PickupApproximateNode(Node):
                     self.buffer[i]['action'][-1] = 1.0
             
             self.storage.append_episode(self.buffer)
-            self.get_logger().info(f"Episodio guardado exitosamente: {len(self.buffer)} pasos.")
+            total_eps = len(list(self.storage.root.groups()))
+            duration_sim = len(self.buffer) / self.get_parameter('sampling_rate_hz').value
+            now_wall = time.perf_counter()
+            rec_wall = now_wall - getattr(self, 'episode_wall_start', now_wall)
+            cycle_wall = now_wall - getattr(self, 'cycle_wall_start', now_wall)
+            speedup_rec = duration_sim / rec_wall if rec_wall > 0 else 1.0
+            self.get_logger().info(f"Episodio guardado exitosamente: {len(self.buffer)} pasos. Total en dataset: {total_eps}")
+            self.get_logger().info(
+                f"⏱️ TELEMETRÍA EPISODIO {total_eps}: Pasos={len(self.buffer)} | "
+                f"Duración Sim={duration_sim:.2f}s | Grabación Wall={rec_wall:.2f}s ({speedup_rec:.2f}x) | "
+                f"Ciclo Total Wall={cycle_wall:.2f}s"
+            )
 
             # Hook Relacional SQLite Fail-Safe y No Intrusivo
             try:
                 from visuomotor_core.utils.tracker import record_dataset
-                total_eps = len(list(self.storage.root.groups()))
                 dataset_name = os.path.basename(self.storage.path)
                 record_dataset(
                     dataset_id=dataset_name,
@@ -759,6 +811,14 @@ class PickupApproximateNode(Node):
             except Exception as e:
                 self.get_logger().debug(f"[DB Fail-Safe] Error no crítico al registrar dataset: {e}")
         self.buffer.clear()
+
+        try:
+            max_eps = int(self.get_parameter('max_episodes').value)
+        except (ValueError, TypeError):
+            max_eps = 0
+        if max_eps > 0 and len(list(self.storage.root.groups())) >= max_eps:
+            self.get_logger().info(f"🎯 Meta de recolección alcanzada ({len(list(self.storage.root.groups()))}/{max_eps} episodios). Finalizando nodo.")
+            raise SystemExit
 
     def _respawn_object(self):
         if not self.get_parameter('random_spawn').value:
@@ -825,6 +885,10 @@ class PickupApproximateNode(Node):
             f"Rotación(dRoll={self.current_jitter_roll:.3f}, dPitch={self.current_jitter_pitch:.3f}, dYaw={self.current_jitter_yaw:.3f} rad)"
         )
 
+    def _now(self):
+        """Retorna el tiempo actual en segundos usando el reloj de ROS (simulado si use_sim_time=True)."""
+        return self.get_clock().now().nanoseconds / 1e9
+
     def _trigger_next_episode(self):
         self.is_recording = False
         self.buffer.clear()
@@ -843,11 +907,12 @@ class PickupApproximateNode(Node):
         if self.remaining_repetitions > 0:
             self.remaining_repetitions -= 1
             self.get_logger().info(f"=== REINICIANDO PARA SIGUIENTE REPETICIÓN ({self.remaining_repetitions} restantes) ===")
+            self.cycle_wall_start = time.perf_counter()
             if self.home_joint_positions is not None:
                 self.state = 'RESET_JOINTS_SWITCH_JTC'
             else:
                 self.state = 'WAIT'
-            self.state_start_time = time.time()
+            self.state_start_time = self._now()
             self.has_respawned_this_wait = True
             self.switch_pending = False
             self.trajectory_published = False
@@ -872,7 +937,7 @@ class PickupApproximateNode(Node):
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
-            self.state_start_time = time.time()
+            self.state_start_time = self._now()
             self.has_respawned_this_wait = False
             
             reps = int(cmd) if cmd.isdigit() else 1
@@ -889,9 +954,17 @@ class PickupApproximateNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = PickupApproximateNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

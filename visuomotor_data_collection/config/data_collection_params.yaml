@@ -14,7 +14,7 @@
     kp: 1.0                         # Ganancia Proporcional (Agresividad de movimiento en XYZ)
     ki: 0.001                       # Ganancia Integral (Corrección de error acumulado)
     kd: 0.055                       # Ganancia Derivativa (Amortiguación para evitar oscilaciones)
-    max_speed_m_s: 0.067            # Límite absoluto de velocidad de traslación (m/s). Afectado por freno Z dinámico.
+    max_speed_m_s: 0.20             # Límite de velocidad traslacional acelerado (m/s)
     turtle_descent_multiplier: 0.15 # Fracción de velocidad traslacional para "velocidad tortuga" mientras se alinea el Yaw
 
     
@@ -34,20 +34,21 @@
     target_roll: 3.14159            # Rotación final en el eje X (Roll). Por defecto viendo abajo (~180 grados = 3.14159 rad)
     target_pitch: 0.0               # Rotación final en el eje Y (Pitch).
     target_yaw: 0.0                 # Rotación final en el eje Z (Yaw). Por defecto de frente (0.0 rad)
-    wait_time_s: 6.9                # Tiempo esperando en reposo para asimilar la caída del objeto previo
-    reset_joints_duration_s: 5.0    # Tiempo (segundos) asignado al reset de articulaciones
-    hold_target_time_s: 3.5         # Tiempo esperando antes de finalizar episodio en posición objetivo
+    wait_time_s: 0.8                # Tiempo esperando en reposo para asimilación física del respawn (acelerado a 0.8s)
+    reset_joints_duration_s: 1.5    # Tiempo asignado al reset de articulaciones a Home (acelerado a 1.5s)
+    hold_target_time_s: 2.0         # Tiempo de retención terminal (piso garantizado exacto de 2.0s con done=1.0)
     hover_z_offset: 0.15            # Altura de seguridad sobre el objeto donde termina el embudo de aproximación
     funnel_curvature_multiplier: 1.5 # Factor de curvatura del vuelo de embudo (Mayor = Vuelo más parabólico)
-    grasp_wait_time_s: 1.0          # Tiempo que el brazo queda congelado esperando que el hardware del gripper cierre
-    settle_time_s: 0.5              # Tiempo de asimilación tras llegar al objeto antes de dar la orden de agarre
-    untilt_settle_time_s: 1.5       # Tiempo de asimilación tras enderezar la herramienta
+    grasp_wait_time_s: 0.5          # Tiempo de congelamiento esperando cierre físico del gripper
+    settle_time_s: 0.1              # Tiempo de asimilación antes de dar la orden de agarre (acelerado a 0.1s)
+    untilt_settle_time_s: 0.5       # Tiempo de asimilación tras enderezar la herramienta
     approach_timeout_s: 35.0        # Tiempo máximo antes de cancelar un intento atascado (segundos)
     global_episode_timeout_s: 90.0  # Tiempo máximo total para todo el episodio desde que empieza a acercarse
     lift_z_offset: 0.20             # Altura en Z a la que levanta el objeto tras agarrarlo
     validate_grasp_success: true    # Si es true, descarta el episodio si el objeto no se elevó exitosamente
     grasp_success_fraction: 0.4     # Fracción de lift_z_offset requerida para dar por válido el agarre (0.5 = 50%)
     record_done_flag: true          # Si es true, registra una 9na dimensión en las acciones indicando la finalización del episodio
+    max_episodes: 0                 # Límite máximo de episodios a recolectar (0 = continuo / sin límite)
     
     
     # ── Aparición de Objetos (Secuencia Halton Quasi-Monte Carlo) ──

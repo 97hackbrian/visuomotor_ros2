@@ -111,7 +111,7 @@ class PoseSmoother(Node):
         self.rot_filter.d_cutoff = d_cutoff
 
     def target_callback(self, msg):
-        t = time.time()
+        t = self.get_clock().now().nanoseconds / 1e9
         
         if t - self.last_target_time > self.TIMEOUT:
             self.pos_filter.t_prev = None

@@ -377,6 +377,8 @@ def main():
     parser.add_argument("--max_steps", type=int, default=1400, help="Límite máximo de pasos por episodio (default: 1400)")
     parser.add_argument("--seed", type=int, default=123, help="Semilla para generador Halton (default: 123)")
     parser.add_argument("--out_dir", type=str, default="/ros/visuomotor_core/outputs/benchmark_comparison")
+    parser.add_argument("--dp_ckpt", type=str, default="/ros/visuomotor_core/outputs/train_500_dataV7_fixed/", help="Ruta al checkpoint base de Solo DP")
+    parser.add_argument("--rl_ckpt", type=str, default="/ros/visuomotor_core/outputs/dppo_v7_rl_finetuned/checkpoints/iter_100/", help="Ruta al checkpoint de DP + RL")
     args = parser.parse_args()
 
     rclpy.init()
@@ -390,8 +392,8 @@ def main():
     time.sleep(2.0)
 
     # 1. Cargar ambos modelos en GPU
-    ckpt_dp = Path("/ros/visuomotor_core/outputs/train_500_dataV7_fixed/")
-    ckpt_rl = Path("/ros/visuomotor_core/outputs/dppo_v7_rl_finetuned/checkpoints/iter_100/")
+    ckpt_dp = Path(args.dp_ckpt)
+    ckpt_rl = Path(args.rl_ckpt)
 
     runner.get_logger().info("Cargando modelo Solo DP...")
     policy_dp = DiffusionPolicy.from_pretrained(ckpt_dp).to(runner.device).eval()

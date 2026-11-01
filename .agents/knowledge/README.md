@@ -22,6 +22,7 @@ Esta carpeta (`.agents/knowledge/`) conforma la **memoria a largo plazo persiste
 | **[`08_off_ros_logging_and_benchmarking.md`](./08_off_ros_logging_and_benchmarking.md)** | Logging Off-ROS y SQLite | Logger `coloredlogs`, benchmark nanosegundo GPU VRAM y base de datos relacional fail-safe. |
 | **[`09_comparative_benchmarking_and_precision_metrics.md`](./09_comparative_benchmarking_and_precision_metrics.md)** | Benchmarking Pareado y Modelo TCP | Evaluación pareada Halton QMC (Solo DP vs DP+RL), modelo TCP $79.0\text{ mm}$ y panel gráfico 2x3. |
 | **[`10_sim_to_real_finetuning_and_residual_policies.md`](./10_sim_to_real_finetuning_and_residual_policies.md)** | Transferencia Sim-to-Real | Few-Shot Fine-Tuning (Co-Fine-Tuning/LoRA) vs Residual Policy Learning (ResiP/TRANSIC) en control cartesiano. |
+| **[`11_isaac_sim_headless_acceleration.md`](./11_isaac_sim_headless_acceleration.md)** | Aceleración Headless ($3\times\text{--}7\times$) | SimulationApp headless, reajuste en memoria a $256 \times 256$, rateLimit desanclado, orquestación en host y micro-daemon TCP inter-contenedor. |
 
 ---
 

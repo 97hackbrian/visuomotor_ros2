@@ -162,6 +162,14 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - SOTA en Fine-Tuning: prevención de olvido catastrófico mediante Co-Fine-Tuning ($20\%$ real, $80\%$ sim) y LoRA en capas visuales.
    - SOTA en Residual Policy Learning: desacoplamiento en macro-planificador congelado $\pi_{\text{sim}}$ y residuo reactivo $\pi_{\text{res}}$ acotado con $\pm \delta_{\max} \tanh(\cdot)$ para micro-contacto y cumplimiento fino (ResiP / TRANSIC).
    - Memoria modular documentada en `.agents/knowledge/10_sim_to_real_finetuning_and_residual_policies.md`.
+11. **Aceleración Headless con Real-Time 2.0 (RTPT) + NVIDIA DLSS Performance (x2) y Eco Mode:**
+   - En Isaac Sim 6.0, el modo "Real-Time 2.0" de la GUI mapea al backend nativo `RealTimePathTracing` (`RTPT`).
+   - Parámetros canónicos inyectados en Kit CLI y `carb.settings`:
+     - Eco Mode: `/rtx/ecoMode/enabled = true`
+     - Super Resolution: `/rtx/post/aa/op = 3` (`DLSS`)
+     - Modo DLSS: `/rtx/post/dlss/execMode = 0` (`Performance`)
+     - Frame Generation (x2): `/rtx/dlss/frameGeneration = true`, `/rtx-transient/dlssg/enabled = true`, `/rtx-transient/internal/dlssg/rtpt/interpolatedFrameCount = 1`
+   - *Protección crítica de Hydra (Zero-Crash):* Prohibición absoluta de invocar `CreateAttribute` sobre prims de texturas de render activo en tiempo de carga (`_MarkSprimDirty` crash en `changeTracker.cpp`); actualización en memoria RAM restringida a prims y atributos existentes.
 
 ---
 
@@ -195,6 +203,14 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/replot_benchmark.py
 
 # 9. Compilación limpia y auditoría de informe científico en LaTeX
 pdflatex -interaction=nonstopmode informe_avance_visuomotor_cd.tex && biber informe_avance_visuomotor_cd && pdflatex -interaction=nonstopmode informe_avance_visuomotor_cd.tex
+
+# 10. Orquestador Maestro Headless (Isaac Sim acelerado 3x-7x + ROS 2 Jazzy)
+./tools/sim/run_headless_system.sh sim-only     # Simulación headless + control cartesiano
+./tools/sim/run_headless_system.sh collect      # Recolección experta (--episodes N --dataset RUTA)
+./tools/sim/run_headless_system.sh rl           # Fine-tuning por refuerzo DPPO (--checkpoint RUTA)
+./tools/sim/run_headless_system.sh benchmark    # Benchmarking pareado (--episodes N --dp_ckpt RUTA --rl_ckpt RUTA)
+./tools/sim/run_headless_system.sh inference    # Inferencia en vivo de política (--checkpoint RUTA)
+./tools/sim/run_headless_system.sh stop         # Detener simulación, nodos y liberar VRAM de inmediato
 ```
 
 ---
