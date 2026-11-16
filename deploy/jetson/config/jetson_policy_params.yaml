@@ -1,0 +1,53 @@
+policy_node:
+  ros__parameters:
+    # --- Configuración del Modelo en Borde (Jetson Orin Nano) ---
+    model_type: "diffusion"
+    checkpoint_path: "/ros_ws/model"
+
+    # --- Configuración de Inferencia y Rendimiento en Tiempo Real ---
+    # Frecuencia de control reactivo en Hz
+    inference_hz: 20.0
+    
+    # Pasos de difusión inversa (DDIM Denoising Steps)
+    # 10 pasos en Jetson Orin Nano con FP16 toma ~25-35 ms, permitiendo holgadamente 20 Hz
+    num_inference_steps: 10
+    
+    # Pasos de acción ejecutados antes de replanificar (3 = solapamiento de 13 pasos para máxima suavidad)
+    n_action_steps: 3
+    
+    # Temporal Ensemble para mitigar jitter motor en lazo cerrado
+    use_temporal_ensemble: True
+    temporal_ensemble_k: 0.0
+
+    # --- Configuración de Sensores y Tópicos de Hardware Real ---
+    # Tópico de la cámara física (cambiar según el driver usado: RealSense, V4L2 USB Cam, etc.)
+    camera_topic: "/camera/color/image_raw"
+    joint_states_topic: "/joint_states"
+    action_chunk_topic: "policy/action_chunk"
+    
+    # Marcos de referencia cinemáticos (TF2)
+    ee_frame: "gripper_base_link"
+    base_frame: "link_base"
+    
+    # Resolución de entrada de la red (256x256 RGB)
+    image_size: 256
+    
+    # Posición Home segura de inicio / reposo (metros y radianes)
+    home_x: 0.25
+    home_y: 0.0
+    home_z: 0.40
+    home_roll: 3.14159
+    home_pitch: 0.0
+    home_yaw: 0.0
+
+    # --- Auto-Stop Neuronal Desacoplado ---
+    enable_neural_auto_stop: true
+    neural_auto_stop_threshold: 0.50
+    
+    enable_heuristic_auto_stop: false
+    auto_stop_variance_threshold: 1.0e-7
+    auto_stop_patience_steps: 20
+
+    # --- Telemetría de Diagnóstico en Tiempo Real ---
+    enable_metrics_publish: true
+    metrics_prefix: "/policy/metrics"

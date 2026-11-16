@@ -23,7 +23,9 @@ Dado que las versiones tempranas de `train.py` no registraban archivos tabulares
      $$\mathcal{L} = \frac{1151.0 - Y}{880.0}$$
    - **Eje X (Pasos de Optimización):** Ticks detectados cada $194\text{ px}$ por cada $100,000$ pasos entre $X=250$ (paso 0) y $X=1608$ (paso 700,000):
      $$\text{step} = (X - 250) \times \frac{700000.0}{1358.0}$$
-3. **Muestreo:** Se extrajeron 1,356 puntos de alta resolución libres del cuadro de leyenda, alimentando formalmente `training_metrics.csv` y `epoch_metrics.csv`.
+3. **Muestreo y Reconciliación de Hiperparámetros:**
+   - Se extrajeron 1,356 puntos de alta resolución libres del cuadro de leyenda, alimentando formalmente `training_metrics.csv` y `epoch_metrics.csv`.
+   - **Tasa de Aprendizaje (Cosine Annealing):** Reconciliada analíticamente según la configuración exacta ejecutada en `train.py` en dicho commit ($T_{\max} = 700,000$, $\eta_{\max} = 10^{-4}$, $\eta_{\min} = 0$), reemplazando el valor constante temporal con la trayectoria cosenoidal monótona real $\eta_t = \frac{10^{-4}}{2}(1 + \cos(\pi t / 700000))$.
 
 ---
 

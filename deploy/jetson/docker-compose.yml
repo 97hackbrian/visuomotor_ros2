@@ -1,0 +1,34 @@
+services:
+  inference:
+    build:
+      context: ../..
+      dockerfile: deploy/jetson/Dockerfile.jetson
+      args:
+        # Por defecto para JetPack 5.1.x (L4T R35.x)
+        # Si actualizas a JetPack 6.x, descomenta: dustynv/ros:jazzy-pytorch-l4t-r36.2.0
+        BASE_IMAGE: dustynv/ros:humble-pytorch-l4t-r35.4.1
+    image: visuomotor_jetson:latest
+    container_name: visuomotor_orin_inference
+    restart: unless-stopped
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    privileged: true
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Reenvío de servidor X11 para GUI / visualizadores si aplica
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Mapeo completo de dispositivos (Cámaras USB / RealSense /dev/video* y puerto serial del brazo /dev/ttyUSB*)
+      - /dev:/dev
+      # Carpeta local con los pesos del modelo (model.safetensors y config.json)
+      - ./model:/ros_ws/model:ro
+      # Sobrescritura de parámetros calibrados específicamente para la Jetson
+      - ./config/jetson_policy_params.yaml:/ros_ws/install/visuomotor_ros2/share/visuomotor_ros2/config/policy_params.yaml:ro
+    command: >
+      ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model

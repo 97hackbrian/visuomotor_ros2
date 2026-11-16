@@ -1,0 +1,19 @@
+# ==============================================================================
+# docker-compose.dev.yml — Capa de Desarrollo para Edición en Vivo con VS Code
+# ==============================================================================
+# Este archivo extiende docker-compose.yml cuando deseas editar código con VS Code.
+#
+# Uso para activar el modo desarrollo con montaje en vivo:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# ==============================================================================
+
+services:
+  inference:
+    # Mapeo en vivo de los paquetes fuente de Python y mensajes
+    volumes:
+      # Cualquier cambio en visuomotor_core en VS Code se refleja al instante
+      - ../../visuomotor_core/visuomotor_core:/ros_ws/src/visuomotor_core/visuomotor_core
+      # Cualquier cambio en policy_node.py en VS Code se refleja al instante
+      - ../../visuomotor_ros2/visuomotor_ros2:/ros_ws/src/visuomotor_ros2/visuomotor_ros2
+      # Definiciones de mensajes
+      - ../../visuomotor_msgs/msg:/ros_ws/src/visuomotor_msgs/msg

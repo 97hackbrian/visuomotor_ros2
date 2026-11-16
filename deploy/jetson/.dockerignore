@@ -1,0 +1,44 @@
+# Exclusiones de contexto para el build de Docker en Jetson Orin Nano
+# Evita transferir decenas de gigabytes de datasets y checkpoints al demonio de Docker.
+
+.git/
+.github/
+.agents/
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Datasets pesados (Zarr)
+datasets/
+*.zarr/
+*.zarr.zip
+
+# Outputs y checkpoints masivos
+visuomotor_core/outputs/
+outputs/
+*.safetensors
+*.pth
+*.pt
+experiments/*.db
+
+# Simuladores y utilidades de recolección en Isaac Sim
+visuomotor_data_collection/
+tools/sim/
+infografia_innovafest2026/
+assets/
+*.mp4
+*.avi
+*.gif
+*.png
+*.jpg
+*.pdf
+*.csv
+*.log
+
+# Workspace builds previos
+build/
+install/
+log/
+.ros/
