@@ -21,6 +21,16 @@ def generate_launch_description():
         default_value='false',
         description='Auto-start collection on joint state reception (default false; true if max_episodes > 0).'
     )
+    seed_arg = DeclareLaunchArgument(
+        'seed',
+        default_value='0',
+        description='Seed for stochastic Halton Quasi-Monte Carlo object/robot spawning (0 = unseeded/system entropy).'
+    )
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Usar reloj de simulación si es True'
+    )
 
     config = os.path.join(
         get_package_share_directory('visuomotor_data_collection'),
@@ -37,7 +47,8 @@ def generate_launch_description():
             'dataset_path': LaunchConfiguration('dataset_path'),
             'max_episodes': LaunchConfiguration('max_episodes'),
             'auto_start': LaunchConfiguration('auto_start'),
-            'use_sim_time': True
+            'seed': LaunchConfiguration('seed'),
+            'use_sim_time': LaunchConfiguration('use_sim_time')
         }]
     )
 
@@ -45,5 +56,7 @@ def generate_launch_description():
         dataset_path_arg,
         max_episodes_arg,
         auto_start_arg,
+        seed_arg,
+        use_sim_time_arg,
         pickup_node
     ])

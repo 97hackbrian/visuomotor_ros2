@@ -121,3 +121,20 @@ Para garantizar que la política visuomotora generalice ante cualquier posición
 2. **Piso Mínimo Garantizado en Guardado (`_save_episode`):**  
    Al procesar el buffer en memoria antes de escribir a disco Zarr, el código audita la longitud de la cola terminal. Si por alguna fluctuación de tiempo hubo menos de 40 frames en `HOLD_TARGET`, el método fuerza a que **como mínimo los últimos 40 fotogramas (2.0 segundos completos a 20 Hz)** tengan `done = 1.0`.
    Esto proporciona un volumen suficiente de gradiente de finalización en el entrenamiento.
+
+---
+
+## 6. Calibración Acelerada de Producción (Headless + RT 2.0)
+
+A partir de la campaña de optimización en Isaac Sim 6.0 headless, se calibraron los siguientes parámetros en `config/data_collection_params.yaml`:
+
+| Parámetro | Valor Legacy (GUI) | Valor Calibrado Acelerado | Justificación Física y Operativa |
+| :--- | :---: | :---: | :--- |
+| `max_speed_m_s` | $0.067 - 0.150\text{ m/s}$ | **$0.200\text{ m/s}$** | Velocidad Pareto óptima: reduce pasos por episodio de ~320 a ~210-250 sin oscilaciones inerciales ni pérdida de agarre. |
+| `wait_time_s` | $6.9\text{ s} - 2.0\text{ s}$ | **$0.8\text{ s}$** | El respawn estocástico de Halton se estabiliza físicamente en $0.3\text{ s}$, dejando $0.5\text{ s}$ de reposo estático libre de oscilación. |
+| `reset_joints_duration_s` | $5.0\text{ s} - 2.5\text{ s}$ | **$1.5\text{ s}$** | Retorno suave y continuo a postura Home sin tirones articulares. |
+| `settle_time_s` | $0.5\text{ s} - 0.3\text{ s}$ | **$0.1\text{ s}$** | Conmutación cuasi-instantánea a cierre de dedos tras completar el embudo de aproximación. |
+| `hold_target_time_s` | $3.5\text{ s} - 2.5\text{ s}$ | **$2.0\text{ s}$** | Piso exacto de 40 frames a 20 Hz con `done = 1.0`, eliminando esperas redundantes en destino. |
+
+*Tiempo de Ciclo Total:* Reducido de **~140 s de pared** (manual GUI) a **~56 s de pared** por episodio de recolección exitoso.
+

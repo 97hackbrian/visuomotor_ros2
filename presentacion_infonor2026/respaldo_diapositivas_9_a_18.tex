@@ -1,0 +1,620 @@
+% =============================================================================
+% RESPALDO (NO COMPILADO) DE LAS DIAPOSITIVAS 9 A 18 DE main.tex
+% Extraídas el 2026-11-03 al reemplazar los resultados propios extensos por una
+% diapositiva resumen y la revisión de la literatura de bio/. Las cifras de las
+% diapositivas 16 y 17 no coinciden con benchmark_episodes.csv (ver notas).
+% =============================================================================
+
+% =============================================================================
+% DIAPOSITIVA 9: INFERENCIA ACELERADA A 20 HZ (DDIM SOLVER)
+% =============================================================================
+\begin{frame}{Closed-Loop Inference a 20 Hz: DDIM Sampler}
+  \BannerCentral[UCNBlue]{``De 100 denoising steps estocásticos a 10 pasos DDIM deterministas: latencia reducida de 300 ms a 30 ms.'' \BannerRef{chi2025diffusion,prasad2024consistency}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Deterministic DDIM Sampling \cite{song2021ddim}},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        DDPM convencional requiere $100$ evaluaciones secuenciales de la U-Net, introduciendo un retraso inaceptable ($>300\text{ ms}$).\\
+        Se adopta \textbf{DDIM} (\textit{Denoising Diffusion Implicit Models}):
+        \begin{equation*}
+          A^{\tau_{i-1}} = \sqrt{\bar{\alpha}_{\tau_{i-1}}} \left( \frac{A^{\tau_i} - \sqrt{1 - \bar{\alpha}_{\tau_i}}\epsilon_\theta}{\sqrt{\bar{\alpha}_{\tau_i}}} \right) + \sqrt{1 - \bar{\alpha}_{\tau_{i-1}}} \epsilon_\theta
+        \end{equation*}
+        \vspace{0.3mm}
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{UCNBlue}{$\blacksquare$}] Proceso non-Markovian con $\sigma = 0$.
+          \item[\textcolor{UCNBlue}{$\blacksquare$}] Reduce la inferencia a \textbf{10 pasos discretos}.
+          \item[\textcolor{UCNBlue}{$\blacksquare$}] Ejecución en GPU NVIDIA RTX 4090: $\sim 28\text{ ms}$.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AgriGreenLight,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Control Rate Real en ROS 2},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        \centering
+        \begin{columns}[T, onlytextwidth]
+          \begin{column}{0.48\textwidth}
+            \centering
+            \textcolor{AlertRed}{\KpiNumberFont 3.3 Hz}\\[0.2mm]
+            {\KpiLabelFont DDPM Tradicional\\(Inviable en vivo)}
+          \end{column}
+          \begin{column}{0.48\textwidth}
+            \centering
+            \textcolor{AgriGreen}{\KpiNumberFont 20.0 Hz}\\[0.2mm]
+            {\KpiLabelFont DDIM en ROS 2\\(Closed-Loop Estable)}
+          \end{column}
+        \end{columns}
+        \vspace{1mm}\hrule\vspace{1mm}
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Stack de Software Robusto:} Despliegue en contenedor Docker bajo ROS 2 Jazzy y CycloneDDS optimizado.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Sensor Synchronization:} \texttt{ApproximateTimeSynchronizer} empareja imágenes RGB y cinemática TF sin pérdida de paquetes.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Pipeline Zero-Copy en GPU:} Tensores PyTorch retenidos en VRAM evitan cuellos de botella del GIL de Python.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 10: AUTO-STOP NEURONAL Y LA 9ª DIMENSIÓN
+% =============================================================================
+\begin{frame}{Auto-Stop Desacoplado: La 9ª Dimensión de la Acción}
+  \BannerCentral[PurpleAction]{``La parada de la tarea es una decisión motora, jamás un sensor físico: se evita el causal leakage.'' \BannerRef{chi2025diffusion}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=PurpleAction,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Prevención de Causal Leakage},
+        colbacktitle=PurpleAction,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Principio Inviolable:} \texttt{observation.state} tiene estrictamente \textbf{8 dimensiones} físicas $[X, Y, Z, q_x, q_y, q_z, q_w, \text{Gripper}]$.
+          \item[\textcolor{AlertRed}{$\blacksquare$}] Si \texttt{done} se inyectara en la observación, la red exigiría un oráculo externo en test time.
+          \item[\textcolor{PurpleAction}{$\blacksquare$}] \texttt{action} tiene \textbf{9 dimensiones}: $[X, Y, Z, q, \text{Gripper}, \mathbf{done\_flag}]$. La U-Net decide autónomamente cuándo culminar la tarea emitiendo $\ge 0.50$.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont El Horizon Truncation Bug y Copy-Padding},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=1.0mm, bottom=1.0mm, left=1.6mm, right=1.6mm
+      ]
+        {\BodyFont
+        \textbf{El problema en datasets Zarr:}\\
+        El dataloader clásico recortaba los últimos $H=16$ frames para no desbordar el array, borrando el $100\%$ de los frames con \texttt{done = 1.0}.
+        \vspace{0.4mm}
+        \begin{itemize}\setlength{\itemsep}{1.0pt}
+          \item[\textcolor{AgriGreen}{$\blacksquare$}] \textbf{Solución Copy-Padding:} Replicar el frame terminal cuando la ventana supera el final del episodio:
+          \vspace{-0.5mm}
+          \[
+            A_{\text{pad}} = \text{np.repeat}(A_{[-1:]}, \, \text{pad\_len}, \, \text{axis}=0)
+          \]
+          \vspace{-1.5mm}
+          \item[\textcolor{AgriGreen}{$\blacksquare$}] Permite a la red entrenar sobre la meseta terminal de parada garantizada.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 11: LA BRECHA DE CONTACTO Y FINE-TUNING CON RL
+% =============================================================================
+\begin{frame}{La Brecha de Contacto y la Necesidad de RL Fine-Tuning}
+  \BannerCentral[UCNTerracotta]{``Imitation Learning aprende la macro-aproximación; Reinforcement Learning refina la sujeción delicada del fruto.'' \BannerRef{elguea2023rl,zhang2025reinflow}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AlertRedLight,
+        colframe=AlertRed,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Límites de Behavior Cloning Puro},
+        colbacktitle=AlertRed,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.8pt}
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Imprecisión Subcentimétrica:} Errores residuales de $10$ a $25\text{ mm}$ en el pedúnculo o fruto impiden una sujeción limpia o magullan la piel.
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Ceguera a Fuerzas Excesivas:} Behavior Cloning carece de gradientes para regular la presión mecánica sobre el producto.
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Dilema de Datos en Campo:} Capturar miles de demostraciones humanas en huertos reales resulta costoso y logísticamente inviable.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AgriGreenLight,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont La Solución Híbrida: DPPO \cite{ren2025dppo}},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.8pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Pre-Training por Imitación:} Inicializa la policy con el checkpoint de Behavior Cloning (evita exploración aleatoria a ciegas entre ramas).
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Refinamiento sobre Denoising MDP:} Optimiza selectivamente los últimos $K_{\text{ft}} = 5$ denoising steps mediante PPO en simulación física.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Fine Contact Tuning:} Aprende compliance y precisión milimétrica guiado por reward shaping háptico a 20 Hz.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 12: PIPELINE DE REFINAMIENTO ONLINE (DPPO)
+% =============================================================================
+\begin{frame}{Pipeline de Online RL Fine-Tuning con DPPO en ROS 2}
+  \BannerCentral[UCNCyan]{``Interacción física a 20 Hz en Isaac Sim, value estimation $V(s)$ y cálculo de advantages con GAE.'' \BannerRef{ren2025dppo}}
+  \vspace{0.8mm}
+  \centering
+  \resizebox{0.96\linewidth}{!}{%
+  \begin{tikzpicture}[node distance=3.8mm, auto]
+    % Nivel 1: Ejecución
+    \node [process, text width=3.0cm] (actor) at (0.0, 3.0) {\textbf{Actor (DDIM DP)}\\$K_{\text{ft}}=5$ denoising steps\\Exploration $\eta=0.4$};
+    \node [sensor, text width=3.2cm] (env) at (5.5, 3.0) {\textbf{GymROS2Env}\\Isaac Sim + xArm Lite6\\Closed-Loop a 20 Hz};
+    \node [block, text width=3.0cm] (force) at (11.0, 3.0) {\textbf{Pseudo-Force}\\Elastic Discrepancy\\$\delta \ge 0.7\text{ mm}$};
+
+    % Nivel 2: Evaluación
+    \node [process, text width=3.0cm] (opt) at (0.0, 1.0) {\textbf{PPO Update}\\Clipping $\epsilon = 0.2$\\BC Regularization $\lambda_{\text{BC}}=0.02$};
+    \node [process, text width=3.2cm] (critic) at (5.5, 1.0) {\textbf{Critic } $V_\phi(s)$\\Value Estimation\\Temporal Difference};
+    \node [process, text width=3.0cm] (reward) at (11.0, 1.0) {\textbf{Reward Shaping}\\$R_{\text{approach}} + R_{\text{orient}} +$\\$R_{\text{grasp}} + R_{\text{transport}}$};
+
+    % Nivel 3: Rollout Buffer
+    \node [block, text width=6.5cm] (buffer) at (5.5, -0.9) {\textbf{Rollout Buffer}\\$N=400$ transitions $\cdot$ GAE Advantages ($\lambda=0.95, \gamma=0.99$)};
+
+    % Conexiones
+    \draw[line] (actor) -- node[above=2pt, font=\scriptsize] {Action 9D (20 Hz)} (env);
+    \draw[line] (env) -- node[above=2pt, font=\scriptsize] {Joint States} (force);
+    \draw[line] (force) -- node[midway, right=4pt, font=\scriptsize] {$\text{is\_clamped}$} (reward);
+    \draw[line] (env) -- node[midway, right=4pt, font=\scriptsize] {RGB + TFs} (critic);
+    \draw[line] (reward.south) |- (buffer.east);
+    \draw[line] (critic.south) -- (buffer.north);
+    \draw[line] (buffer.west) -| node[pos=0.6, left=4pt, font=\scriptsize] {Batch GAE} (opt.south);
+    \draw[line] (opt) -- node[midway, left=4pt, font=\scriptsize] {$\nabla_\theta J_{\text{actor}}$} (actor);
+    \draw[line] (opt) -- node[above=2pt, font=\scriptsize] {$\nabla_\phi \mathcal{L}_{\text{critic}}$} (critic);
+  \end{tikzpicture}%
+  }
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 13: PERCEPCIÓN HÁPTICA SIN SENSOR DE FUERZA
+% =============================================================================
+\begin{frame}{Percepción Háptica sin Sensor F/T: Grasping Seguro de Frutos}
+  \BannerCentral[AgriGreen]{``Detección de sujeción firme sin magullar el fruto mediante discrepancia elástica articular por software.'' \BannerRef{li2024tactile,zhou2025admittance,tang2027compliant}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Analytical Pseudo-Force Estimator},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=1.0mm, bottom=1.0mm, left=1.6mm, right=1.6mm
+      ]
+        {\BodyFont
+        Sensores F/T comerciales encarecen el robot en $> \$5.000\text{ USD}$. Se resolvió la detección táctil vía \textbf{deformación elástica articular}:
+        \vspace{-0.5mm}
+        \[
+          \delta_{\text{elastic}} = p_{\text{medida}} - p_{\text{comando}}
+        \]
+        \vspace{-1.5mm}
+        Al ordenar cierre total del efector ($p_{\text{cmd}} = -10.0\text{ mm}$):
+        \vspace{0.4mm}
+        \begin{itemize}\setlength{\itemsep}{0.8pt}
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Cierre en Vacío:} Actuador al tope: $p_{\text{med}} = -10.0\text{ mm} \implies \delta \approx 0.0\text{ mm}$.
+          \item[\textcolor{AgriGreen}{$\blacksquare$}] \textbf{Sujeción del Fruto:} Bloqueo de uñas: $p_{\text{med}} = -8.6\text{ mm} \implies \delta = +1.4\text{ mm}$.
+          \item[\textcolor{GoldGORE}{$\blacksquare$}] \textbf{Umbral Calibrado:} $\theta_{\text{clamped}} = \frac{0.0 + 1.4}{2} = 0.7\text{ mm}$ ($7 \times 10^{-4}\text{ m}$).
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AgriGreenLight,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Certificación de Cosecha y Acopio},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{2pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Validación Antirruido en Vuelo:} Si el efector eleva $\Delta Z \ge 8.0\text{ cm}$ sosteniendo el fruto, el agarre se valida incondicionalmente, protegiendo la señal ante oscilaciones dinámicas.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Transporte Condicional a Canasta:} El reward $R_{\text{transport}}$ hacia la caja de acopio solo se activa si $\mathbb{I}(\text{is\_clamped}) = 1$, impidiendo que el robot viaje a la canasta con las manos vacías.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 14: DINÁMICA EMPÍRICA DE RL (CURVAS REALES)
+% =============================================================================
+\begin{frame}{Dinámica Empírica del RL Fine-Tuning}
+  \BannerCentral[UCNBlue]{``Reconciliación científica: excursiones de KL divergence acotadas por PPO clipping y BC loss.'' \BannerRef{ren2025dppo}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.54\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Dinámica DPPO: iter\_1 a iter\_100 (4 Paneles)},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=0.5mm, bottom=0.5mm, left=1mm, right=1mm,
+        valign=top
+      ]
+        \centering
+        \IfFileExists{assets/rl_training_curves_iter100.pdf}{%
+          \includegraphics[height=24.5mm, keepaspectratio]{assets/rl_training_curves_iter100.pdf}%
+        }{%
+          \IfFileExists{assets/rl_training_curves_iter100.png}{%
+            \includegraphics[height=24.5mm, keepaspectratio]{assets/rl_training_curves_iter100.png}%
+          }{%
+            \IfFileExists{visuomotor_core/outputs/dppo_v7_rl_finetuned/rl_training_curves_iter100.png}{%
+              \includegraphics[height=24.5mm, keepaspectratio]{visuomotor_core/outputs/dppo_v7_rl_finetuned/rl_training_curves_iter100.png}%
+            }{%
+              \begin{tikzpicture}
+                \node[draw=UCNBlue, fill=BgLight, rounded corners=2pt, minimum width=55mm, minimum height=24mm, align=center, font=\DiagramFont, text=UCNBlue] {Curvas de Entrenamiento RL DPPO\\(Retorno, Crítico, Policy Loss, Divergencia KL)};
+              \end{tikzpicture}%
+            }%
+          }%
+        }\par
+        \vspace{0.8mm}
+        {\FootnoteFont\textcolor{TextDark!80}{\textbf{A:} Return | \textbf{B:} Critic $V_\phi$ | \textbf{C:} Actor ($L_{\text{CLIP}}+L_{\text{BC}}$) | \textbf{D:} KL Divergence}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.44\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNTerracotta,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Análisis Cuantitativo de los 4 Gráficos},
+        colbacktitle=UCNTerracotta,
+        coltitle=WhiteBg,
+        top=0.8mm, bottom=0.8mm, left=1.4mm, right=1.4mm
+      ]
+        {\fontsize{5.2}{6.2}\selectfont
+        \begin{itemize}\setlength{\itemsep}{0.3pt}
+          \item[\textcolor{UCNCyan}{\textbf{A)}}] \textbf{Return ($R$):} Warmup inicial ($100-200$), ascenso sostenido de la moving average superando $500$ y exportación de checkpoints óptimos.
+          \item[\textcolor{UCNTerracotta}{\textbf{B)}}] \textbf{Critic $V_\phi(s)$:} Salto en iteración 11 ($465\text{ MSE}$) al acoplarse el actor ($K_{\text{ft}}=5$), seguido de convergencia monótona a $20-40$.
+          \item[\textcolor{AgriGreen}{\textbf{C)}}] \textbf{Actor ($L_{\text{CLIP}}+L_{\text{BC}}$):} Anclaje $\lambda_{\text{BC}}=0.02$ preserva la variedad motora sin colapso durante exploración.
+          \item[\textcolor{PurpleAction}{\textbf{D)}}] \textbf{KL Divergence:} Fluctuaciones reales de difusión ($\eta=0.4$) entre $0.1$ y $2.4$, acotadas por PPO clipping ($\epsilon=0.2$).
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 15: MODELO CINEMÁTICO TCP REAL
+% =============================================================================
+\begin{frame}{Modelo Cinemático TCP: Corrección del Flange Bias}
+  \BannerCentral[UCNCyan]{``La distancia euclidiana desde el flange inducía un error fantasma de 80 mm: resuelto con proyección vectorial.'' \BannerRef{siciliano2016handbook}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Proyección Cinemática del Tool Center Point},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        Las almohadillas del gripper Lite6 extienden el contacto físico $79.0\text{ mm}$ a lo largo del eje $Z$ local. Se proyecta la orientación $\mathbf{q}$:
+        \begin{equation*}
+          \mathbf{v}_z = \begin{bmatrix} 2(q_x q_z + q_w q_y) \\ 2(q_y q_z - q_w q_x) \\ 1 - 2(q_x^2 + q_y^2) \end{bmatrix}, \quad \mathbf{p}_{\text{tcp}} = \mathbf{p}_{\text{ee}} + \mathbf{v}_z \cdot 0.079
+        \end{equation*}
+        \begin{equation*}
+          d_{\text{contacto}} = \|\mathbf{p}_{\text{tcp}} - \mathbf{p}_{\text{objeto}}\|
+        \end{equation*}
+        \vspace{0.3mm}
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] Permite discriminar la proximidad real de contacto ($0.88$ a $7.14\text{ mm}$ en agarres exitosos).
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AgriGreenLight,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Impacto en la Evaluación de Políticas},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        \centering
+        \begin{columns}[T, onlytextwidth]
+          \begin{column}{0.48\textwidth}
+            \centering
+            \textcolor{AlertRed}{\KpiNumberFont $\approx 80\text{ mm}$}\\[0.2mm]
+            {\KpiLabelFont Medición desde Flange\\(Error Artificial)}
+          \end{column}
+          \begin{column}{0.48\textwidth}
+            \centering
+            \textcolor{AgriGreen}{\KpiNumberFont $0.88\text{ mm}$}\\[0.2mm]
+            {\KpiLabelFont Proyección TCP Real\\(Contacto Físico Fiel)}
+          \end{column}
+        \end{columns}
+        \vspace{1mm}\hrule\vspace{1mm}
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] Erradica false negatives en la certificación de éxito.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] Permite calcular un dense reward de aproximación con precisión nanométrica.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 16: BENCHMARKING PAREADO: SOLO DP VS DP+RL
+% =============================================================================
+\begin{frame}{Paired Benchmarking: Solo DP vs. DP + RL Fine-Tuning}
+  \BannerCentral[AgriGreen]{``Evaluación con seeds Halton QMC compartidas: RL reduce el error terminal en 41.1\% y asegura contacto preciso.'' \BannerRef{halton1960efficiency}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.53\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Panel Comparativo $2 \times 3$ de Publicación},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=0.5mm, bottom=0.5mm, left=1mm, right=1mm,
+        valign=top
+      ]
+        \centering
+        \IfFileExists{assets/benchmark_comparison_plot.pdf}{%
+          \includegraphics[height=24.0mm, keepaspectratio]{assets/benchmark_comparison_plot.pdf}%
+        }{%
+          \IfFileExists{assets/benchmark_comparison_plot.png}{%
+            \includegraphics[height=24.0mm, keepaspectratio]{assets/benchmark_comparison_plot.png}%
+          }{%
+            \IfFileExists{visuomotor_core/outputs/benchmark_comparison/benchmark_comparison_plot.png}{%
+              \includegraphics[height=24.0mm, keepaspectratio]{visuomotor_core/outputs/benchmark_comparison/benchmark_comparison_plot.png}%
+            }{%
+              \begin{tikzpicture}
+                \node[draw=UCNBlue, fill=BgLight, rounded corners=2pt, minimum width=55mm, minimum height=24mm, align=center, font=\DiagramFont, text=UCNBlue] {Panel 2x3 de Benchmarking\\(Escala Logarítmica, Zoom Inteligente, Outliers)};
+              \end{tikzpicture}%
+            }%
+          }%
+        }\par
+        \vspace{0.8mm}
+        {\fontsize{4.8}{5.8}\selectfont\textcolor{TextDark!80}{Generado desacopladamente desde \texttt{benchmark\_episodes.csv} a 300 DPI.}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.45\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Resumen Cuantitativo Pareado ($N=10$)},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{tabular}{lcc}
+          \toprule
+          \textbf{Métrica Cinemática} & \textbf{Solo DP} & \textbf{DP + RL} \\
+          \midrule
+          Grasp Rate (\%) & $90.0\%$ & $\mathbf{90.0\%}$ \\
+          Contacto Mínimo TCP & $2.55\text{ mm}$ & $\mathbf{2.31\text{ mm}}$ \\
+          Contacto Máximo TCP & $7.14\text{ mm}$ & $\mathbf{4.55\text{ mm}}$ \\
+          Terminal Error RMSE & $23.1\text{ mm}$ & $\mathbf{13.6\text{ mm}}$ ($-41\%$) \\
+          Elevación Media $\Delta Z$ & $27.4\text{ cm}$ & $\mathbf{27.1\text{ cm}}$ \\
+          \bottomrule
+        \end{tabular}
+        \vspace{0.8mm}
+        \begin{itemize}\setlength{\itemsep}{1pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] RL reduce la dispersión extrema en el contacto en un \textbf{36.3\,\%}.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 17: SIGNIFICANCIA ESTADÍSTICA NO PARAMÉTRICA (WILCOXON)
+% =============================================================================
+\begin{frame}{Significancia Estadística No Paramétrica: Wilcoxon Signed-Rank Test}
+  \BannerCentral[UCNTerracotta]{``Por qué el Student's $t$-test falla en robótica: asimetría y outliers obligan a usar un signed-rank test.'' \BannerRef{wilcoxon1945individual}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AlertRedLight,
+        colframe=AlertRed,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Invalidez de Supuestos Gaussianos},
+        colbacktitle=AlertRed,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{2pt}
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Asimetría Extrema:} El $90\%$ de los episodios se concentra en errores milimétricos ($0.8$ a $7\text{ mm}$), mientras que fallos de aproximación generan \textit{outliers} $>100\text{ mm}$.
+          \item[\textcolor{AlertRed}{$\blacksquare$}] \textbf{Truncamiento Temporal:} El timeout artificial fija una cota superior rígida.
+          \item[\textcolor{AlertRed}{$\blacksquare$}] El Student's $t$-test asume normalidad y colapsa ante estas heavy tails.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.485\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNBlue,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Wilcoxon Signed-Rank Test},
+        colbacktitle=UCNBlue,
+        coltitle=WhiteBg,
+        top=1.2mm, bottom=1.2mm, left=1.8mm, right=1.8mm
+      ]
+        {\BodyFont
+        Para las diferencias pareadas $D_i = X_{\text{DP+RL}, i} - X_{\text{SoloDP}, i}$:
+        \begin{equation*}
+          H_0: \text{Mediana}(D) = 0 \quad \text{vs.} \quad H_1: \text{Mediana}(D) \neq 0
+        \end{equation*}
+        \vspace{0.5mm}
+        \begin{itemize}\setlength{\itemsep}{1.5pt}
+          \item[\textcolor{UCNBlue}{$\blacksquare$}] Ordena $|D_i|$ por ranks y asigna a cada rank el signo original.
+          \item[\textcolor{UCNBlue}{$\blacksquare$}] \textbf{Inmunidad a Outliers:} Evalúa si la mejora milimétrica es sistemática sin distorsionarse por fallos singulares.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] Certifica significancia estadística real ($p < 0.05$) en el refinamiento por refuerzo.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =============================================================================
+% DIAPOSITIVA 18: LA FRONTERA TRIDIMENSIONAL: 3D DIFFUSION POLICY (DP3)
+% =============================================================================
+\begin{frame}{La Frontera Tridimensional: 3D Diffusion Policy (DP3) en Cultivos}
+  \BannerCentral[UCNCyan]{``De imágenes 2D a point clouds 3D: penetrando follaje denso con 10 demostraciones e invarianza lumínica.'' \BannerRef{ze2025humanoid}}
+  \vspace{0.8mm}
+  \begin{columns}[T, onlytextwidth]
+    \begin{column}{0.51\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=WhiteBg,
+        colframe=UCNCyan,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont El Descubrimiento Forense de DP3 \cite{ze2024dp3}},
+        colbacktitle=UCNCyan,
+        coltitle=WhiteBg,
+        top=1.0mm, bottom=1.0mm, left=1.6mm, right=1.6mm
+      ]
+        {\BodyFont
+        PointNet clásico colapsa en control continuo ($15.7\%$ éxito) por culpa de T-Net y \texttt{BatchNorm}.\\
+        \textbf{La Solución DP3Encoder ($78.3\%$ éxito):}
+        \vspace{0.4mm}
+        \begin{itemize}\setlength{\itemsep}{0.6pt}
+          \item[\textcolor{UCNCyan}{$\blacksquare$}] \textbf{Sin T-Net:} Conserva la referencia fija del mundo.
+          \item[\textcolor{UCNCyan}{$\blacksquare$}] \textbf{Sin BatchNorm:} Intercala \texttt{LayerNorm} en MLP ($3 \to 64 \to 128 \to 256$).
+          \item[\textcolor{UCNCyan}{$\blacksquare$}] \textbf{Workspace Cropping:} Recorte del volumen del cultivo (vital para éxito).
+          \item[\textcolor{UCNCyan}{$\blacksquare$}] \textbf{Farthest Point Sampling (512/1024 pts):} Invarianza total a textura e iluminación solar.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+
+    \begin{column}{0.47\textwidth}
+      \begin{tcolorbox}[
+        enhanced,
+        colback=AgriGreenLight,
+        colframe=AgriGreen,
+        arc=\CardArc,
+        boxrule=\CardRule,
+        height=\CardHeightDouble,
+        title={\CardTitleFont Impacto en Agro-Robótica de Campo},
+        colbacktitle=AgriGreen,
+        coltitle=WhiteBg,
+        top=1.0mm, bottom=1.0mm, left=1.6mm, right=1.6mm
+      ]
+        {\BodyFont
+        \begin{itemize}\setlength{\itemsep}{1.2pt}
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Sample Efficiency:} Tasa de éxito $>90\%$ con solo 10 a 40 demostraciones de cosecha (minutos en vez de semanas).
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Inmunidad a Sombras y Sol:} La geometría 3D pura elimina los fallos por radiación solar extrema o sombras de hojas.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Sample Prediction ($x_0$):} Estima directamente la trayectoria $A^0$ acelerando la convergencia.
+          \item[\textcolor{AgriGreen}{\textbf{$\checkmark$}}] \textbf{Simple DP3 en ROS 2 (25.3 FPS):} Channel pruning para ejecución reactiva en GPU local accesible.
+        \end{itemize}}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+

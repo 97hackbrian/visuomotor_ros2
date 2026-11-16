@@ -55,6 +55,7 @@ def launch_setup(context):
     use_rviz = LaunchConfiguration('rviz', default=True)
     use_sim = LaunchConfiguration('sim', default=True)
     robot_ip = LaunchConfiguration('robot_ip', default='192.168.1.184')
+    use_sim_time = LaunchConfiguration('use_sim_time', default=False)
 
     ros2_control_plugin = 'uf_robot_hardware/UFRobotSystemHardware' if use_sim.perform(context) == 'false' else 'topic_based_ros2_control/TopicBasedSystem'
     print('[SYSTEM INFO] Started controler: ', ros2_control_plugin)
@@ -65,7 +66,7 @@ def launch_setup(context):
         package='controller_manager',
         executable='ros2_control_node',
         parameters=[
-            {'robot_description': robot_description, 'use_sim_time': True},
+            {'robot_description': robot_description, 'use_sim_time': use_sim_time},
             controllers
         ],
         remappings=[
@@ -96,7 +97,7 @@ def launch_setup(context):
         executable="robot_state_publisher",
         output="both",
         parameters=[
-            {'robot_description': robot_description, 'use_sim_time': True},
+            {'robot_description': robot_description, 'use_sim_time': use_sim_time},
         ]
     )
 
@@ -138,7 +139,7 @@ def launch_setup(context):
         executable='pose_smoother.py',
         name='pose_smoother',
         output='screen',
-        parameters=[pose_smoother_config, {'use_sim_time': True}]
+        parameters=[pose_smoother_config, {'use_sim_time': use_sim_time}]
     )
 
     realsence_camera = Node(
@@ -199,5 +200,9 @@ def launch_setup(context):
 
 def generate_launch_description():
     return launch.LaunchDescription([
+        DeclareLaunchArgument('use_sim_time', default_value='false', description='Usar reloj de simulación si es True'),
+        DeclareLaunchArgument('rviz', default_value='true', description='Lanzar RViz'),
+        DeclareLaunchArgument('sim', default_value='true', description='Modo simulación'),
+        DeclareLaunchArgument('robot_ip', default_value='192.168.1.184', description='IP del robot'),
         OpaqueFunction(function=launch_setup)
     ])

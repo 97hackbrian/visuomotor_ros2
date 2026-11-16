@@ -5,10 +5,22 @@ from torch.utils.data import Dataset
 import numpy as np
 
 class ZarrDataset(Dataset):
-    def __init__(self, root, n_obs_steps=2, h_act=16):
+    def __init__(self, root, n_obs_steps=2, h_act=16, max_episodes=0):
         self.root_path = root
         self.root = zarr.open_group(root, mode='r')
-        self.episodes = sorted(list(self.root.groups()))
+
+        def _ep_sort_key(item):
+            name = item[0]
+            parts = name.split('_')
+            if len(parts) >= 2 and parts[-1].isdigit():
+                return int(parts[-1])
+            return name
+
+        all_episodes = sorted(list(self.root.groups()), key=_ep_sort_key)
+        if max_episodes > 0:
+            self.episodes = all_episodes[:max_episodes]
+        else:
+            self.episodes = all_episodes
         
         self.n_obs_steps = n_obs_steps
         self.h_act = h_act

@@ -52,6 +52,7 @@
     
     
     # ── Aparición de Objetos (Secuencia Halton Quasi-Monte Carlo) ──
+    seed: 0                         # Semilla pseudo-aleatoria Halton (0 = estocástico sin semilla fija)
     random_spawn: true             # Activa la teletransportación automática del objeto
     spawn_x_min: -0.35              # Límite mínimo en el eje X (Profundidad)
     spawn_x_max: -0.52              # Límite máximo en el eje X

@@ -52,7 +52,7 @@ rl_train_node:
     # ── Control Temporal y Receding Horizon ──
     n_obs_steps: 2
     n_action_steps: 3
-    max_episode_steps: 1200
+    max_episode_steps: 2400
     step_timeout_s: 1.5
     reset_stabilize_s: 2.0
     reset_duration_s: 4.0
@@ -102,8 +102,8 @@ rl_train_node:
     respawn_mode: "on_success"      # "on_success" (reintenta en fallo) o "always" (cambia en cada episodio)
     spawn_x_min: -0.38              # Límite mínimo en el eje X (Profundidad)
     spawn_x_max: -0.42              # Límite máximo en el eje X
-    spawn_y_min: -0.6              # Límite derecho de la mesa en Y
-    spawn_y_max: -1.02              # Límite izquierdo de la mesa en Y
+    spawn_y_min: -0.56              # Límite derecho de la mesa en Y
+    spawn_y_max: -1.08              # Límite izquierdo de la mesa en Y
     spawn_z: 0.44                   # Altura estática de aparición del objeto sobre la mesa
     spawn_yaw_min: -3.1415          # Rotación mínima de orientación (-180°)
     spawn_yaw_max: 3.1415           # Rotación máxima de orientación (+180°)

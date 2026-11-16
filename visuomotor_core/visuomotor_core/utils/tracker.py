@@ -107,6 +107,33 @@ def init_db(db_path: Optional[Path] = None) -> None:
                     metadata_json TEXT
                 )
             """)
+
+            # 5. Tabla de episodios individuales recolectados
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dataset_episodes (
+                    id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    dataset_name TEXT NOT NULL,
+                    episode_idx INTEGER NOT NULL,
+                    obj_spawn_x REAL,
+                    obj_spawn_y REAL,
+                    obj_spawn_z REAL,
+                    obj_spawn_yaw REAL,
+                    ee_jitter_dx REAL,
+                    ee_jitter_dy REAL,
+                    ee_jitter_droll REAL,
+                    ee_jitter_dpitch REAL,
+                    ee_jitter_dyaw REAL,
+                    steps INTEGER,
+                    sim_duration_s REAL,
+                    wall_duration_s REAL,
+                    cycle_wall_s REAL,
+                    retry_count INTEGER,
+                    phase_durations_json TEXT,
+                    phase_errors_json TEXT,
+                    metadata_json TEXT
+                )
+            """)
             conn.commit()
     except Exception as e:
         log.warning(f"[DB Fail-Safe] No se pudo inicializar SQLite: {e}")
@@ -303,3 +330,88 @@ def record_dataset(
     except Exception as e:
         log.warning(f"[DB Fail-Safe] Error silencioso al registrar dataset: {e}")
         return False
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def record_dataset_episode(
+    dataset_name: str,
+    episode_idx: int,
+    obj_spawn: Dict[str, Any],
+    ee_jitter: Optional[Dict[str, Any]] = None,
+    steps: int = 0,
+    sim_duration_s: float = 0.0,
+    wall_duration_s: float = 0.0,
+    cycle_wall_s: float = 0.0,
+    retry_count: int = 0,
+    phase_durations: Optional[Dict[str, float]] = None,
+    phase_errors: Optional[Dict[str, float]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    timestamp: Optional[str] = None,
+) -> bool:
+    """Registra un episodio individual recolectado de forma 100% fail-safe."""
+    try:
+        path = find_db_path()
+        init_db(path)
+        ep_id = f"{dataset_name}_ep_{episode_idx}"
+        ts = timestamp or datetime.now().isoformat()
+        ee = ee_jitter or {}
+        sp = obj_spawn or {}
+        with sqlite3.connect(path, timeout=5.0) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO dataset_episodes (
+                    id, timestamp, dataset_name, episode_idx,
+                    obj_spawn_x, obj_spawn_y, obj_spawn_z, obj_spawn_yaw,
+                    ee_jitter_dx, ee_jitter_dy, ee_jitter_droll, ee_jitter_dpitch, ee_jitter_dyaw,
+                    steps, sim_duration_s, wall_duration_s, cycle_wall_s, retry_count,
+                    phase_durations_json, phase_errors_json, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    ep_id,
+                    ts,
+                    str(dataset_name),
+                    _safe_int(episode_idx, 0),
+                    _safe_float(sp.get("x"), 0.0),
+                    _safe_float(sp.get("y"), 0.0),
+                    _safe_float(sp.get("z"), 0.44),
+                    _safe_float(sp.get("yaw"), 0.0),
+                    _safe_float(ee.get("dx"), 0.0),
+                    _safe_float(ee.get("dy"), 0.0),
+                    _safe_float(ee.get("droll"), 0.0),
+                    _safe_float(ee.get("dpitch"), 0.0),
+                    _safe_float(ee.get("dyaw"), 0.0),
+                    _safe_int(steps, 0),
+                    _safe_float(sim_duration_s, 0.0),
+                    _safe_float(wall_duration_s, 0.0),
+                    _safe_float(cycle_wall_s, 0.0),
+                    _safe_int(retry_count, 0),
+                    json.dumps(phase_durations or {}, ensure_ascii=False),
+                    json.dumps(phase_errors or {}, ensure_ascii=False),
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                ),
+            )
+            conn.commit()
+        return True
+    except Exception as e:
+        log.warning(f"[DB Fail-Safe] Error silencioso al registrar dataset_episode: {e}")
+        return False
+

@@ -350,6 +350,23 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
           - *Campaña Speed02 Certificada:* Recolección autónoma de 4 episodios ($4/4$, $1.060$ pasos totales) en `datasets/demonstrations_test_speed02_4eps.zarr`. Tiempos de grabación de $31.1\text{ s} - 49.5\text{ s}$ por episodio (ciclo total promedio de $56.1\text{ s}$), con piso garantizado de 40 frames ($2.0\text{ s}$) de señal `done=1.0` y extracción visual completa en `datasets/visualizations_speed02_4eps/`.
       12. *Estandarización:* Creación y actualización del módulo `.agents/knowledge/11_isaac_sim_headless_acceleration.md`.
 
+39. **Evaluación Comparativa Multi-Checkpoint (Grilla de 7 Épocas), Corrección Geométrica de Auto-Stop y Frente de Pareto:**
+    - *Incidente y Causa Raíz:* En pruebas con `epoch_150`, la política agarraba el cubo, lo elevaba $29\text{ cm}$ y lo trasladaba hacia Home, pero el evaluador marcaba `FALLO`. Se identificaron dos bugs:
+      1. *Auto-stop prematuro:* Disparo por proximidad holgada ($< 10\text{ cm}$) cuando `done_flag = 0.58` antes de que el brazo ingresara al radio formal de éxito ($< 6\text{ cm}$).
+      2. *Omisión de offset de pinza ($79.0\text{ mm}$):* Se medía el cubo contra la brida de Home ($Z=0.40\text{ m}$), produciendo un error mínimo geométrico de $\approx 80\text{ mm}$ con el cubo suspendido a $Z \approx 0.321\text{ m}$.
+    - *Corrección Implementada en `tools/evaluate_convergence_checkpoints.py`:*
+      1. Ajuste del umbral de llegada a $5\text{ cm}$ para objetos sujetos (`arrival_thresh = 0.05 if is_clamped else 0.08`).
+      2. Descuento vectorial del offset de pinza: $\mathbf{p}_{\text{obj\_target}} = \mathbf{p}_{\text{home}} - [0, 0, 0.079]$.
+      3. Criterio de éxito calibrado: `is_clamped = True` con error terminal de objeto $\le 100\text{ mm}$ (o TCP $\le 60\text{ mm}$).
+    - *Resultados Empíricos de la Grilla de 7 Épocas (`train_v8_300data`, 21 episodios pareados Halton QMC):*
+      - `epoch_10`: $0.0\%$ éxito, sub-ajuste severo ($170.1\text{ mm}$ de contacto medio).
+      - `epoch_50`: $33.3\%$ éxito ($5.10\text{ mm}$ de contacto, $\Delta z = 28.2\text{ cm}$, duración $108.9\text{ s}$). Marca la **Cantidad Efectiva de Épocas ($E^* = 50$)**.
+      - `epoch_100`: $33.3\%$ éxito ($5.25\text{ mm}$ de contacto, mejor aproximación espacial media de $44.8\text{ mm}$).
+      - `epoch_150`: $33.3\%$ éxito (**ciclo más veloz con $99.5\text{ s}$**, $\Delta z = 29.1\text{ cm}$, contacto $6.26\text{ mm}$, auto-stop limpio).
+      - `epoch_200`: $33.3\%$ éxito ($7.45\text{ mm}$ de contacto, $\Delta z = 29.2\text{ cm}$).
+      - `epoch_250` y `epoch_300`: $0.0\%$ éxito. Evidencia física directa de **sobreajuste (overfitting)** en el espacio de acciones latentes: la red desincroniza el cierre de pinza a $7.6\text{ mm}$ o desvía la trayectoria a $14.4\text{ mm}$, a pesar de que el loss de entrenamiento continuaba descendiendo asintóticamente.
+    - *Conclusión Operativa:* Fijar el criterio de parada asintótica en $E^* = 50\text{--}100$ épocas. Entrenar más allá de 200 épocas en este volumen induce degradación motora. Reporte completo en `physical_convergence_grid7_evaluation_report.md`.
+
 ---
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
@@ -372,11 +389,15 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 - **Fase 6 (Benchmarking Pareado y Modelo Cinemático TCP):** Campaña comparativa ejecutada (10 episodios pareados, 20 vuelos) en Isaac Sim, proyección TCP validada ($79.0\text{ mm}$), panel gráfico $2 \times 3$ de publicación optimizado y skill `visuomotor-benchmark-evaluator` creada.
 - **Fase 7 (Ingeniería Editorial Académica y LaTeX Riguroso):** Informe de avance (`informe_avance_visuomotor_cd.tex`) refinado a estilo humano sin metalenguaje de IA, diagramas TikZ coherentes dimensionalmente, justificación formal de Wilcoxon, citas de DPPO (ICLR 2025), 0 errores y 14 páginas consolidadas. Skill `scientific-latex-reporting` desplegada.
 - **Fase 8 (Evolución hacia Visión 3D con DP3):** Mapeo arquitectónico de 3D Diffusion Policy (DP3Encoder, FPS a 512/1024 pts, cropping espacial, sample-prediction y Simple DP3) documentado en `.agents/knowledge/08_3d_diffusion_policy_and_ml_rigor.md`.
+- **Fase 9 (Recolección Paralela Dual Headless y Consolidación de 1,000 Episodios V8):** Despliegue de recolección paralela acelerada en Isaac Sim 6.0 Headless (2 instancias concurrentes en GPU RTX 4060, Dominios ROS 42/43, puertos 8211/8212), monitoreo con Watchdog Auto-Heal, partición en shards temporales (`batch_1.zarr` y `batch_2.zarr`), y fusión atómica final aplanada hacia `datasets/demonstrations_v8.zarr` (1,000 episodios planos: `episode_0` .. `episode_999`) registrada en `experiments.db`.
+- **Fase 10 (Determinación de Convergencia y Criterios de Parada SOTA):** Suite analítica formal en `visuomotor_core.analysis.stopping_criteria` para evaluar la convergencia en espacio dual (Pasos $\leftrightarrow$ Épocas). Desacoplamiento riguroso de dos regímenes (Inflexión de Codo Kneedle para aproximación macro vs. Consenso Asintótico Pareto para manipulación fina), 6 detectores SOTA (Kneedle, Gradiente Plano, Varianza RSD, Mejora Relativa, Prechelt PQ, Gap EMA) inmunes a ruido de mini-batch, figuras dual-axis a 300 DPI (PNG + PDF) y panel diagnóstico 4-canal.
+- **Fase 11 (Estudio de Convergencia Continua, Piso Asintótico de Rebote y Parada Limpia a Demanda):** Auditoría histórica de `train_500_dataV7_fixed` (700,000 pasos en 100 épocas de dataset completo, estabilización en meseta asintótica con rebote en $[0.0010, 0.0050]$). Identificación del corte prematuro en `train_v8_convergence_study` (3,000 pasos = 0.70 épocas). Despliegue del modo continuo dinámico (`--epoch 0`, `batch_size 64`, 4,279 pasos/época), guardado periódico garantizado cada 10 épocas completas, renderizado gráfico intra-época cada 500 pasos, y protocolo de parada limpia interactiva (`touch STOP` o `SIGINT`) con evaluación continua de criterios de parada.
 
 **Roadmap Experimental Inmediato:**
-1. **Toma de Dataset Fresco V8:** Generar `demonstrations_v8.zarr` con el demostrador experto PID actualizado (`hold_target_time_s: 3.5s`, `record_done_flag: true`).
-2. **Entrenamiento y Evaluación de Solo DP (Baseline):** Entrenar con `train.py` instrumentado y evaluar 100 episodios automatizados generando telemetría en `metrics.csv`.
-3. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
-4. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
-5. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.
-6. **Transferencia Sim-to-Real y Políticas Residuales (ResiP / TRANSIC):** Validación experimental de Co-Fine-Tuning visual (LoRA en ResNet-18) y arquitectura residual reactiva ($\pi_{\text{res}}$) sobre el espacio cartesiano de alto nivel del xArm Lite6.
+1. **Toma de Dataset Fresco V8:** ✅ **COMPLETADA** (1,000 demostraciones expertas consolidadas en `datasets/demonstrations_v8.zarr`).
+2. **Auditoría Temporal y Muestreo Visual:** Verificación a 20 Hz (`verify_dataset_frequency.py`) y extracción de 10 videos finales representativos.
+3. **Entrenamiento de Solo DP (Baseline a Gran Escala):** Entrenar con `train.py` sobre `demonstrations_v8.zarr` a 100 epochs.
+4. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
+5. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
+6. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.
+7. **Transferencia Sim-to-Real y Políticas Residuales (ResiP / TRANSIC):** Validación experimental de Co-Fine-Tuning visual (LoRA en ResNet-18) y arquitectura residual reactiva ($\pi_{\text{res}}$) sobre el espacio cartesiano de alto nivel del xArm Lite6.

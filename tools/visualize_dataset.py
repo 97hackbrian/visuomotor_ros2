@@ -54,6 +54,36 @@ def parse_args():
         default=True,
         help="Generar gráficas de telemetría y trayectoria por episodio",
     )
+    parser.add_argument(
+        "--save-gif",
+        action="store_true",
+        default=False,
+        help="Generar animación GIF optimizada para visualización directa en web/markdown",
+    )
+    parser.add_argument(
+        "--h264",
+        action="store_true",
+        default=False,
+        help="Transcodificar videos MP4 a códec H.264 (requiere ffmpeg instalado en el entorno)",
+    )
+    parser.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        help="Número de episodios aleatorios a visualizar (ej. --sample 10 para datasets masivos)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Semilla aleatoria para el muestreo de episodios (defecto: 42)",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=str,
+        default=None,
+        help="Lista o rango específico de episodios a visualizar (ej. '41-44' o '41,42,43,44')",
+    )
     return parser.parse_args()
 
 
@@ -72,12 +102,39 @@ def main():
 
     root = zarr.open_group(dataset_path, mode="r")
     episode_keys = sorted(list(root.groups()), key=lambda x: int(x[0].split("_")[-1]) if "_" in x[0] else x[0])
+    total_in_dataset = len(episode_keys)
+
+    if args.episodes:
+        target_ids = set()
+        for part in args.episodes.split(','):
+            part = part.strip()
+            if '-' in part:
+                try:
+                    s_str, e_str = part.split('-', 1)
+                    target_ids.update(range(int(s_str), int(e_str) + 1))
+                except ValueError:
+                    pass
+            elif part.isdigit():
+                target_ids.add(int(part))
+
+        episode_keys = [
+            ep for ep in episode_keys
+            if (int(ep[0].split('_')[1]) if '_' in ep[0] and ep[0].split('_')[1].isdigit() else -1) in target_ids
+        ]
+
+    if args.sample is not None and args.sample > 0 and len(episode_keys) > args.sample:
+        import random
+        random.seed(args.seed)
+        selected_indices = sorted(random.sample(range(len(episode_keys)), args.sample))
+        episode_keys = [episode_keys[i] for i in selected_indices]
 
     print("======================================================================")
     print("      Inspector de Datasets Zarr: Visuomotor Generative Framework     ")
     print("======================================================================")
     print(f"Dataset:            {dataset_path}")
-    print(f"Total de Episodios: {len(episode_keys)}")
+    print(f"Total en Dataset:   {total_in_dataset}")
+    if total_in_dataset != len(episode_keys):
+        print(f"Muestreo Aleatorio: {len(episode_keys)} episodios seleccionados (semilla: {args.seed})")
     print(f"Salida multimedia:  {out_dir}")
     print("======================================================================")
 
@@ -130,6 +187,22 @@ def main():
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) if c == 3 else frame
                 out_video.write(frame_bgr)
             out_video.release()
+
+            # 1.1 Transcodificación H.264
+            if args.h264:
+                h264_path = os.path.join(out_dir, f"{ep_name}_h264.mp4")
+                os.system(f"ffmpeg -y -i '{video_path}' -vcodec libx264 -pix_fmt yuv420p '{h264_path}' >/dev/null 2>&1")
+
+            # 1.2 Generar animación GIF optimizada
+            if args.save_gif:
+                try:
+                    from PIL import Image
+                    gif_frames = [Image.fromarray(images[i]) for i in range(0, len(images), 2)]
+                    if gif_frames:
+                        gif_path = os.path.join(out_dir, f"{ep_name}.gif")
+                        gif_frames[0].save(gif_path, save_all=True, append_images=gif_frames[1:], duration=100, loop=0)
+                except Exception as e_gif:
+                    print(f"    [AVISO] No se pudo generar GIF para {ep_name}: {e_gif}")
 
         # 2. Generar Gráficas de Trayectoria
         if args.save_plots and len(states) > 0 and len(actions) > 0:

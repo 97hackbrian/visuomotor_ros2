@@ -253,6 +253,30 @@ class TestSystemScriptIntegrity(unittest.TestCase):
         self.assertIn("sim-only", res.stdout)
         self.assertIn("collect", res.stdout)
         self.assertIn("rl", res.stdout)
+        self.assertIn("--instances", res.stdout)
+
+    def test_script_instances_validation(self):
+        script_path = os.path.join(TOOLS_DIR, "sim", "run_headless_system.sh")
+        # Instancias = 0 debe fallar
+        res0 = subprocess.run([script_path, "collect", "--instances", "0"], capture_output=True, text=True)
+        self.assertNotEqual(res0.returncode, 0)
+        self.assertIn("debe ser un entero >= 1", res0.stderr)
+
+        # Instancias = -2 debe fallar
+        res_neg = subprocess.run([script_path, "collect", "-i", "-2"], capture_output=True, text=True)
+        self.assertNotEqual(res_neg.returncode, 0)
+        self.assertIn("debe ser un entero >= 1", res_neg.stderr)
+
+        # Instancias = abc debe fallar
+        res_str = subprocess.run([script_path, "collect", "--instances", "abc"], capture_output=True, text=True)
+        self.assertNotEqual(res_str.returncode, 0)
+        self.assertIn("debe ser un entero >= 1", res_str.stderr)
+
+    def test_script_stage_option_present(self):
+        script_path = os.path.join(TOOLS_DIR, "sim", "run_headless_system.sh")
+        res = subprocess.run([script_path, "--help"], capture_output=True, text=True)
+        self.assertIn("--stage ARCHIVO", res.stdout)
+        self.assertIn("--dataset, -d RUTA", res.stdout)
 
 
 if __name__ == "__main__":

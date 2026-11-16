@@ -170,6 +170,32 @@ El nodo de inferencia implementa dos capas independientes de detención:
      - Modo DLSS: `/rtx/post/dlss/execMode = 0` (`Performance`)
      - Frame Generation (x2): `/rtx/dlss/frameGeneration = true`, `/rtx-transient/dlssg/enabled = true`, `/rtx-transient/internal/dlssg/rtpt/interpolatedFrameCount = 1`
    - *Protección crítica de Hydra (Zero-Crash):* Prohibición absoluta de invocar `CreateAttribute` sobre prims de texturas de render activo en tiempo de carga (`_MarkSprimDirty` crash en `changeTracker.cpp`); actualización en memoria RAM restringida a prims y atributos existentes.
+12. **Calibración Cinemática Óptima ($0.20\text{ m/s}$), Tiempos FSM y Realidad de `frameSkipCount`:**
+   - *Velocidad cartesiana calibrada:* `max_speed_m_s: 0.20` representa la frontera Pareto óptima entre dinamismo y estabilidad (suprime oscilaciones inerciales en `ALIGN_ROTATION` y amortigua el contacto fino durante `SETTLE`, logrando un ciclo de ~56 s de pared).
+   - *Tiempos de FSM y Piso de Término:* `wait_time_s: 0.8`, `reset_joints_duration_s: 1.5`, `settle_time_s: 0.1` y `hold_target_time_s: 2.0` (garantizando exactamente 40 frames de `done = 1.0` a 20 Hz).
+   - *Realidad de `frameSkipCount`:* En Isaac Sim 6.0, `frameSkipCount` en `OgnROS2CameraHelper` está deprecado y solo descarta la publicación en DDS post-render, sin reducir pasadas de Hydra en GPU (el RTF físico se mantiene en $0.33\times$). La aceleración real se deriva de headless, DLSS Performance, reajuste en RAM a 256x256 y cinemática optimizada.
+   - Habilidad operativa estandarizada en `.agents/skills/headless-experimentation-workflow/SKILL.md`.
+13. **Recolección Concurrente Paralela Dual (2 Instancias), Watchdog Auto-Heal y Fusión Atómica Zarr:**
+   - Para saturar de forma eficiente la GPU (RTX 4060 Laptop 8GB VRAM al ~60%) y duplicar el rendimiento de recolección, `run_headless_system.sh collect --instances 2` despliega 2 instancias de Isaac Sim Headless + ROS 2 desacopladas (`ROS_DOMAIN_ID=42` / Kit 8211 y `ROS_DOMAIN_ID=43` / Kit 8212).
+   - *Aislamiento por Procesos:* Las rutinas de limpieza y reinicio filtran `/proc/$pid/environ` por `ROS_DOMAIN_ID` para no afectar instancias hermanas.
+   - *Watchdog Auto-Heal (140 s):* Reinicia en caliente instancias desfasadas o divergentes sin detener la recolección paralela.
+   - *Fusión Atómica Zarr (`tools/merge_zarr_batches.py`):* Cada instancia graba en shards temporales (`_batch_1.zarr`, `_batch_2.zarr`). Al finalizar, un merge indexa y aplana los episodios consecutivamente (`episode_0` .. `episode_N-1`), garantizando compatibilidad 100% con los dataloaders estándar sin partición jerárquica.
+14. **Determinación de Convergencia y Criterios de Parada SOTA (Stopping Criteria):**
+   - En entrenamiento supervisado de políticas de difusión, el ruido intrínseco del mini-batch ($\boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$, $k \sim \mathcal{U}(0, K-1)$) genera fluctuaciones estocásticas ($\sigma/\mu \sim 15\%$). Los criterios de parada deben evaluar la dinámica sobre la curva suavizada ($\text{EMA}, \alpha=0.05$) o sobre pérdidas por época.
+   - *Desacoplamiento de Dos Regímenes:*
+     - *Régimen 1 (Codo Kneedle / Curvatura Máxima):* Marca la adquisición de macro-trayectorias (Época $\sim 2.60$, Paso 390, Loss $\sim 0.134$).
+     - *Régimen 2 (Consenso Asintótico Pareto):* Convergencia fina y destreza de agarre sostenida por Gradiente Plano ($|d\mathcal{L}/dt| < 3\times 10^{-5}$), Varianza $RSD < 2.5\%$, Prechelt $P_k < 25$, Mejora Relativa $\Delta \mathcal{L}/\mathcal{L} < 0.5\%$ y Gap EMA $< 3\%$ (Época $\sim 19.57$, Paso 2,935, Loss $\sim 0.0336$).
+   - *Sincronización Dual Sincronizada:* $\text{epoch} = \text{step} / N_{\text{steps\_per\_epoch}}$. Prohibición de offsets de índice ordinal que reporten épocas ficticias fuera del rango total ejecutado.
+   - *Módulo y Memoria:* `visuomotor_core/visuomotor_core/analysis/stopping_criteria.py` y `.agents/knowledge/12_training_convergence_and_stopping_criteria.md`.
+15. **Evaluación Multi-Checkpoint, Corrección Geométrica de Auto-Stop y Frente de Pareto Físico:**
+   - *Calibración de Evaluación:* Umbral de auto-stop ajustado a $\le 5\text{ cm}$ para objetos sujetos (`arrival_thresh`), descuento formal de los $79\text{ mm}$ del efector final ($\mathbf{p}_{\text{obj\_target}} = \mathbf{p}_{\text{home}} - [0, 0, 0.079]$) y criterio ampliado para sujeción física firme (`is_clamped = True`).
+   - *Fenomenología y Frente de Pareto (`train_v8_300data`):* Identificación empírica de 3 fases: sub-ajuste (época 10, $0\%$), meseta de destreza y mínima latencia (épocas 50 a 200, $33.3\%$ éxito, $E^* = 50$, época 150 con tiempo récord de $99.5\text{ s}$), y sobreajuste motor severo (épocas 250 a 300, $0\%$ éxito por desincronización de garra).
+   - *Memoria Modular:* `.agents/knowledge/13_multicheckpoint_evaluation_and_pareto_convergence.md`.
+16. **Prohibición de Datasets Hardcodeados, Doble Eje X Obligatorio y Protección de Pesos:**
+   - *Dataset Dinámico Obligatorio:* Ninguna herramienta analítica o de visualización puede asumir o tener quemado en strings el nombre del dataset (ej. `demonstrations_v8.zarr`). Toda función debe parametrizar `dataset_name` y reflejar el dataset real evaluado en títulos y leyendas.
+   - *Doble Eje X Sincrónico:* Todo gráfico de pérdida temporal debe mostrar de forma explícita el eje X inferior en **Pasos de Optimización** y el eje X superior en **Épocas de Entrenamiento** ($1\text{ Época} = N\text{ Pasos}$).
+   - *Inviolabilidad de Pesos:* Las herramientas de análisis, graficado y re-evaluación operan estrictamente en modo de solo lectura sobre los checkpoints y `model.safetensors`.
+   - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
 
 ---
 
@@ -211,6 +237,15 @@ pdflatex -interaction=nonstopmode informe_avance_visuomotor_cd.tex && biber info
 ./tools/sim/run_headless_system.sh benchmark    # Benchmarking pareado (--episodes N --dp_ckpt RUTA --rl_ckpt RUTA)
 ./tools/sim/run_headless_system.sh inference    # Inferencia en vivo de política (--checkpoint RUTA)
 ./tools/sim/run_headless_system.sh stop         # Detener simulación, nodos y liberar VRAM de inmediato
+
+# 11. Analizar convergencia y criterios de parada SOTA sobre curvas de entrenamiento
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/analyze_convergence.py --run_dir visuomotor_core/outputs/train_v8_continuous_convergence
+
+# 12. Entrenamiento Continuo Dinámico (Épocas ∞, Checkpoints cada 10 épocas, Render en vivo cada 500 steps)
+docker exec -it -u 1000 -w /ros visuomotor_ros2 bash -c "python3 /ros/visuomotor_core/train.py --root /ros/datasets/demonstrations_v8.zarr --epoch 0 --batch_size 64 --save_every 10 --log_freq 10 --plot_freq 500 --out_dir /ros/visuomotor_core/outputs/train_v8_continuous_convergence"
+
+# 13. Parada Limpia a Demanda del Entrenamiento (sin pérdida de datos ni corrupción)
+touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
 ```
 
 ---

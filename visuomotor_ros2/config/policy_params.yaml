@@ -5,8 +5,8 @@ policy_node:
     model_type: "diffusion"
     
     # Ruta absoluta al directorio que contiene los pesos (weights) y configuración del modelo entrenado
-    checkpoint_path: "/ros/visuomotor_core/outputs/train_500_dataV7_fixed/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
-    
+    checkpoint_path: "/ros/visuomotor_core/outputs/train_v8_continuous_convergence/" #si 400_dataV4 500  300_dataV3  20      no 100, 50
+
     # --- Configuración de Inferencia y Rendimiento ---
     # Frecuencia (Hz) a la que corre el bucle principal del nodo de inferencia
     inference_hz: 20.0

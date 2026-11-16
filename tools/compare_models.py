@@ -44,7 +44,7 @@ COLORS = {
 
 
 class PolicyBenchmarkRunner(Node):
-    def __init__(self, out_dir: Path, max_steps_per_episode: int = 1400):
+    def __init__(self, out_dir: Path, max_steps_per_episode: int = 2400):
         super().__init__("policy_benchmark_runner")
         self.out_dir = out_dir
         self.out_dir.mkdir(parents=True, exist_ok=True)
@@ -211,20 +211,33 @@ class PolicyBenchmarkRunner(Node):
         }
 
 
-def generate_shared_poses(n: int, seed: int = 42) -> List[Tuple[float, float, float, float]]:
+def generate_shared_poses(
+    n: int,
+    seed: int = 42,
+    x_bounds: Tuple[float, float] = (-0.38, -0.42),
+    y_bounds: Tuple[float, float] = (-0.56, -1.08),
+    yaw_bounds: Tuple[float, float] = (-3.1415, 3.1415),
+    spawn_z: float = 0.44,
+    safe_margins: Tuple[float, float] = (0.02, 0.02),
+) -> List[Tuple[float, float, float, float]]:
     """Genera n poses cuasi-aleatorias Halton dentro de la mesa calibrada."""
     sampler = qmc.Halton(d=3, scramble=True, seed=seed)
     samples = sampler.random(n)
     poses = []
-    x_min, x_max = -0.385, -0.415
-    y_min, y_max = -0.650, -0.950
-    yaw_min, yaw_max = -1.57, 1.57
-    spawn_z = 0.44
+    x_low, x_high = min(x_bounds), max(x_bounds)
+    y_low, y_high = min(y_bounds), max(y_bounds)
+    yaw_low, yaw_high = min(yaw_bounds), max(yaw_bounds)
+    margin_x, margin_y = safe_margins
 
     for s in samples:
-        x = float(x_min + s[0] * (x_max - x_min))
-        y = float(y_min + s[1] * (y_max - y_min))
-        yaw = float(yaw_min + s[2] * (yaw_max - yaw_min))
+        x = float(x_low + s[0] * (x_high - x_low))
+        y = float(y_low + s[1] * (y_high - y_low))
+        dist_x = min(abs(x - x_low), abs(x - x_high))
+        dist_y = min(abs(y - y_low), abs(y - y_high))
+        if dist_x < margin_x or dist_y < margin_y:
+            yaw = 0.0
+        else:
+            yaw = float(yaw_low + s[2] * (yaw_high - yaw_low))
         poses.append((round(x, 4), round(y, 4), spawn_z, round(yaw, 4)))
     return poses
 
@@ -374,7 +387,7 @@ def plot_comparison_metrics(df, out_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description="Comparador Sistemático de Políticas Visuomotoras")
     parser.add_argument("--episodes", type=int, default=10, help="Número de episodios compartidos (default: 10)")
-    parser.add_argument("--max_steps", type=int, default=1400, help="Límite máximo de pasos por episodio (default: 1400)")
+    parser.add_argument("--max_steps", type=int, default=2400, help="Límite máximo de pasos por episodio (default: 2400)")
     parser.add_argument("--seed", type=int, default=123, help="Semilla para generador Halton (default: 123)")
     parser.add_argument("--out_dir", type=str, default="/ros/visuomotor_core/outputs/benchmark_comparison")
     parser.add_argument("--dp_ckpt", type=str, default="/ros/visuomotor_core/outputs/train_500_dataV7_fixed/", help="Ruta al checkpoint base de Solo DP")

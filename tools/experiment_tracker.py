@@ -23,6 +23,7 @@ from visuomotor_core.utils.tracker import (
     find_db_path,
     init_db,
     record_dataset,
+    record_dataset_episode,
     record_eval_run,
     record_rl_run,
     record_train_run,
@@ -56,6 +57,14 @@ class ExperimentTracker:
 
     def get_datasets(self) -> List[Dict[str, Any]]:
         return self._query("SELECT * FROM datasets ORDER BY timestamp DESC")
+
+    def get_dataset_episodes(self, dataset_name: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        if dataset_name:
+            return self._query(
+                "SELECT * FROM dataset_episodes WHERE dataset_name = ? ORDER BY episode_idx ASC LIMIT ?",
+                (dataset_name, limit),
+            )
+        return self._query("SELECT * FROM dataset_episodes ORDER BY timestamp DESC LIMIT ?", (limit,))
 
     def print_summary_table(self) -> None:
         print("\n" + "=" * 90)
@@ -121,14 +130,59 @@ class ExperimentTracker:
         else:
             print("   (No hay datasets registrados aún)")
 
+        # 5. TELEMETRÍA DE EPISODIOS INDIVIDUALES
+        eps_meta = self._query("SELECT COUNT(*) as c, COUNT(DISTINCT dataset_name) as d FROM dataset_episodes")
+        ep_count = eps_meta[0]['c'] if eps_meta else 0
+        ds_ep_count = eps_meta[0]['d'] if eps_meta else 0
+        print(f"\n🔬 5. TELEMETRÍA DE EPISODIOS INDIVIDUALES ({ep_count} episodios en {ds_ep_count} datasets)")
+        if ep_count > 0:
+            sample_eps = self.get_dataset_episodes(limit=5)
+            header = f"{'Dataset':<24} | {'Ep':<4} | {'Spawn (X, Y, Z)':<24} | {'Yaw(rad)':<9} | {'Steps':<6} | {'Sim(s)':<7} | {'Wall(s)':<7}"
+            print("-" * len(header))
+            print(header)
+            print("-" * len(header))
+            for e in sample_eps:
+                sx = f"{e['obj_spawn_x']:.3f}" if e.get('obj_spawn_x') is not None else "N/A"
+                sy = f"{e['obj_spawn_y']:.3f}" if e.get('obj_spawn_y') is not None else "N/A"
+                sz = f"{e['obj_spawn_z']:.2f}" if e.get('obj_spawn_z') is not None else "N/A"
+                spawn_str = f"({sx}, {sy}, {sz})"
+                yaw_str = f"{e['obj_spawn_yaw']:<9.2f}" if e.get('obj_spawn_yaw') is not None else f"{'N/A':<9}"
+                steps_val = e.get('steps', 0) or 0
+                sim_dur = e.get('sim_duration_s', 0.0) or 0.0
+                wall_dur = e.get('wall_duration_s', 0.0) or 0.0
+                print(f"{e['dataset_name'][:24]:<24} | {e['episode_idx']:<4} | {spawn_str:<24} | {yaw_str} | {steps_val:<6} | {sim_dur:<7.2f} | {wall_dur:<7.2f}")
+        else:
+            print("   (No hay episodios individuales registrados aún)")
+
         print("\n" + "=" * 90 + "\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gestor y Visor de Experimentos Científicos")
-    parser.add_argument("action", choices=["summary", "list"], default="summary", nargs="?")
+    parser.add_argument("action", choices=["summary", "list", "episodes"], default="summary", nargs="?")
+    parser.add_argument("--dataset", type=str, default=None, help="Filtrar por dataset")
+    parser.add_argument("--limit", type=int, default=20, help="Límite de episodios a mostrar")
     parser.add_argument("--db", type=str, default=None, help="Ruta alternativa a experiments.db")
     args = parser.parse_args()
 
     tracker = ExperimentTracker(db_path=args.db)
-    tracker.print_summary_table()
+    if args.action == "episodes":
+        eps = tracker.get_dataset_episodes(dataset_name=args.dataset, limit=args.limit)
+        print(f"\n🔬 TELEMETRÍA DE EPISODIOS ({len(eps)} mostrados):")
+        header = f"{'Dataset':<24} | {'Ep':<4} | {'Spawn (X, Y, Z)':<24} | {'Yaw(rad)':<9} | {'Steps':<6} | {'Sim(s)':<7} | {'Wall(s)':<7}"
+        print("-" * len(header))
+        print(header)
+        print("-" * len(header))
+        for e in eps:
+            sx = f"{e['obj_spawn_x']:.3f}" if e.get('obj_spawn_x') is not None else "N/A"
+            sy = f"{e['obj_spawn_y']:.3f}" if e.get('obj_spawn_y') is not None else "N/A"
+            sz = f"{e['obj_spawn_z']:.2f}" if e.get('obj_spawn_z') is not None else "N/A"
+            spawn_str = f"({sx}, {sy}, {sz})"
+            yaw_str = f"{e['obj_spawn_yaw']:<9.2f}" if e.get('obj_spawn_yaw') is not None else f"{'N/A':<9}"
+            steps_val = e.get('steps', 0) or 0
+            sim_dur = e.get('sim_duration_s', 0.0) or 0.0
+            wall_dur = e.get('wall_duration_s', 0.0) or 0.0
+            print(f"{e['dataset_name'][:24]:<24} | {e['episode_idx']:<4} | {spawn_str:<24} | {yaw_str} | {steps_val:<6} | {sim_dur:<7.2f} | {wall_dur:<7.2f}")
+    else:
+        tracker.print_summary_table()
+

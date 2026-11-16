@@ -1,0 +1,36 @@
+{
+  "dataset_path": "datasets/demonstrations_v8.zarr",
+  "is_valid": true,
+  "total_episodes": 1000,
+  "total_steps": 274893,
+  "episodes_passed": 1000,
+  "episodes_failed": 0,
+  "episodes_warned": 0,
+  "errors": [],
+  "warnings": [],
+  "metrics": {
+    "total_episodes": 1000,
+    "total_steps": 274893,
+    "min_steps": 180,
+    "max_steps": 1609,
+    "mean_steps": 274.893,
+    "std_steps": 123.95817662018105,
+    "min_done_frames": 40,
+    "max_done_frames": 41,
+    "mean_done_frames": 40.315,
+    "std_done_frames": 0.46451587701606073,
+    "min_done_duration_s": 2.0,
+    "total_chunks_decompressed": 274893,
+    "spurious_zeros_count": 0
+  },
+  "dataloader_compatible": true,
+  "dataloader_batch_shapes": {
+    "observation.image": "(16, 2, 3, 256, 256)",
+    "observation.state": "(16, 2, 8)",
+    "action": "(16, 16, 9)",
+    "action_is_pad": "(16, 16)"
+  },
+  "policy_step_verified": true,
+  "initial_policy_loss": 1.2129392623901367,
+  "elapsed_time_s": 98.31258964538574
+}

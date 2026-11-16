@@ -3,7 +3,7 @@ name: diffusion-policy-expert
 description: Advanced knowledge base and best practices for tuning, debugging, and improving Diffusion Policy (DP) models in robotic visuomotor control. Includes architectural pipelines, mathematical formulations, and troubleshooting guides.
 ---
 
-# Diffusion Policy Expert Knowledge Base
+# Diffusion Policy Expert Knowledge Base (v1.1)
 
 ## 1. La Jerarquía Visuomotora (The Robotics AI Stack)
 El ecosistema visuomotor opera en 6 capas rigurosamente desacopladas:
@@ -34,17 +34,18 @@ flowchart TD
     subgraph DataGen [FASE 1: Generación de Datos Sintéticos Expertos]
         direction TB
         H[Halton QMC 3D: XY Yaw]:::math --> FSM[Expert FSM: 12 Estados]:::control
-        FSM --> PID[Cartesian PID 100Hz: Virtual Setpoint Anti-Runaway]:::control
+        FSM --> PID[Cartesian PID 100Hz: max_speed 0.20 m/s]:::control
         PID --> RobotState["Propiocepción 8D (Qw >= 0)"]:::hardware
         Cam[Cámara RGB Muñeca 256x256]:::hardware --> ImgData[Imágenes RGB]:::database
         RobotState --> ZARR[("Zarr Dataset: demonstrations_vX.zarr")]:::database
         ImgData --> ZARR
+        ZARR --> VDG[Verificación de Integridad: verify_dataset_frequency.py]:::control
     end
 
     %% --- DATALOADER & REGULARIZACIÓN ---
     subgraph DataloaderPipe [FASE 2: Ingesta, Copy-Padding y Regularización]
         direction TB
-        ZARR --> CP[Copy-Padding Terminal: Repite Último Frame H=16]:::math
+        VDG --> CP[Copy-Padding Terminal: Repite Último Frame H=16]:::math
         CP --> DropProp[Proprioception Dropout: 15% Ceros]:::math
         DropProp --> Norm[Normalización Min-Max: -1 a 1 con eps=1e-4]:::math
         Norm --> Batch[Batch Tensorizado 64]:::database
@@ -127,6 +128,14 @@ En políticas visuomotoras continuas basadas en difusión:
 * Movimientos rápidos de rotación del gripper combinados con descensos bruscos provocan *Motion Blur* severo en la cámara de muñeca, degradando las activaciones del ResNet.
 * **Solución:** Incluir un multiplicador de "velocidad tortuga" (`turtle_descent_multiplier: 0.15`) y modular la velocidad de descenso en $Z$ de forma inversamente proporcional al error angular pendiente.
 
+### D. Calibración Cinemática Óptima (Frontera Pareto 0.20 m/s)
+* **Velocidad Traslacional (`max_speed_m_s: 0.20`):** Equilibrio óptimo entre dinamismo y estabilidad física (~56 s de pared por ciclo). Suprime sobreimpulsos inerciales durante `ALIGN_ROTATION` y amortigua el contacto fino durante `SETTLE`.
+* **Purga de Tiempos Muertos de FSM:**
+  - `wait_time_s: 0.8`: Asimilación física de respawn Halton ($0.3\text{ s}$ reposicionamiento + $0.5\text{ s}$ estabilización estática).
+  - `reset_joints_duration_s: 1.5`: Retorno articular continuo a Home.
+  - `settle_time_s: 0.1`: Transición rápida a cierre tras descenso.
+  - `hold_target_time_s: 2.0`: Garantiza el piso matemático exacto de 40 frames continuos con `done_flag = 1.0` a 20 Hz.
+
 ---
 
 ## 5. Modelado de Fin de Tarea (Auto-Stop) y Reglas de Tensores
@@ -154,10 +163,12 @@ En políticas visuomotoras continuas basadas en difusión:
   actions = np.concatenate([actual_actions, pad_actions], axis=0)
   ```
   Esto enseña a la red a detenerse y permanecer estática en destino cuando la imagen confirma el éxito.
+  *Nota Crítica:* Para que el copy-padding sea efectivo, el colector sintético debe garantizar al menos 40 frames continuos (2.0 s a 20 Hz) de retención en destino con `done = 1.0`.
 
 ### D. Doble Capa de Auto-Stop Desacoplado en Inferencia
 1. **Auto-Stop Neuronal (Primario):**
-   - Parámetros: `enable_neural_auto_stop: true`, `neural_auto_stop_threshold: 0.05` a `0.50`.
+   - Parámetros: `enable_neural_auto_stop: true`, `neural_auto_stop_threshold: 0.50` (nominal calibrado para datasets con copy-padding y 40 frames floor; 0.05 reservado para modelos truncados legacy).
+   - En inferencia pareada y benchmarking, se complementa con puerta de proximidad a Home (`dist_home < 0.10 m`).
    - Se activa cuando $\text{action}[0, 8] \ge \text{umbral}$.
    - Pasa inmediatamente a `State.DONE`, congela el brazo y retiene el gripper.
 2. **Auto-Stop Heurístico (Respaldo):**
@@ -181,6 +192,11 @@ Para mitigar el jitter sin retrasar la respuesta:
    - Timeout de 0.5 s para resetear memorias si la inferencia se suspende.
 3. **Capa 3: Publicación Unidimensional del Gripper:**
    El controlador en simulación espera un `Float64MultiArray` con **estrictamente 1 elemento** `[pos]`. Publicar arreglos bidimensionales produce el rechazo silencioso de la orden.
+
+### D. Orquestación Automatizada Headless (Isaac Sim + ROS 2)
+* **Inferencia de Política:** `./tools/sim/run_headless_system.sh inference --checkpoint RUTA`
+* **Fine-Tuning RL DPPO:** `./tools/sim/run_headless_system.sh rl --checkpoint RUTA`
+* **Parada Limpia y Recuperación de VRAM:** `./tools/sim/run_headless_system.sh stop`
 
 ---
 
@@ -320,3 +336,19 @@ $$\mathbf{a}_{\text{final}} = \pi_{\text{base}}(\mathbf{s}) + \pi_{\text{res}}(\
 > [!TIP]
 > **Estrategia Híbrida Óptima para Agro-Robótica:**
 > Aplicar **LoRA en ResNet-18** con Co-Fine-Tuning (20% real / 80% sim) para adaptar la visión al sol desértico (Etapa 2), y superponer una **capa residual ResiP/TRANSIC acotada** ($\pm 10\text{ mm}$) condicionada por la pseudo-fuerza elástica ($\delta_{\text{elastic}} \ge 0.7\text{ mm}$) para garantizar el corte o sujeción del pedúnculo sin dañar el fruto (Etapa 3).
+
+---
+
+## 12. Criterios de Parada Asintótica, Frente de Pareto y Monitoreo de Curvas
+
+### A. Cantidad Efectiva de Épocas ($E^* = 50\text{--}100$)
+- En políticas de difusión sobre datasets de ~300 a 500 episodios, la red consolida su destreza visuo-motora completa entre la época 50 y la 100.
+- **Régimen de Sobreajuste Motor (>200 épocas):** Aunque el loss continúe decayendo asintóticamente hacia $\sim 0.003$, la política degrada su sincronización de pinza y precisión espacial, colapsando la tasa de éxito físico ($0\%$).
+
+### B. Piso Irreducible de Pérdida (Noise Floor)
+- El loss asintótico en difusión DDIM se estabiliza naturalmente en la banda $[0.0034, 0.0054]$ MSE.
+- Micro-rebotes estocásticos puntuales (ej. $0.0066$) reflejan el ruido intrínseco de los timesteps $k \sim \mathcal{U}(0, K-1)$ y mini-batches $\boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ y no deben confundirse con divergencia.
+
+### C. Doble Eje X Obligatorio y Parametrización de Datasets
+- Todo gráfico de pérdida temporal debe renderizar sincronizadamente los Pasos (eje inferior) y las Épocas (eje superior: $\text{epoch} = \text{step} / N_{\text{steps\_per\_epoch}}$).
+- Prohibición estricta de nombres de dataset hardcodeados: las herramientas deben recibir `dataset_name` dinámicamente y reflejarlo en títulos y leyendas.
