@@ -26,6 +26,7 @@ setup(
             'sim_collector = visuomotor_data_collection.sim_collector_node:main',
             'pickup_approximate = visuomotor_data_collection.pickup_approximate:main',
             'bag_converter = visuomotor_data_collection.bag_converter_node:main',
+            'vo_collector = visuomotor_data_collection.vo_collector_node:main',
         ],
     },
 )

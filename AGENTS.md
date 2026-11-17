@@ -196,6 +196,12 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Doble Eje X Sincrónico:* Todo gráfico de pérdida temporal debe mostrar de forma explícita el eje X inferior en **Pasos de Optimización** y el eje X superior en **Épocas de Entrenamiento** ($1\text{ Época} = N\text{ Pasos}$).
    - *Inviolabilidad de Pesos:* Las herramientas de análisis, graficado y re-evaluación operan estrictamente en modo de solo lectura sobre los checkpoints y `model.safetensors`.
    - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
+17. **Odometría Visual con RTAB-Map y RealSense D415 para Demostraciones Reales:**
+   - *Pipeline Desacoplado:* Captura manual de aproximación (*approaching*) en hardware real mediante `realsense2_camera` (640x480@30Hz, proyector IR activo y profundidad alineada) + `rtabmap_odom` (`rgbd_odometry`) operando a ~57 Hz en CPU i9-13950HX.
+   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino.
+   - *Lanzador y Permisos USB:* `tools/hardware/run_vo_container.sh` con montaje dinámico en caliente de `/dev` y `/dev/bus/usb`.
+   - *Justificación Física:* RTAB-Map RGB-D es superior a cuVSLAM para la RealSense D415 al aprovechar el proyector IR y cómputo ASIC sin depender de IMU física ni sufrir divergencia por *rolling shutter*.
+   - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
 
 ---
 

@@ -18,6 +18,10 @@
   <exec_depend>image_transport</exec_depend>
   <exec_depend>foxglove_bridge</exec_depend>
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rtabmap_ros</exec_depend>
+  <exec_depend>rtabmap_rviz_plugins</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

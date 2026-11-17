@@ -1,0 +1,11 @@
+vo_collector_node:
+  ros__parameters:
+    dataset_path: "AUTO"
+    dataset_prefix: "demonstrations_real"
+    sampling_rate_hz: 20.0
+    camera_topic: "/camera/camera/color/image_raw"
+    odom_topic: "/rtabmap/odom"
+    image_size: 256
+    min_hold_duration_s: 2.0
+    record_done_flag: true
+    min_inliers_tracking: 10
