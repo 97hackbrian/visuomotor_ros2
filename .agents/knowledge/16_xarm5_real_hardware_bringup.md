@@ -91,8 +91,13 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * **Frenos:** SDK (`xarm_report.cc`): `motor_brake_states[i] = (mt_brake >> i) & 1`, listo solo si todos los ejes = 1
   → bit 1 = freno liberado; `mt_able` bit 1 = motor habilitado. El puente verifica ambos tras `motion_enable` (armar,
   go_home*) y durante el movimiento; `~/check_brakes` solo lee. Fake driver con fallo `stuck_brake` (J3).
-* **home2:** articulaciones `[6.2822, -0.5001, -0.2717, 1.0231, -0.0022]`, TCP (0.2204, 0.0008, 0.1150) m,
-  rpy (3.1246, 0.2508, 0.0171). Entre dos lecturas con frenos puestos la pose varió ~1.5 mm (posible deriva de freno).
+* **home2:** articulaciones `[6.2822, -0.5001, -0.2717, 1.0231, -0.0022]`, rpy (3.1246, 0.2508, 0.0171).
+  TCP (0.2516, 0.0035, 0.2370) m con offset 0 (antes (0.2204, 0.0008, 0.1150) con offset de 126 mm).
+* **Offset de TCP del controlador puesto a 0 (2026-11-18)** con `set_tcp_offset([0]*6)` + `save_conf` (persistente),
+  porque el brazo no tiene herramienta: el TCP reportado = brida (`link_eef`). El controlador pasó de state 4 a 5
+  (detenido) sin moverse. Al montar una herramienta, volver a fijar su offset y re-medir home2 y el home de la política.
+  Diagnóstico de la primera sesión RViz2 remota: el marcador aparecía "más abajo" por el offset de 126 mm, y el brazo
+  no se movía porque el bringup estaba en dry-run (los clics sí llegaban a la Jetson; Humble↔Jazzy funcionó). Entre dos lecturas con frenos puestos la pose varió ~1.5 mm (posible deriva de freno).
 * **Certificación RViz2 Remota (2026-11-18):** Comunicación validada exitosamente entre el contenedor de la Jetson (Humble) y el equipo remoto (Jazzy) sobre la red del laboratorio mediante `tools/xarm5/run_remote_rviz.sh` y CycloneDDS con peer unicast dinámico (`DDS_PEER`). Telemetría de estado a 0.00 s de latencia, renderizado 3D del manipulador xArm5 verificado en pantalla y marcador interactivo `/xarm5_teleop` acoplado al TCP.
 
 ## 6. Contenedor Jetson

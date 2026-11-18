@@ -42,12 +42,12 @@ policy_node:
     image_size: 256
     
     # Posición Home segura de inicio / reposo (metros y radianes)
-    # = home2 del xArm5 real (TCP medido el 2026-11-18, ver xarm5_real_params.yaml). La fase RESET envía esta pose
+    # = home2 del xArm5 real (TCP = brida, offset del controlador 0; medido el 2026-11-18, ver xarm5_real_params.yaml). La fase RESET envía esta pose
     # y el puente rechaza objetivos a más de max_target_distance_m del TCP: debe coincidir con la pose de inicio.
     # Nota: con orientation_mode top_down_yaw el puente fuerza pitch = 0 (la garra se endereza ~14 grados).
-    home_x: 0.2204
-    home_y: 0.0008
-    home_z: 0.1150
+    home_x: 0.2516
+    home_y: 0.0035
+    home_z: 0.2370
     home_roll: 3.1246
     home_pitch: 0.2508
     home_yaw: 0.0171
