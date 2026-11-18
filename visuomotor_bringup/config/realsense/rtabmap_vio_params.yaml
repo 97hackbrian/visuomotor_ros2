@@ -5,17 +5,30 @@
     publish_tf: true
     wait_for_transform: 0.2
     approx_sync: true
-    queue_size: 20
-    wait_imu_to_init: true       # Esperar a la lectura inercial inicial para alinear con la gravedad
+    queue_size: 25
+    wait_imu_to_init: true       # Alineación gravitacional inicial
     
-    # ── Parámetros VIO (Fusión Visual-Inercial) ──
-    Odom/Strategy: "0"          # 0=Frame-to-Map para mínima deriva
-    Odom/ResetCountdown: "0"    # 0=Desactivar reinicio a 0,0,0 en tracking loss
-    Vis/CorType: "0"            # 0=Features Matching
-    Vis/FeatureType: "8"        # 8=GFTT/ORB nativo de OpenCV (robusto y rápido a 30 Hz)
-    Vis/MaxFeatures: "1000"
-    Vis/MinInliers: "10"
-    Vis/EstimationType: "1"     # 1=PnP 3D->2D
-    Vis/PnPReprojError: "2.0"
-    Odom/FilteringStrategy: "1" # Filtro Kalman para suavizado continuo
-    Odom/AlignWithGround: "true" # Alineación automática del marco con la gravedad terrestre
+    # ── 1. Predicción de Movimiento (Anti-Loose Tracking) ──
+    Odom/Strategy: "0"                     # 0=Frame-to-Map para mínima deriva
+    Odom/GuessMotion: "true"               # Extrapola velocidad e integra IMU (evita pérdida de tracking en movimientos rápidos)
+    Odom/ResetCountdown: "0"               # 0=Desactivar reinicio a 0,0,0 en tracking loss
+    
+    # ── 2. Extracción y Matching de Puntos (GFTT/ORB Calibrado) ──
+    Vis/CorType: "0"                       # 0=Features Matching
+    Vis/FeatureType: "8"                   # 8=GFTT/ORB (óptimo con trama IR de RealSense)
+    Vis/MaxFeatures: "1200"                # Mayor densidad sobre el campo de visión amplio (86°)
+    Vis/MinInliers: "15"                   # Mayor consistencia geométrica requerida
+    Vis/EstimationType: "1"                # 1=PnP 3D->2D
+    Vis/PnPReprojError: "1.5"              # Filtro estricto RANSAC (1.5 px) contra correspondencias espurias
+    
+    # ── 3. Refinamiento Subpíxel (Mínimo Jitter y Máxima Precisión) ──
+    Vis/SubPixIterations: "10"             # Ajuste parabólico continuo subpíxel
+    Vis/SubPixWinSize: "3"                 # Ventana 3x3 de gradiente local
+    
+    # ── 4. Local Bundle Adjustment g2o (Anti-Drift) ──
+    OdomF2M/BundleAdjustment: "1"         # Optimización no lineal de haces en tiempo real
+    OdomF2M/BundleAdjustmentMaxFrames: "8" # Ventana deslizante de 8 keyframes para eliminar deriva acumulada
+    
+    # ── 5. Filtrado y Alineación con Gravedad ──
+    Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo
+    Odom/AlignWithGround: "true"           # Alineación automática del marco con la gravedad terrestre
