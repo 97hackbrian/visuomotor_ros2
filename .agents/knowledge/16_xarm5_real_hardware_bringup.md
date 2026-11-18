@@ -1,4 +1,4 @@
-# 15. Bringup del Manipulador Real xArm5 (UFACTORY) en Jetson Orin Nano
+# 16. Bringup del Manipulador Real xArm5 (UFACTORY) en Jetson Orin Nano
 
 ## 1. Hardware y Hallazgos Previos en la Jetson
 * **Brazo:** UFACTORY xArm5 (5 GDL, 3 kg de carga). Controlador en `192.168.1.228` (3 sesiones antiguas en `.239`).

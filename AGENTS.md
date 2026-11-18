@@ -196,12 +196,19 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Doble Eje X Sincrónico:* Todo gráfico de pérdida temporal debe mostrar de forma explícita el eje X inferior en **Pasos de Optimización** y el eje X superior en **Épocas de Entrenamiento** ($1\text{ Época} = N\text{ Pasos}$).
    - *Inviolabilidad de Pesos:* Las herramientas de análisis, graficado y re-evaluación operan estrictamente en modo de solo lectura sobre los checkpoints y `model.safetensors`.
    - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
-17. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
+17. **Odometría Visual con RTAB-Map y RealSense D415 para Demostraciones Reales:**
+   - *Pipeline Desacoplado:* Captura manual de aproximación (*approaching*) en hardware real mediante `realsense2_camera` (640x480@30Hz, proyector IR activo y profundidad alineada) + `rtabmap_odom` (`rgbd_odometry`). Visor gráfico RViz2 cargando `vo_vis.rviz`.
+   - *Benchmarking y Metrología:* Validación empírica con `tools/hardware/benchmark_vo.py`: Baseline GFTT/ORB certificado a $30.63\text{ Hz}$, $22.05\text{ ms}$ de CPU, $300.5\text{ inliers}$, $0.394\text{ mm}$ de jitter 3D y $0.0467^\circ$ angular, superando a SIFT debido a la interacción con la trama láser infrarroja activa de la D415.
+   - *Recolector FSM a 20 Hz y Primer Dataset Certificado:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino. Validación del dataset real `datasets/demonstrations_real_v2.zarr` (7 episodios, $2,909$ pasos, hold en destino $\ge 2.5\text{ s} - 4.2\text{ s}$) y visualización con `tools/visualize_dataset.py`.
+   - *Lanzador y Permisos USB:* `tools/hardware/run_vo_container.sh` con montaje dinámico en caliente de `/dev` y `/dev/bus/usb`, y grupos de sistema (`--group-add 44 --group-add 46`).
+   - *Justificación Física:* RTAB-Map RGB-D es superior a cuVSLAM para la RealSense D415 al aprovechar el proyector IR y cómputo ASIC sin depender de IMU física ni sufrir divergencia por *rolling shutter*.
+   - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
+18. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
    - *Cadena:* `policy_node` → `target_frame_raw` → `pose_smoother` → `target_frame` → `xarm5_bridge` → `/xarm/set_servo_cartesian` (modo 1). TF `link_base→xarm_tcp` y `/visuomotor/gripper_joint_states` (escala de la política) los publica el puente.
    - *Seguridad obligatoria:* el puente arranca **desarmado** y con `dry_run: true`; solo `~/arm` habilita movimiento. Caja de trabajo, límites de velocidad, rechazo de objetivos lejanos, watchdog y desarme ante error del controlador. Nunca desactivar estas protecciones en código; ajustarlas en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`.
    - *5 GDL:* orientación 6D no alcanzable; `orientation_mode: top_down_yaw` (garra vertical + yaw de la política).
    - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
-   - *Memoria Modular:* `.agents/knowledge/15_xarm5_real_hardware_bringup.md`.
+   - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
 
 ---
 
@@ -252,6 +259,11 @@ docker exec -it -u 1000 -w /ros visuomotor_ros2 bash -c "python3 /ros/visuomotor
 
 # 13. Parada Limpia a Demanda del Entrenamiento (sin pérdida de datos ni corrupción)
 touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
+
+# 14. Recolección y Visualización de Demostraciones Reales (RealSense D415 + RTAB-Map VO)
+./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d415_vo.launch.py gui:=true
+docker exec -it -u 1000 visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
+docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset datasets/demonstrations_real_v2.zarr --out-dir datasets/visualizations_real_v2
 ```
 
 ---
