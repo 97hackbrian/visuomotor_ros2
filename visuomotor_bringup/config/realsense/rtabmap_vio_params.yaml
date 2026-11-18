@@ -31,4 +31,4 @@
     
     # ── 5. Filtrado y Alineación con Gravedad ──
     Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo
-    Odom/AlignWithGround: "true"           # Alineación automática del marco con la gravedad terrestre
+    Odom/AlignWithGround: "false"          # Inicia odom en lente de camara (evita traslacion heuristica al piso; IMU mantiene Z vertical)

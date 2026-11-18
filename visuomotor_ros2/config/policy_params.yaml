@@ -75,6 +75,11 @@ policy_node:
     home_pitch: 0.0
     home_yaw: 0.0
 
+    # --- Coordenadas Relativas (Modo UMI / Delta-Home) ---
+    # Si es True, resta la pose de Home a la observación (ee_pose[:3] - home_pos)
+    # y suma la pose de Home a la acción predicha (pred_action[:3] + home_pos) antes de ejecutarla.
+    relative_coordinates: true
+
     # --- Condición de Fin de Tarea (Auto-Stop) ---
     # 1. Auto-Stop Neuronal (Dimensión 9):
     # Activa la detección por bandera de la red neuronal. Si el modelo entrenado incluye la 9na 

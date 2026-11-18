@@ -212,6 +212,10 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *home2:* pose de trabajo actual del brazo (`home2_joints_rad`, servicio `~/go_home2`); home de la política alineado a su TCP.
    - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
    - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
+19. **Unificación de Coordenadas Relativas (Modo SOTA UMI / Delta-Home):**
+   - *Invariante Arquitectónica:* Para eliminar la dependencia de marcos globales arbitrarios o de la cota del piso en RTAB-Map (`Odom/AlignWithGround: false`), todo episodio arranca en el origen estricto: $\mathbf{p}_{\text{rel}} = (0.0, 0.0, 0.0)$ en el paso $t=0$.
+   - *Recolección Real e Isaac Sim:* Activado mediante `relative_coordinates: true` en `vo_data_collection_params.yaml` y `data_collection_params.yaml`. En simulación resta la pose inicial Home ($\mathbf{p}_t - \mathbf{p}_{\text{home}}$); en recolección manual resta la pose inicial del lente ($\mathbf{p}_t - \mathbf{p}_{\text{start}}$). Certificado en metadatos Zarr (`ep.attrs['relative_coordinates'] = True`) y auditado por `tools/verify_zarr_dataset.py`.
+   - *Inferencia en Robot:* `policy_node.py` resta `home_pos` a `observation.state[0:3]` y suma `home_pos` a las trayectorias predichas en `action[0:3]` (soporta vectores 1D y chunks 2D) antes de publicarlas hacia `ActionChunk` / `xarm5_bridge`, manteniendo consistencia sim-to-real idéntica sin requerir tags en la mesa. Estabilización estricta de cuaternión en semiesfera superior ($q_w \ge 0$) y norma unitaria. Test suite: `tests/test_relative_coordinates.py` (15/15 passed).
 
 ---
 
