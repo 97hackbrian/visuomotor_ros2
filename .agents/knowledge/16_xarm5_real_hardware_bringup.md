@@ -92,6 +92,7 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   go_home*) y durante el movimiento; `~/check_brakes` solo lee. Fake driver con fallo `stuck_brake` (J3).
 * **home2:** articulaciones `[6.2822, -0.5001, -0.2717, 1.0231, -0.0022]`, TCP (0.2204, 0.0008, 0.1150) m,
   rpy (3.1246, 0.2508, 0.0171). Entre dos lecturas con frenos puestos la pose varió ~1.5 mm (posible deriva de freno).
+* **Certificación RViz2 Remota (2026-11-18):** Comunicación validada exitosamente entre el contenedor de la Jetson (Humble) y el equipo remoto (Jazzy) sobre la red del laboratorio mediante `tools/xarm5/run_remote_rviz.sh` y CycloneDDS con peer unicast dinámico (`DDS_PEER`). Telemetría de estado a 0.00 s de latencia, renderizado 3D del manipulador xArm5 verificado en pantalla y marcador interactivo `/xarm5_teleop` acoplado al TCP.
 
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
