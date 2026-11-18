@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (código de salida 0 = todas las comprobaciones OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (22 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -211,6 +211,41 @@ class Checker(Node):
         s = self.stats()
         self.check("17. go_home desarmado: set_servo_angle con home_joints_rad",
                    r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home_joints_rad"]],
+                   r.message)
+
+        # --- Frenos (semántica SDK: bit 1 = freno liberado / motor habilitado) -------------------------
+        all_axes = (1 << BR["dof"]) - 1
+        r = self.arm()
+        s = self.stats()
+        cb = self.call(Trigger, "/xarm5_bridge/check_brakes")
+        self.check("18. Armado verifica frenos liberados y motores habilitados en todos los ejes",
+                   r.success and s["mt_brake"] == all_axes and s["mt_able"] == all_axes and cb.success,
+                   cb.message)
+
+        self.fault("stuck_brake", True)          # el freno de J3 se aplica con el brazo armado
+        self.spin_for(0.5, every=lambda: self.target(0.32, 0.05, 0.35))
+        n_a = self.stats()["servo_ok"]
+        armed_stuck = self.armed()
+        n_b = self.stats()["servo_ok"]
+        self.check("19. Freno aplicado durante el movimiento -> desarme inmediato y sin comandos",
+                   not armed_stuck and n_b == n_a and f"mt_brake=0b{all_axes & ~(1 << 2):0{BR['dof']}b}" in self.status,
+                   self.status[-40:])
+
+        r = self.arm()                            # el freno de J3 no se libera al habilitar
+        s = self.stats()
+        self.check("20. Armado con freno sin liberar (J3) -> rechazado, vuelve a modo posición",
+                   not r.success and "J3" in r.message and s["mode"] == 0, r.message[:110])
+
+        n_angle = len(self.stats()["set_servo_angle"])
+        r = self.call(Trigger, "/xarm5_bridge/go_home2", timeout=BR["home_timeout_s"] + 10)
+        self.check("21. go_home2 con freno sin liberar -> cancelado sin mover",
+                   not r.success and len(self.stats()["set_servo_angle"]) == n_angle, r.message[:110])
+        self.fault("stuck_brake", False)
+
+        r = self.call(Trigger, "/xarm5_bridge/go_home2", timeout=BR["home_timeout_s"] + 10)
+        s = self.stats()
+        self.check("22. go_home2: set_servo_angle con home2_joints_rad",
+                   r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home2_joints_rad"]],
                    r.message)
 
         n_fail = sum(1 for _, ok in self.results if not ok)

@@ -75,6 +75,24 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   Luego quedó estable (`mt_able=0`, `mt_brake=0`). No usar `motion_enable(8, 0)` con el brazo en el aire hasta revisar
   frenos/procedimiento con UFACTORY; la pose inicial de la sesión (z=165.9) pudo ser también resultado de una caída previa.
 
+## 5e. Teleoperación RViz2 remota, frenos y home2 (2026-11-18)
+* **Teleop:** `scripts/xarm5_teleop_marker.py` (Jetson) crea el marcador interactivo `/xarm5_teleop` sobre el TCP
+  (TF `link_base→xarm_tcp`); controles X/Y/Z + yaw (marco fijo); menú Seguir/Detener/Sincronizar/Armar/Desarmar/
+  home2/Comprobar frenos. Publica `/target_frame` a 20 Hz solo con *Seguir* + puente ARMADO; se apaga solo si el
+  puente se desarma. RViz2 corre en otro equipo con `launch/xarm5_rviz.launch.py` + `rviz/xarm5_teleop.rviz`.
+* **URDF:** `robot_state_publisher` en la Jetson con `xarm_device.urdf.xacro` (dof 5) y `joint_states` remapeado a
+  `/xarm/joint_states`; `xacro` 2.0.8 se compila en `/opt/xarm_ws`. El equipo remoto necesita `xarm_description` para
+  las mallas.
+* **Red:** Jetson con dos interfaces (eth0 robot / wlan0 laboratorio). `deploy/jetson/config/cyclonedds.xml` fija la
+  interfaz DDS con `DDS_IFACE` (defecto wlan0) y admite `DDS_PEER` (unicast). `ROS_DOMAIN_ID=30` para el robot real,
+  separado de 42/43 de la simulación. Humble (Jetson) ↔ Jazzy (otro equipo): interoperabilidad DDS no garantizada
+  oficialmente; alternativa: RViz2 en un contenedor Humble en el otro equipo.
+* **Frenos:** SDK (`xarm_report.cc`): `motor_brake_states[i] = (mt_brake >> i) & 1`, listo solo si todos los ejes = 1
+  → bit 1 = freno liberado; `mt_able` bit 1 = motor habilitado. El puente verifica ambos tras `motion_enable` (armar,
+  go_home*) y durante el movimiento; `~/check_brakes` solo lee. Fake driver con fallo `stuck_brake` (J3).
+* **home2:** articulaciones `[6.2822, -0.5001, -0.2717, 1.0231, -0.0022]`, TCP (0.2204, 0.0008, 0.1150) m,
+  rpy (3.1246, 0.2508, 0.0171). Entre dos lecturas con frenos puestos la pose varió ~1.5 mm (posible deriva de freno).
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

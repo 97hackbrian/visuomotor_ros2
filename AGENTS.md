@@ -207,6 +207,9 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Cadena:* `policy_node` → `target_frame_raw` → `pose_smoother` → `target_frame` → `xarm5_bridge` → `/xarm/set_servo_cartesian` (modo 1). TF `link_base→xarm_tcp` y `/visuomotor/gripper_joint_states` (escala de la política) los publica el puente.
    - *Seguridad obligatoria:* el puente arranca **desarmado** y con `dry_run: true`; solo `~/arm` habilita movimiento. Caja de trabajo, límites de velocidad, rechazo de objetivos lejanos, watchdog y desarme ante error del controlador. Nunca desactivar estas protecciones en código; ajustarlas en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`.
    - *5 GDL:* orientación 6D no alcanzable; `orientation_mode: top_down_yaw` (garra vertical + yaw de la política).
+   - *Teleop RViz2 remota:* Jetson corre `xarm5_real.launch.py` (driver + puente + `robot_state_publisher` + `xarm5_teleop_marker`); el otro equipo solo `xarm5_rviz.launch.py`. `ROS_DOMAIN_ID=30` para el robot real (nunca 42/43 de la simulación); DDS por `wlan0` (`deploy/jetson/config/cyclonedds.xml`).
+   - *Frenos:* tras habilitar motores, todos los ejes deben reportar freno liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) o no se envía movimiento; `~/check_brakes` solo lee. No usar `motion_enable` data=0 con el brazo en el aire (caída de ~5 cm medida).
+   - *home2:* pose de trabajo actual del brazo (`home2_joints_rad`, servicio `~/go_home2`); home de la política alineado a su TCP.
    - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
    - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
 

@@ -25,7 +25,7 @@ fi
 
 # Configuración de DDS de baja latencia para comunicación robot/cámara
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}  # dominio del robot real (la simulación usa 42/43)
 
 # Ejecutar el comando pasado como argumento
 exec "$@"

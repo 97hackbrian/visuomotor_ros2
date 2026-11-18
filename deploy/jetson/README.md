@@ -117,8 +117,13 @@ y desarme automático si el controlador reporta error, se pierde `robot_states` 
 (`orientation_mode: top_down_yaw`) la garra se mantiene vertical y solo se usa el giro (yaw) que pide la política.
 
 ### Red
-El controlador está en `192.168.1.228` (valor histórico). La Jetson necesita una interfaz **cableada** en esa
-subred, por ejemplo `192.168.1.10/24` (sin puerta de enlace, para no romper el Wi-Fi).
+El controlador está en `192.168.1.228` (verificado). La Jetson usa `eth0` con `192.168.1.5/24` para el robot y
+`wlan0` para la red del laboratorio. **DDS (ROS 2) sale por `wlan0`** (`config/cyclonedds.xml`, variable `DDS_IFACE`):
+el driver habla con el controlador por TCP, no por DDS. Si la red bloquea multicast, definir `DDS_PEER=<IP del otro
+equipo>` antes de `docker compose up -d`.
+
+**Dominio DDS del robot real: `ROS_DOMAIN_ID=30`** (compose). La simulación del otro equipo usa 42/43: mantenerlos
+distintos evita que una política simulada publique objetivos que muevan el brazo real.
 
 ### Puesta en marcha por etapas (dentro del contenedor: `docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash`)
 
@@ -149,11 +154,35 @@ En dry-run, `ros2 topic echo /xarm5_bridge/command_preview` muestra la pose que 
 `jetson_policy_params.yaml` (la fase RESET de la política envía esa pose y el puente rechaza objetivos a más de
 `max_target_distance_m` del TCP). En la primera conexión, verificar también `ros2 topic hz /xarm/robot_states`.
 
+### Teleoperación desde RViz2 en otro equipo
+En la Jetson, `xarm5_real.launch.py` lanza además `robot_state_publisher` (URDF del xArm5 desde `xarm_description`)
+y `xarm5_teleop_marker` (marcador interactivo `/xarm5_teleop`). En el otro equipo (mismo `ROS_DOMAIN_ID=30`, RMW
+CycloneDDS y `xarm_description` instalado para las mallas):
+```bash
+ros2 launch visuomotor_bringup xarm5_rviz.launch.py
+```
+Clic derecho sobre la esfera del marcador: *Armar brazo* (sincroniza antes) → *Seguir marcador* → arrastrar flechas
+(X/Y/Z) o el anillo (giro). *Detener seguimiento* / *Desarmar brazo* en cualquier momento. El marcador no publica nada
+si no está en *Seguir* con el puente ARMADO, y el puente sigue aplicando caja, velocidad, distancia máxima y frenos.
+Con `orientation_mode: top_down_yaw`, el primer seguimiento endereza la garra (desde home2, ~14° de pitch).
+No usar el marcador y la política a la vez (ambos publican en `/target_frame`).
+
+### Frenos
+Al armar y antes de `~/go_home`/`~/go_home2`, el puente habilita motores y exige que **todos** los ejes reporten freno
+liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) en `brake_check_timeout_s`; si no, no envía
+movimiento e indica la articulación (p. ej. `freno APLICADO en J3`). Armado, si un eje pierde un bit, se desarma.
+`ros2 service call /xarm5_bridge/check_brakes std_srvs/srv/Trigger` informa sin actuar. No deshabilitar motores
+(`motion_enable` data=0) con el brazo en el aire: hizo caer el brazo ~5 cm.
+
+### home2
+`home2_joints_rad` = pose de trabajo actual (leída del brazo el 2026-11-18). `~/go_home2` la recupera (desarmado).
+El home de la política (`jetson_policy_params.yaml`) apunta a su TCP.
+
 ### Comprobaciones sin hardware (driver falso)
 ```bash
 python3 tools/xarm5/fake_xarm_driver.py &
 ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false &
-python3 tools/xarm5/check_xarm5_bridge.py      # 17 comprobaciones; código de salida 0 = OK
+python3 tools/xarm5/check_xarm5_bridge.py      # 22 comprobaciones; código de salida 0 = OK
 ```
 
 ---

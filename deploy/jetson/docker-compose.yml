@@ -16,8 +16,14 @@ services:
     privileged: true
     environment:
       - DISPLAY=${DISPLAY:-:0}
-      - ROS_DOMAIN_ID=42
+      # Dominio DDS del ROBOT REAL. Distinto del 42/43 de la simulación (Isaac Sim) del otro equipo: si coincidieran,
+      # una política simulada podría publicar objetivos que moverían el brazo real. RViz2 remoto debe usar este mismo.
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # DDS por la red del laboratorio (no por eth0, que es la red del controlador xArm). Ver config/cyclonedds.xml
+      - CYCLONEDDS_URI=file:///ros_ws/cyclonedds.xml
+      - DDS_IFACE=${DDS_IFACE:-wlan0}
+      - DDS_PEER=${DDS_PEER:-localhost}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
@@ -32,6 +38,7 @@ services:
       - ./config/jetson_policy_params.yaml:/ros_ws/install/visuomotor_ros2/share/visuomotor_ros2/config/policy_params.yaml:ro
       # Configuración del xArm5 real (IP, límites, gripper): se edita en el host sin reconstruir la imagen
       - ../../visuomotor_bringup/config/xarm5:/ros_ws/src/visuomotor_bringup/config/xarm5:ro
+      - ./config/cyclonedds.xml:/ros_ws/cyclonedds.xml:ro
     # El contenedor arranca EN ESPERA: no inicia la inferencia (el brazo no se mueve al encender la Jetson).
     # Para lanzarla manualmente:
     #   docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh \

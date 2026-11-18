@@ -228,6 +228,29 @@ def from_robot_pose(pose6: Sequence[float]) -> Tuple[np.ndarray, Tuple[float, fl
 
 
 # ----------------------------------------------------------------------------------------------
+# Frenos y habilitación de motores (RobotMsg.mt_brake / mt_able)
+# ----------------------------------------------------------------------------------------------
+def joints_with_bit_cleared(mask: int, dof: int) -> list:
+    """Articulaciones (1..dof) cuyo bit en ``mask`` vale 0.
+
+    Semántica del SDK UFACTORY (``xarm_report.cc``): ``motor_brake_states[i] = (mt_brake >> i) & 1`` y el robot solo
+    está listo si todos los bits de sus ejes valen 1. Por tanto, en ``mt_brake`` un bit 0 = freno APLICADO
+    (no liberado) y en ``mt_able`` un bit 0 = motor deshabilitado.
+    """
+    if dof < 1:
+        raise ValueError("dof debe ser >= 1")
+    mask = int(mask)
+    return [j + 1 for j in range(dof) if not (mask >> j) & 0x01]
+
+
+def brake_report(mt_brake: int, mt_able: int, dof: int) -> Tuple[bool, list, list]:
+    """``(todo_ok, juntas_con_freno_aplicado, juntas_con_motor_deshabilitado)`` para los ejes 1..dof."""
+    stuck = joints_with_bit_cleared(mt_brake, dof)
+    disabled = joints_with_bit_cleared(mt_able, dof)
+    return (not stuck and not disabled), stuck, disabled
+
+
+# ----------------------------------------------------------------------------------------------
 # Gripper
 # ----------------------------------------------------------------------------------------------
 class GripperBinarizer:
