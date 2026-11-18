@@ -134,6 +134,9 @@ class Checker(Node):
         self.spin_for(1.0, every=lambda: self.target(0.35, 0.05, 0.35, yaw=0.5))
         before = self.stats()["pose"]
         self.spin_for(1.5, every=lambda: self.target(0.35, 0.05, 0.35 + 0.30))  # z fuera de caja -> 0.50 (15 cm)
+        # Esperar a que el watchdog invalide el objetivo anterior: si no, un ciclo residual con ese objetivo
+        # movería el brazo después de tomar la referencia y la comprobación 8 fallaría de forma intermitente.
+        self.spin_for(BR["target_timeout_s"] + 0.3)
         mid = self.stats()["pose"]
         self.spin_for(1.0, every=lambda: self.target(0.05, -0.29, 0.10))  # >25 cm del TCP
         far = self.stats()["pose"]
