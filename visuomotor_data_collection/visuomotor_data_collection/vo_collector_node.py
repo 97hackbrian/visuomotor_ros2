@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import os
 import re
 import glob
@@ -37,6 +38,7 @@ class VOCollectorNode(Node):
         self.declare_parameter('min_hold_duration_s', 2.0)
         self.declare_parameter('record_done_flag', True)
         self.declare_parameter('min_inliers_tracking', 10)
+        self.declare_parameter('relative_coordinates', True)
         
         # Resolución de ruta de dataset
         storage_path = self.get_parameter('dataset_path').value
@@ -114,16 +116,25 @@ class VOCollectorNode(Node):
         pos = msg.pose.pose.position
         ori = msg.pose.pose.orientation
         
-        # Asegurar convención de semiesfera superior (Qw >= 0)
-        qw = ori.w
-        qx = ori.x
-        qy = ori.y
-        qz = ori.z
+        # Asegurar convención de semiesfera superior (Qw >= 0) y cuaternión unitario
+        qw = float(ori.w)
+        qx = float(ori.x)
+        qy = float(ori.y)
+        qz = float(ori.z)
         if qw < 0.0:
             qw = -qw
             qx = -qx
             qy = -qy
             qz = -qz
+            
+        norm_q = np.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+        if norm_q > 1e-6:
+            qx /= norm_q
+            qy /= norm_q
+            qz /= norm_q
+            qw /= norm_q
+        else:
+            qx, qy, qz, qw = 0.0, 0.0, 0.0, 1.0
             
         self.latest_pose = np.array([pos.x, pos.y, pos.z, qx, qy, qz, qw], dtype=np.float32)
 
@@ -134,29 +145,46 @@ class VOCollectorNode(Node):
         if self.latest_img is None or self.latest_pose is None:
             return
             
-        # Transformación relativa respecto al inicio del episodio
+        # Transformación relativa respecto al inicio del episodio (Modo UMI / Delta-Home)
         current_pose = self.latest_pose.copy()
+        use_relative = self.get_parameter('relative_coordinates').value
+
         if self.initial_pose is None:
             self.initial_pose = current_pose.copy()
-            
-        # Coordenadas relativas
-        rel_pos = current_pose[0:3] - self.initial_pose[0:3]
-        rel_ori = current_pose[3:7] # Cuaternión absoluto estabilizado
+            rel_pos = np.zeros(3, dtype=np.float32) if use_relative else current_pose[0:3]
+        else:
+            if use_relative:
+                # Si es el primer paso del buffer, garantizar exactamente (0.0, 0.0, 0.0) sin jitter numérico
+                if len(self.buffer) == 0:
+                    rel_pos = np.zeros(3, dtype=np.float32)
+                else:
+                    rel_pos = current_pose[0:3] - self.initial_pose[0:3]
+            else:
+                rel_pos = current_pose[0:3]
+
+        rel_ori = current_pose[3:7] # Cuaternión absoluto estabilizado (Qw >= 0)
         
         # 1. observation.state: 8 Dimensiones (X, Y, Z, Qx, Qy, Qz, Qw, Gripper)
-        # Cero fuga causal: done JAMÁS forma parte de observation.state
+        # Regla de oro: CERO fuga causal: done JAMÁS forma parte de observation.state
         state_vec = np.zeros(8, dtype=np.float32)
         state_vec[0:3] = rel_pos
         state_vec[3:7] = rel_ori
         state_vec[7] = 0.0 # Gripper abierto (manual approaching)
         
         # 2. action: 9 Dimensiones (Target_X, Target_Y, Target_Z, Target_Q, Target_Gripper, Done_Flag)
-        done_val = 1.0 if self.is_holding else 0.0
-        action_vec = np.zeros(9, dtype=np.float32)
-        action_vec[0:3] = rel_pos
-        action_vec[3:7] = rel_ori
-        action_vec[7] = 0.0
-        action_vec[8] = done_val
+        record_done = self.get_parameter('record_done_flag').value
+        if record_done:
+            done_val = 1.0 if self.is_holding else 0.0
+            action_vec = np.zeros(9, dtype=np.float32)
+            action_vec[0:3] = rel_pos
+            action_vec[3:7] = rel_ori
+            action_vec[7] = 0.0
+            action_vec[8] = done_val
+        else:
+            action_vec = np.zeros(8, dtype=np.float32)
+            action_vec[0:3] = rel_pos
+            action_vec[3:7] = rel_ori
+            action_vec[7] = 0.0
         
         self.buffer.append({
             'image': self.latest_img.copy(),
@@ -196,17 +224,23 @@ class VOCollectorNode(Node):
         rate = self.get_parameter('sampling_rate_hz').value
         min_hold_frames = int(rate * self.get_parameter('min_hold_duration_s').value)
         start_hold_idx = max(0, total_frames - min_hold_frames)
-        for i in range(start_hold_idx, total_frames):
-            self.buffer[i]['action'][8] = 1.0
+        if self.get_parameter('record_done_flag').value:
+            for i in range(start_hold_idx, total_frames):
+                self.buffer[i]['action'][8] = 1.0
             
         attrs = {
-            'sensor': 'Intel RealSense D415',
+            'sensor': 'Intel RealSense',
             'odometry': 'RTAB-Map rgbd_odometry',
             'sampling_rate_hz': float(rate),
             'total_steps': total_frames,
             'hold_steps': (total_frames - start_hold_idx),
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'relative_coordinates': bool(self.get_parameter('relative_coordinates').value),
         }
+        if self.initial_pose is not None:
+            attrs['initial_pos_x'] = float(self.initial_pose[0])
+            attrs['initial_pos_y'] = float(self.initial_pose[1])
+            attrs['initial_pos_z'] = float(self.initial_pose[2])
         
         self.storage.append_episode(self.buffer, attrs=attrs)
         self.get_logger().info(f"✔ [SAVE] Episodio guardado con éxito: {total_frames} frames ({total_frames/rate:.2f} s).")

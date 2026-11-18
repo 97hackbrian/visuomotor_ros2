@@ -1,3 +1,4 @@
+from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -88,6 +89,7 @@ class PickupApproximateNode(Node):
         
         self.declare_parameter('wait_time_s', 0.8)    # Tiempo de espera arriba (acelerado a 0.8s)
         self.declare_parameter('record_done_flag', True) # Grabar la dimensión 9 para Auto-Stop
+        self.declare_parameter('relative_coordinates', True) # Modo UMI / Delta-Home: coordenadas relativas al inicio del episodio
         
         # Parámetros para aleatorización del objeto (respawn)
         self.declare_parameter('random_spawn', True)
@@ -213,6 +215,14 @@ class PickupApproximateNode(Node):
         self.current_jitter_pitch = 0.0
         self.current_jitter_yaw = 0.0
 
+        # Pose Home nominal y ancla para coordenadas relativas
+        self.home_pose = np.array([
+            self.get_parameter('init_x').value,
+            self.get_parameter('init_y').value,
+            self.get_parameter('init_z_height').value
+        ], dtype=np.float32)
+        self.episode_initial_pos = None
+
         # Telemetría estocástica y métricas de episodio
         self.current_spawn_x = 0.0
         self.current_spawn_y = 0.0
@@ -270,6 +280,7 @@ class PickupApproximateNode(Node):
             self.wait_reached_time = None
             self.untilt_reached_time = None
             self.episode_start_time = None
+            self.episode_initial_pos = None
             self.is_recording = False
             self.buffer.clear()
             self.state = 'WAIT'
@@ -586,6 +597,7 @@ class PickupApproximateNode(Node):
                     self.phase_errors = {}
                     self.get_logger().info("WAIT terminado → APPROACH_XY: Centrando sobre el objeto. [START RECORDING]")
                     self.buffer.clear()
+                    self.episode_initial_pos = None
                     self.is_recording = True
                     self.episode_start_time = now
                     self.episode_wall_start = time.perf_counter()
@@ -816,10 +828,16 @@ class PickupApproximateNode(Node):
         target_q = [target_pose.pose.orientation.x, target_pose.pose.orientation.y, target_pose.pose.orientation.z, target_pose.pose.orientation.w]
         if target_q[3] < 0:
             target_q = [-target_q[0], -target_q[1], -target_q[2], -target_q[3]]
+        norm_t = np.linalg.norm(target_q)
+        if norm_t > 1e-6:
+            target_q = [float(x / norm_t) for x in target_q]
             
         current_q = [current_quat[0], current_quat[1], current_quat[2], current_quat[3]]
         if current_q[3] < 0:
             current_q = [-current_q[0], -current_q[1], -current_q[2], -current_q[3]]
+        norm_c = np.linalg.norm(current_q)
+        if norm_c > 1e-6:
+            current_q = [float(x / norm_c) for x in current_q]
         
         self.latest_action = np.array([
             target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z,
@@ -842,6 +860,15 @@ class PickupApproximateNode(Node):
             return
             
         action_to_save = self.latest_action.copy()
+        state_to_save = self.latest_state.copy()
+
+        if self.get_parameter('relative_coordinates').value:
+            if self.episode_initial_pos is None:
+                self.episode_initial_pos = self.latest_state[:3].copy()
+                state_to_save[:3] = 0.0
+            else:
+                state_to_save[:3] -= self.episode_initial_pos
+            action_to_save[:3] -= self.episode_initial_pos
         
         if self.get_parameter('record_done_flag').value:
             # La 9na dimensión se activa en 1.0 ÚNICAMENTE cuando el robot alcanza la posición
@@ -851,7 +878,7 @@ class PickupApproximateNode(Node):
             
         self.buffer.append({
             'image': self.latest_img.copy(),
-            'state': self.latest_state.copy(),
+            'state': state_to_save,
             'action': action_to_save
         })
 
@@ -910,6 +937,13 @@ class PickupApproximateNode(Node):
                         episode_attrs[k] = float(v)
                     except (ValueError, TypeError):
                         pass
+
+            is_relative = bool(self.get_parameter('relative_coordinates').value)
+            episode_attrs["relative_coordinates"] = is_relative
+            if is_relative and self.episode_initial_pos is not None:
+                episode_attrs["initial_pos_x"] = float(self.episode_initial_pos[0])
+                episode_attrs["initial_pos_y"] = float(self.episode_initial_pos[1])
+                episode_attrs["initial_pos_z"] = float(self.episode_initial_pos[2])
 
             self.storage.append_episode(self.buffer, attrs=episode_attrs)
             total_eps = len(list(self.storage.root.groups()))
@@ -1074,6 +1108,7 @@ class PickupApproximateNode(Node):
     def _trigger_next_episode(self):
         self.is_recording = False
         self.buffer.clear()
+        self.episode_initial_pos = None
         self.grasp_position = None
         self.grasp_orientation_quat = None
         self.target_orientation_quat = None
@@ -1116,6 +1151,7 @@ class PickupApproximateNode(Node):
             self.wait_reached_time = None
             self.untilt_reached_time = None
             self.episode_start_time = None
+            self.episode_initial_pos = None
             self.is_recording = False
             self.buffer.clear()
             self.retry_count = 0

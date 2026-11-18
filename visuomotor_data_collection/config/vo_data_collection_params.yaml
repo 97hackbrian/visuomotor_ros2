@@ -3,6 +3,7 @@ vo_collector_node:
     dataset_path: "AUTO"
     dataset_prefix: "demonstrations_real"
     sampling_rate_hz: 20.0
+    relative_coordinates: true
     camera_topic: "/camera/camera/color/image_raw"
     odom_topic: "/rtabmap/odom"
     image_size: 256

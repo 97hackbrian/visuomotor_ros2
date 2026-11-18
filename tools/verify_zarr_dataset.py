@@ -480,13 +480,28 @@ def verify_episode(
         report.is_valid = False
         report.spurious_zeros += len(zero_state_rows)
 
-    # (b) Posición cartesiana totalmente nula [0, 0, 0]
+    # (b) Posición cartesiana totalmente nula [0, 0, 0] y certificación de relative_coordinates
+    is_relative = ep_group.attrs.get("relative_coordinates", False)
     pos_state = state_data[:, :3]
     zero_pos_rows = np.where(np.all(pos_state == 0.0, axis=1))[0]
-    if len(zero_pos_rows) > 0:
-        report.warnings.append(
-            f"Se detectaron {len(zero_pos_rows)} paso(s) con posición XYZ de 'state' exactamente nula [0,0,0]."
-        )
+    
+    if is_relative:
+        if not np.allclose(pos_state[0], [0.0, 0.0, 0.0], atol=1e-5):
+            report.errors.append(
+                f"Dataset marcado con relative_coordinates=True pero el paso 0 no arranca en [0,0,0]: {pos_state[0]}"
+            )
+            report.is_valid = False
+        # Descontar el paso 0 legítimo de los ceros espurios
+        unexpected_zero_rows = [r for r in zero_pos_rows if r != 0]
+        if len(unexpected_zero_rows) > 0:
+            report.warnings.append(
+                f"Se detectaron {len(unexpected_zero_rows)} paso(s) intermedio(s) con posición XYZ de 'state' exactamente nula [0,0,0]."
+            )
+    else:
+        if len(zero_pos_rows) > 0:
+            report.warnings.append(
+                f"Se detectaron {len(zero_pos_rows)} paso(s) con posición XYZ de 'state' exactamente nula [0,0,0]."
+            )
 
     # (c) Cuaternión degenerado o nulo [0, 0, 0, 0]
     quat_state = state_data[:, 3:7]

@@ -3,6 +3,7 @@
     # ── Configuración General del Dataset ──
     dataset_path: "AUTO"            # Ruta del dataset en formato zarr ("AUTO" auto-incrementa la versión)
     sampling_rate_hz: 20.0          # Frecuencia estricta a la que se graban los pasos (cámara + cinemática)
+    relative_coordinates: true      # Modo UMI / Delta-Home: guarda estados y acciones relativas al inicio del episodio
     
     # ── Configuración del Robot y Sistema ──
     enable_auto_pid: true           # Activa el generador sintético experto (True para Isaac Sim)

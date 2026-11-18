@@ -1,3 +1,4 @@
+from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -46,6 +47,7 @@ class PolicyNode(Node):
         self.declare_parameter('home_roll', 3.14159)
         self.declare_parameter('home_pitch', 0.0)
         self.declare_parameter('home_yaw', 0.0)
+        self.declare_parameter('relative_coordinates', True)
         
         # --- Configuración de Sensores, Topics y TF ---
         self.declare_parameter('joint_states_topic', '/joint_states')
@@ -159,14 +161,33 @@ class PolicyNode(Node):
             base_frame = self.get_parameter('base_frame').value
             t = self.tf_buffer.lookup_transform(base_frame, ee_frame, rclpy.time.Time())
             
+            # Estabilización de cuaternión: semiesfera superior (qw >= 0) y norma unitaria
+            qx = float(t.transform.rotation.x)
+            qy = float(t.transform.rotation.y)
+            qz = float(t.transform.rotation.z)
+            qw = float(t.transform.rotation.w)
+            if qw < 0.0:
+                qw = -qw
+                qx = -qx
+                qy = -qy
+                qz = -qz
+            norm_q = np.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+            if norm_q > 1e-6:
+                qx /= norm_q
+                qy /= norm_q
+                qz /= norm_q
+                qw /= norm_q
+            else:
+                qx, qy, qz, qw = 0.0, 0.0, 0.0, 1.0
+
             ee_pose = np.array([
                 t.transform.translation.x,
                 t.transform.translation.y,
                 t.transform.translation.z,
-                t.transform.rotation.x,
-                t.transform.rotation.y,
-                t.transform.rotation.z,
-                t.transform.rotation.w,
+                qx,
+                qy,
+                qz,
+                qw,
                 self.current_gripper_state
             ], dtype=np.float32)
             
@@ -247,7 +268,17 @@ class PolicyNode(Node):
             img_tensor = img_tensor.to(self.device, non_blocking=True).unsqueeze(0)
             
             # Prepare state tensor (1, dim)
-            state_tensor = torch.from_numpy(self.latest_state).to(torch.float32).to(self.device).unsqueeze(0)
+            state_data = self.latest_state.copy()
+            if self.get_parameter('relative_coordinates').value:
+                home_pos = np.array([
+                    self.get_parameter('home_x').value,
+                    self.get_parameter('home_y').value,
+                    self.get_parameter('home_z').value
+                ], dtype=np.float32)
+                self.home_pos = home_pos
+                state_data[:3] -= home_pos
+
+            state_tensor = torch.from_numpy(state_data).to(torch.float32).to(self.device).unsqueeze(0)
             
             observation = {
                 "observation.state": state_tensor,
@@ -258,48 +289,70 @@ class PolicyNode(Node):
                 action_output = self.policy.select_action(observation)
                 action_np = action_output.squeeze().cpu().numpy()
                 
+            # Si se usan coordenadas relativas (Modo UMI / Delta-Home), re-proyectar traslación a coordenadas absolutas de base_frame
+            if self.get_parameter('relative_coordinates').value:
+                home_pos = np.array([
+                    self.get_parameter('home_x').value,
+                    self.get_parameter('home_y').value,
+                    self.get_parameter('home_z').value
+                ], dtype=np.float32)
+                self.home_pos = home_pos
+                if action_np.ndim == 1:
+                    action_np[:3] += home_pos
+                else:
+                    action_np[:, :3] += home_pos
+
             msg = ActionChunk()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = self.get_parameter("base_frame").value
             
-            p = Pose()
-            p.position.x = float(action_np[0])
-            p.position.y = float(action_np[1])
-            p.position.z = float(action_np[2])
-            
-            if len(action_np) >= 7:
-                # Normalizar el cuaternión predicho por la red neuronal!
-                norm = np.linalg.norm(action_np[3:7])
-                if norm > 1e-6:
-                    p.orientation.x = float(action_np[3] / norm)
-                    p.orientation.y = float(action_np[4] / norm)
-                    p.orientation.z = float(action_np[5] / norm)
-                    p.orientation.w = float(action_np[6] / norm)
-                else:
-                    p.orientation.x = float(action_np[3])
-                    p.orientation.y = float(action_np[4])
-                    p.orientation.z = float(action_np[5])
-                    p.orientation.w = float(action_np[6])
-            
-            msg.poses.append(p)
+            # Soporte unificado para predicción escalar 1D [dim] o chunk 2D [H, dim]
+            actions_list = action_np if action_np.ndim == 2 else [action_np]
+            first_act = actions_list[0]
             
             gripper_open = self.get_parameter('gripper_open_pos').value
             gripper_closed = self.get_parameter('gripper_closed_pos').value
             gripper_thresh = self.get_parameter('gripper_binary_threshold').value
-            
-            if len(action_np) >= 8:
-                # Binarizador de Inferencia: asegurar que el motor del gripper 
-                # reciba el booleano duro y no vibre con decimales de la red
-                raw_gripper = float(action_np[7])
-                binary_gripper = gripper_closed if raw_gripper <= gripper_thresh else raw_gripper
-                msg.gripper_states.append(binary_gripper)
-            else:
-                msg.gripper_states.append(gripper_open)
+
+            for act in actions_list:
+                p_step = Pose()
+                p_step.position.x = float(act[0])
+                p_step.position.y = float(act[1])
+                p_step.position.z = float(act[2])
+                
+                if len(act) >= 7:
+                    # Normalizar el cuaternión predicho por la red y preservar qw >= 0
+                    qx = float(act[3])
+                    qy = float(act[4])
+                    qz = float(act[5])
+                    qw = float(act[6])
+                    if qw < 0.0:
+                        qw, qx, qy, qz = -qw, -qx, -qy, -qz
+                    norm = np.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+                    if norm > 1e-6:
+                        p_step.orientation.x = float(qx / norm)
+                        p_step.orientation.y = float(qy / norm)
+                        p_step.orientation.z = float(qz / norm)
+                        p_step.orientation.w = float(qw / norm)
+                    else:
+                        p_step.orientation.x, p_step.orientation.y, p_step.orientation.z, p_step.orientation.w = 0.0, 0.0, 0.0, 1.0
+                msg.poses.append(p_step)
+
+                # Binarizador de Inferencia por paso
+                if len(act) >= 8:
+                    raw_g = float(act[7])
+                    bin_g = gripper_closed if raw_g <= gripper_thresh else raw_g
+                    msg.gripper_states.append(bin_g)
+                else:
+                    msg.gripper_states.append(gripper_open)
                 
             self.action_pub.publish(msg)
             self.action_executor.execute(msg)
             
-            gripper_val = msg.gripper_states[0]
+            p = msg.poses[0]
+            raw_gripper = float(first_act[7]) if len(first_act) >= 8 else gripper_open
+            binary_gripper = msg.gripper_states[0]
+            gripper_val = binary_gripper
             gripper_str = "CERRADO" if gripper_val <= gripper_thresh else "ABIERTO"
             
             # --- Lógica de Auto-Stop Separada (Neuronal y Heurística) ---
@@ -308,8 +361,8 @@ class PolicyNode(Node):
             neural_threshold = self.get_parameter('neural_auto_stop_threshold').value
             
             done_flag = None
-            if len(action_np) >= 9:
-                done_flag = float(action_np[8])
+            if len(first_act) >= 9:
+                done_flag = float(first_act[8])
                 if neural_stop_active and done_flag >= neural_threshold:
                     self.done_trigger_value = done_flag
                     self.done_trigger_reason = f"Neuronal: 9na dim = {done_flag:.4f} >= umbral {neural_threshold:.2f}"
@@ -349,7 +402,7 @@ class PolicyNode(Node):
                         
             # Publicar telemetría en tiempo real para rqt_plot
             var_val = variance if 'variance' in locals() else None
-            self._publish_telemetry(p, action_np, binary_gripper, neural_threshold, variance=var_val)
+            self._publish_telemetry(p, first_act, binary_gripper, neural_threshold, variance=var_val)
 
             # Log periódico (1 Hz) mostrando acciones, gripper y estado de la última dimensión
             log_msg = f"[IA] Accion: X={p.position.x:.3f} Y={p.position.y:.3f} Z={p.position.z:.3f} | Gripper: {raw_gripper:.7f} ({gripper_str})"
