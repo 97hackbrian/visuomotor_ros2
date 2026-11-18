@@ -141,3 +141,27 @@ El 17 de noviembre de 2026 se completó la primera campaña de captura experta m
   - `episode_6`: Desplazamiento final $+30.6\text{ cm}$ en $Z$ ($432$ pasos, $4.2\text{ s}$ de hold con `done=1.0`).
 * **Piso de Término Garantizado:** Todos los episodios superan holgadamente el requisito de $\ge 2.0\text{ s}$ (40 fotogramas) con `done = 1.0` en destino.
 * **Archivos Multimedia:** Extraídos con `tools/visualize_dataset.py` a [datasets/visualizations_real_v2/](file:///home/hackbrian/Documents/gits/visuomotor_ros2/datasets/visualizations_real_v2/) (videos `.mp4`, gráficas 4-panel de trayectoria `.png` y `.gif`).
+
+---
+
+## 9. Expansión a Odometría Visual-Inercial (VIO) con Intel RealSense D435i
+
+El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSense D435i** (Product ID `0x0B3A`, Serial `347622074027`, Firmware `5.17.3.10`):
+
+### Características Físicas y de Fusión Inercial
+* **IMU Integrado:** Chip Bosch BMI085 (Acelerómetro a 200 Hz y Giroscopio a 200 Hz).
+* **Obturador Estéreo:** Global Shutter en los sensores infrarrojos (elimina distorsión por escaneo rápido de líneas).
+* **Filtro Madgwick:** Nodo `imu_filter_madgwick` (`use_mag: false`, `world_frame: 'enu'`) calcula el cuaternión de orientación estabilizado en `/imu/data`.
+* **Alineación con la Gravedad (Gravity Alignment):** El acelerómetro mide el vector de gravedad terrestre ($[0, 0, -9.81]\text{ m/s}^2$), garantizando que el eje $Z$ del sistema de odometría sea **estrictamente vertical y perpendicular a la mesa** (`Odom/AlignWithGround: "true"`, `wait_imu_to_init: true`). Esto desacopla el cabeceo (pitch) y alabeo (roll) del ángulo en que el operador sostenga la cámara al inicio.
+
+### Arquitectura de Archivos D435i (Desacoplada y Coexistente con D415)
+* **Parámetros de Cámara:** [visuomotor_bringup/config/realsense/d435i_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d435i_camera_params.yaml) (`unite_imu_method: 2`, `accel_fps: 200`, `gyro_fps: 200`).
+* **Parámetros VIO:** [visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml).
+* **Launch Files Dedicados:**
+  - Inferencia / Visualización: [visuomotor_bringup/launch/realsense_d435i_vio.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio.launch.py)
+  - Recolección Zarr: [visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py)
+* **Rendimiento Experimental Certificado:**
+  - Inliers geométricos: $340 - 370$ inliers.
+  - Tiempo de actualización CPU: $15.5\text{ ms}$ ($> 60\text{ FPS}$ de cómputo disponible).
+  - Jitter de posición: $\sigma \approx 0.48\text{ mm}$ (precisión submilimétrica).
+* **Compatibilidad Inversa:** La cámara D415 conserva sus launch files dedicados (`realsense_d415_vo.launch.py` y `realsense_d415_vo_collection.launch.py`), permitiendo alternar entre ambos sensores sin conflicto.

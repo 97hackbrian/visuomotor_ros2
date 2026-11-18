@@ -6,10 +6,18 @@ WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_NAME="visuomotor_ros2_vo:jazzy"
 CONTAINER_NAME="vo_benchmark_runner"
 
+CAMERA_MODEL="${1:-d435i}"
 echo "=========================================================================="
-echo " EXPERIMENTO COMPARATIVO DE PRECISIÓN Y FRECUENCIA (VO REAL)"
+echo " EXPERIMENTO COMPARATIVO DE PRECISIÓN Y FRECUENCIA (VO / VIO REAL)"
+echo " Modelo de Cámara: $CAMERA_MODEL"
 echo " Baseline (ORB) vs Ultra-Precisión (SIFT + Subpíxel + g2o BA)"
 echo "=========================================================================="
+
+if [ "$CAMERA_MODEL" = "d415" ]; then
+    LAUNCH_FILE="realsense_d415_vo.launch.py"
+else
+    LAUNCH_FILE="realsense_d435i_vio.launch.py"
+fi
 
 cleanup() {
     echo "Limpiando contenedores del benchmark..."
@@ -37,12 +45,12 @@ docker run -d --rm \
     -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     -e ROS_DOMAIN_ID=0 \
     -v /dev:/dev:rw \
+    -v /sys:/sys:rw \
     -v /dev/bus/usb:/dev/bus/usb:rw \
     -v "$WORKSPACE_DIR":/ros:rw \
     -w /ros \
-    -u 1000:1000 \
     $IMAGE_NAME \
-    bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 launch visuomotor_bringup realsense_d415_vo.launch.py ultra_precision:=false"
+    bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 launch visuomotor_bringup $LAUNCH_FILE ultra_precision:=false"
 
 echo "Esperando 6s para estabilización del stream óptico y mapa inicial..."
 sleep 6
@@ -72,12 +80,12 @@ docker run -d --rm \
     -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     -e ROS_DOMAIN_ID=0 \
     -v /dev:/dev:rw \
+    -v /sys:/sys:rw \
     -v /dev/bus/usb:/dev/bus/usb:rw \
     -v "$WORKSPACE_DIR":/ros:rw \
     -w /ros \
-    -u 1000:1000 \
     $IMAGE_NAME \
-    bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 launch visuomotor_bringup realsense_d415_vo.launch.py ultra_precision:=true"
+    bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 launch visuomotor_bringup $LAUNCH_FILE ultra_precision:=true"
 
 echo "Esperando 6s para estabilización del stream óptico y mapa inicial..."
 sleep 6

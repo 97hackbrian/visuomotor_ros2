@@ -9,6 +9,13 @@ if [ -f /etc/udev/rules.d/99-realsense-libusb.rules.bak ]; then
     sudo cp /etc/udev/rules.d/99-realsense-libusb.rules.bak /etc/udev/rules.d/99-realsense-libusb.rules
 fi
 
+# Desactivar iio-sensor-proxy para evitar bloqueo del chip IMU (Bosch BMI085) en laptops
+if systemctl is-active --quiet iio-sensor-proxy.service; then
+    echo "Desactivando iio-sensor-proxy para liberar el IMU de RealSense..."
+    sudo systemctl stop iio-sensor-proxy.service || true
+    sudo systemctl mask iio-sensor-proxy.service || true
+fi
+
 if [ ! -f /etc/udev/rules.d/99-realsense-libusb.rules ]; then
     echo "Descargando reglas udev oficiales de Intel RealSense..."
     sudo wget -q https://raw.githubusercontent.com/IntelRealSense/librealsense/master/config/99-realsense-libusb.rules -O /etc/udev/rules.d/99-realsense-libusb.rules

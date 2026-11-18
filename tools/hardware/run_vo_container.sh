@@ -25,7 +25,7 @@ if [ -t 0 ]; then
     INTERACTIVE_FLAGS="-it"
 fi
 
-# Ejecutar contenedor con /dev y /dev/bus/usb mapeados en vivo
+# Ejecutar contenedor con /dev, /sys y /dev/bus/usb mapeados en vivo
 docker run $INTERACTIVE_FLAGS --rm \
     --name $CONTAINER_NAME \
     --net=host \
@@ -38,11 +38,12 @@ docker run $INTERACTIVE_FLAGS --rm \
     -e QT_X11_NO_MITSHM=1 \
     -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     -e ROS_DOMAIN_ID=0 \
+    -e ROS_HOME=/tmp/.ros \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /dev:/dev:rw \
+    -v /sys:/sys:rw \
     -v /dev/bus/usb:/dev/bus/usb:rw \
     -v "$WORKSPACE_DIR":/ros:rw \
     -w /ros \
-    -u 1000:1000 \
     $IMAGE_NAME \
-    bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"
+    bash -c "trap 'chown -R 1000:1000 /ros/datasets /ros/build /ros/install 2>/dev/null || true' EXIT; source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"

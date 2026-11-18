@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    camera_name: "camera"
+    enable_color: true
+    enable_depth: true
+    align_depth.enable: true
+    rgb_camera.color_profile: "640x480x30"
+    depth_module.depth_profile: "640x480x30"
+    depth_module.emitter_enabled: 1
+    pointcloud.enable: false
+    clip_distance: -1.0
+    enable_infra1: false
+    enable_infra2: false
+    
+    # ── Parámetros Inerciales (IMU - Bosch BMI085) ──
+    enable_accel: true
+    enable_gyro: true
+    unite_imu_method: 2         # 2=Linear Interpolation (publica /camera/camera/imu sincronizado)
+    accel_fps: 200              # Frecuencia acelerómetro (Hz)
+    gyro_fps: 200               # Frecuencia giroscopio (Hz)
+    linear_accel_cov: 0.01      # Covarianza de aceleración lineal
+    angular_velocity_cov: 0.01  # Covarianza de velocidad angular
+    enable_sync: true           # Sincronización de hardware
