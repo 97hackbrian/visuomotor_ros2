@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (22 comprobaciones; código de salida 0 = todas OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (26 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -24,6 +24,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
+from xarm_msgs.srv import SetFloat32List
 
 from visuomotor_bringup.xarm5_interface import rpy_to_quat
 
@@ -247,6 +248,36 @@ class Checker(Node):
         self.check("22. go_home2: set_servo_angle con home2_joints_rad",
                    r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home2_joints_rad"]],
                    r.message)
+
+        # --- Límites articulares (caso real: J1 = +6.2822, a 0.001 rad de +2*pi -> C23) ----------------------
+        real_home2 = [6.2822, -0.5001, -0.2717, 1.0231, -0.0022]
+        self.call(SetFloat32List, "/fake_xarm/set_joints", SetFloat32List.Request(datas=real_home2))
+        self.spin_for(0.5)
+        r = self.arm()
+        self.check("23. Armado con J1 pegada a +2*pi -> rechazado antes de habilitar motores",
+                   not r.success and "J1" in r.message, r.message[:100])
+
+        n_angle = len(self.stats()["set_servo_angle"])
+        r = self.call(Trigger, "/xarm5_bridge/go_home2", timeout=BR["home_timeout_s"] + 10)
+        self.check("24. go_home2 con J1 desfasada 2*pi -> rechazado (giro grande), sugiere unwind_j1",
+                   not r.success and "unwind_j1" in r.message and len(self.stats()["set_servo_angle"]) == n_angle,
+                   r.message[:100])
+
+        r = self.call(Trigger, "/xarm5_bridge/unwind_j1", timeout=60)
+        s = self.stats()
+        sent = s["set_servo_angle"][-1]
+        self.check("25. unwind_j1: solo J1 gira -2*pi (6.2822 -> -0.0010), resto igual",
+                   r.success and abs(sent[0] - (6.2822 - 2 * math.pi)) < 1e-3 and sent[1:] == [round(v, 3) for v in real_home2[1:]],
+                   r.message[:100])
+
+        r = self.arm()
+        ok_arm = r.success
+        self.call(SetFloat32List, "/fake_xarm/set_joints",
+                  SetFloat32List.Request(datas=[-0.0010, -0.5001, 0.15, 1.0231, -0.0022]))  # J3 a 0.04 de 0.19198
+        armed_near = self.armed()
+        s = self.stats()
+        self.check("26. Tras unwind arma; junta acercándose a su límite -> desarme y modo posición",
+                   ok_arm and not armed_near and s["mode"] == 0, self.status[-70:])
 
         n_fail = sum(1 for _, ok in self.results if not ok)
         print(f"\nRESUMEN: {len(self.results) - n_fail}/{len(self.results)} comprobaciones OK", flush=True)

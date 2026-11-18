@@ -17,6 +17,7 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     WorkspaceLimits,
     brake_report,
     clamp_yaw,
+    joints_near_limits,
     joints_with_bit_cleared,
     from_robot_pose,
     is_finite_pose,
@@ -186,6 +187,30 @@ class TestStepLimits(unittest.TestCase):
         self.assertFalse(is_finite_pose([float("nan"), 0, 0.3], [0, 0, 0, 1]))
         self.assertFalse(is_finite_pose([0.3, 0, 0.3], [0, float("inf"), 0, 1]))
         self.assertFalse(is_finite_pose([0.3, 0, 0.3], [0, 0, 0, 0]))
+
+
+class TestJointLimits(unittest.TestCase):
+    # Límites del xArm5 en xarm_description/urdf/xarm5/xarm5.urdf.xacro
+    LO = [-2 * math.pi, -2.059, -3.927, -1.69297, -2 * math.pi]
+    HI = [2 * math.pi, 2.0944, 0.19198, math.pi, 2 * math.pi]
+
+    def test_real_home2_j1_at_limit(self):
+        """Caso real (2026-11-18): J1 = 6.2822 rad, a 0.001 rad de +2*pi -> error C23 al moverse."""
+        near = joints_near_limits([6.2822, -0.5001, -0.2717, 1.0231, -0.0022], self.LO, self.HI, 0.10)
+        self.assertEqual([j for j, _, _ in near], [1])
+        self.assertAlmostEqual(near[0][2], 2 * math.pi)
+
+    def test_unwound_home2_ok(self):
+        self.assertEqual(joints_near_limits([-0.0010, -0.5001, -0.2717, 1.0231, -0.0022], self.LO, self.HI, 0.10), [])
+
+    def test_lower_limit_and_out_of_range(self):
+        near = joints_near_limits([0.0, -2.0, -0.2717, 1.0, 0.0], self.LO, self.HI, 0.10)
+        self.assertEqual([(j, round(lim, 3)) for j, _, lim in near], [(2, -2.059)])
+        self.assertEqual([j for j, _, _ in joints_near_limits([0, 0, 0.5, 0, 0], self.LO, self.HI, 0.1)], [3])
+        with self.assertRaises(ValueError):
+            joints_near_limits([0.0], [1.0], [0.0], 0.1)
+        with self.assertRaises(ValueError):
+            joints_near_limits([0.0], [-1.0], [1.0], -0.1)
 
 
 class TestBrakes(unittest.TestCase):

@@ -13,6 +13,8 @@ bits de los ejes 1..dof (bit 1 = freno liberado / motor habilitado, semántica d
 Inyección de fallos (std_srvs/SetBool en /fake_xarm/...): inject_error, fail_servo, pause_states, slow_servo,
 stuck_brake (el freno de J3 no se libera al habilitar; si ya estaba habilitado, se aplica de golpe).
 Estadísticas: /fake_xarm/get_stats (std_srvs/Trigger, JSON en `message`).
+Ángulos articulares: parámetro initial_joints_rad (por defecto home2) y /fake_xarm/set_joints (xarm_msgs/SetFloat32List)
+para simular p. ej. J1 en +2*pi; set_servo_angle los actualiza; se publican en RobotMsg.angle y joint_states.
 
 Uso (dentro del contenedor Jetson):  python3 tools/xarm5/fake_xarm_driver.py
 """
@@ -33,7 +35,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool, Trigger
 from xarm_msgs.msg import RobotMsg
-from xarm_msgs.srv import Call, MoveCartesian, MoveJoint, SetFloat32, SetInt16, SetInt16ById, VacuumGripperCtrl
+from xarm_msgs.srv import Call, MoveCartesian, MoveJoint, SetFloat32, SetFloat32List, SetInt16, SetInt16ById
+from xarm_msgs.srv import VacuumGripperCtrl
 
 FAKE_ERROR_CODE = 22  # C22 (autocolisión), visto en los logs reales del brazo
 
@@ -47,6 +50,7 @@ class FakeXArmDriver(Node):
         self.declare_parameter("state_rate_hz", 100.0)
         self.declare_parameter("dof", 5)
         self.declare_parameter("stuck_brake_joint", 3)
+        self.declare_parameter("initial_joints_rad", [-0.0010, -0.5001, -0.2717, 1.0231, -0.0022])
         self.dof = int(self.get_parameter("dof").value)
         self.stuck_joint = int(self.get_parameter("stuck_brake_joint").value)
         ns = "/" + self.get_parameter("hw_ns").value.strip("/")
@@ -57,6 +61,7 @@ class FakeXArmDriver(Node):
         self.mode, self.state, self.err = 0, 4, 0
         self.mt_brake, self.mt_able = 0, 0   # motores deshabilitados y frenos aplicados (estado real medido)
         self.gripper = 0.0
+        self.joints = [float(v) for v in self.get_parameter("initial_joints_rad").value]
         self.vacuum_on = False
         self.faults = {"fail_servo": False, "pause_states": False, "slow_servo": False, "stuck_brake": False}
         self.stats = {"motion_enable": 0, "set_mode": [], "set_state": [], "clean_error": 0,
@@ -80,6 +85,7 @@ class FakeXArmDriver(Node):
             self.create_service(SetBool, f"/fake_xarm/{name}", lambda req, res, n=name: self._fault(n, req, res),
                                 callback_group=cb)
         self.create_service(Trigger, "/fake_xarm/get_stats", self._get_stats, callback_group=cb)
+        self.create_service(SetFloat32List, "/fake_xarm/set_joints", self._set_joints, callback_group=cb)
         ActionServer(self, GripperCommand, "/xarm_gripper/gripper_action", self._gripper_execute,
                      goal_callback=lambda _g: GoalResponse.ACCEPT,
                      cancel_callback=lambda _g: CancelResponse.ACCEPT, callback_group=cb)
@@ -153,7 +159,14 @@ class FakeXArmDriver(Node):
                   and self.mt_able == self._all_axes() and self.mt_brake == self._all_axes())
             if ok:
                 self.pose = list(self.home_pose)
+                self.joints = [float(v) for v in req.angles[:self.dof]]
         res.ret = 0 if ok else 1
+        return res
+
+    def _set_joints(self, req, res):
+        with self.lock:
+            self.joints = [float(v) for v in req.datas[:self.dof]]
+        res.ret = 0
         return res
 
     def _gripper_enable(self, req, res):
@@ -210,7 +223,7 @@ class FakeXArmDriver(Node):
 
     def _get_stats(self, _req, res):
         with self.lock:
-            data = dict(self.stats, mode=self.mode, state=self.state, err=self.err, pose=self.pose,
+            data = dict(self.stats, mode=self.mode, state=self.state, err=self.err, pose=self.pose, joints=self.joints,
                         mt_brake=self.mt_brake, mt_able=self.mt_able,
                         gripper=self.gripper, vacuum_on=self.vacuum_on)
         res.success, res.message = True, json.dumps(data)
@@ -224,12 +237,13 @@ class FakeXArmDriver(Node):
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.state, msg.mode, msg.err = self.state, self.mode, self.err
             msg.mt_brake, msg.mt_able = self.mt_brake, self.mt_able
+            msg.angle = [float(v) for v in self.joints]
             msg.pose = [float(v) for v in self.pose]
         self.pub_state.publish(msg)
         js = JointState()
         js.header.stamp = msg.header.stamp
         js.name = ["joint1", "joint2", "joint3", "joint4", "joint5", "drive_joint"]
-        js.position = [0.0, 0.0, 0.0, 0.0, 0.0, float(self.gripper)]
+        js.position = [float(v) for v in self.joints] + [float(self.gripper)]
         self.pub_joints.publish(js)
 
 

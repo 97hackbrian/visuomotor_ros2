@@ -210,6 +210,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Teleop RViz2 remota:* Jetson corre `xarm5_real.launch.py` (driver + puente + `robot_state_publisher` + `xarm5_teleop_marker`); el otro equipo solo `xarm5_rviz.launch.py`. `ROS_DOMAIN_ID=42` + `rmw_cyclonedds_cpp` para el robot real (mismo dominio que la simulación: con el brazo conectado, simulación y políticas solo con `ROS_LOCALHOST_ONLY=1`); DDS por `wlan0` (`deploy/jetson/config/cyclonedds.xml`).
    - *Frenos:* tras habilitar motores, todos los ejes deben reportar freno liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) o no se envía movimiento; `~/check_brakes` solo lee. No usar `motion_enable` data=0 con el brazo en el aire (caída de ~5 cm medida).
    - *home2:* pose de trabajo actual del brazo (`home2_joints_rad`, servicio `~/go_home2`); home de la política alineado a su TCP.
+   - *Límites articulares:* el puente no arma con una junta a < `joint_limit_margin_rad` de su límite y se detiene antes del C23; J1 en ±2π se corrige solo con `~/unwind_j1` (manual, giro de base de 360°).
    - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
    - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
 19. **Unificación de Coordenadas Relativas (Modo SOTA UMI / Delta-Home):**

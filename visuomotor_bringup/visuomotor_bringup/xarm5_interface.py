@@ -228,6 +228,33 @@ def from_robot_pose(pose6: Sequence[float]) -> Tuple[np.ndarray, Tuple[float, fl
 
 
 # ----------------------------------------------------------------------------------------------
+# Límites articulares
+# ----------------------------------------------------------------------------------------------
+def joints_near_limits(
+    joints: Sequence[float], lower: Sequence[float], upper: Sequence[float], margin: float
+) -> list:
+    """Articulaciones a menos de ``margin`` rad de su límite (o fuera de él).
+
+    Devuelve ``[(numero_junta, valor, limite_cercano), ...]`` (juntas numeradas desde 1). Con servo cartesiano el
+    controlador resuelve la IK cerca de la configuración actual: si una junta está pegada a su límite (p. ej. J1 en
+    +2*pi, el caso real del xArm5), cualquier paso que la empuje más allá termina en error C23 (Joint Angle Exceed Limit).
+    """
+    if margin < 0.0:
+        raise ValueError("margin debe ser >= 0")
+    n = min(len(joints), len(lower), len(upper))
+    near = []
+    for i in range(n):
+        q, lo, hi = float(joints[i]), float(lower[i]), float(upper[i])
+        if lo >= hi:
+            raise ValueError(f"Límites inválidos en J{i + 1}: [{lo}, {hi}]")
+        if q - lo < margin:
+            near.append((i + 1, q, lo))
+        elif hi - q < margin:
+            near.append((i + 1, q, hi))
+    return near
+
+
+# ----------------------------------------------------------------------------------------------
 # Frenos y habilitación de motores (RobotMsg.mt_brake / mt_able)
 # ----------------------------------------------------------------------------------------------
 def joints_with_bit_cleared(mask: int, dof: int) -> list:

@@ -51,6 +51,7 @@ from visuomotor_bringup.xarm5_interface import (
     WorkspaceLimits,
     brake_report,
     clamp_yaw,
+    joints_near_limits,
     from_robot_pose,
     is_finite_pose,
     limit_angle_step,
@@ -102,6 +103,7 @@ class XArm5Bridge(Node):
         self._robot_state = -1
         self._mt_brake = 0
         self._mt_able = 0
+        self._joints: Optional[list] = None
         self._servo_pending = False
         self._servo_sent_time = 0.0
         self._servo_seq = 0
@@ -154,6 +156,7 @@ class XArm5Bridge(Node):
         self.create_service(Trigger, "~/go_home", self._srv_go_home, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/go_home2", self._srv_go_home2, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/check_brakes", self._srv_check_brakes, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/unwind_j1", self._srv_unwind_j1, callback_group=self._cb_srv)
 
         if self.simulate_robot_state:
             self._measured_xyz = np.array(self.sim_initial_xyz, dtype=np.float64)
@@ -236,6 +239,11 @@ class XArm5Bridge(Node):
         d("dof", 5)
         d("brake_check_enabled", True)
         d("brake_check_timeout_s", 2.0)
+        d("joint_lower_limits_rad", [-2.0 * math.pi, -2.059, -3.927, -1.69297, -2.0 * math.pi])
+        d("joint_upper_limits_rad", [2.0 * math.pi, 2.0944, 0.19198, math.pi, 2.0 * math.pi])
+        d("joint_limit_margin_rad", 0.10)
+        d("max_home_joint_delta_rad", 1.0)
+        d("unwind_speed_rad_s", 0.3)
         d("sim_initial_xyz", [0.25, 0.0, 0.40])
         d("sim_initial_rpy", [math.pi, 0.0, 0.0])
 
@@ -293,6 +301,11 @@ class XArm5Bridge(Node):
         self.dof = int(g("dof"))
         self.brake_check_enabled = bool(g("brake_check_enabled"))
         self.brake_check_timeout_s = float(g("brake_check_timeout_s"))
+        self.joint_lower = [float(v) for v in g("joint_lower_limits_rad")]
+        self.joint_upper = [float(v) for v in g("joint_upper_limits_rad")]
+        self.joint_margin = float(g("joint_limit_margin_rad"))
+        self.max_home_joint_delta = float(g("max_home_joint_delta_rad"))
+        self.unwind_speed = float(g("unwind_speed_rad_s"))
         self.sim_initial_xyz = [float(v) for v in g("sim_initial_xyz")]
         self.sim_initial_rpy = [float(v) for v in g("sim_initial_rpy")]
 
@@ -303,6 +316,12 @@ class XArm5Bridge(Node):
         if self.simulate_robot_state and not self.dry_run:
             raise ValueError("simulate_robot_state=true exige dry_run=true (no se puede mover un robot simulado).")
         clamp_yaw(0.0, self.yaw_min, self.yaw_max)  # valida el rango (lanza ValueError si es inválido)
+        if len(self.joint_lower) < self.dof or len(self.joint_upper) < self.dof:
+            raise ValueError(f"joint_lower/upper_limits_rad deben tener {self.dof} valores")
+        joints_near_limits([0.0] * self.dof, self.joint_lower, self.joint_upper, self.joint_margin)  # valida
+        for name, js in (("home_joints_rad", self.home_joints), ("home2_joints_rad", self.home2_joints)):
+            if joints_near_limits(js[:self.dof], self.joint_lower, self.joint_upper, 0.0):
+                raise ValueError(f"{name}={js} queda fuera de los límites articulares")
         for name, val in (("control_rate_hz", self.control_rate_hz), ("max_linear_speed_m_s", self.max_linear_speed),
                           ("max_angular_speed_rad_s", self.max_angular_speed),
                           ("servo_response_timeout_s", self.servo_response_timeout_s)):
@@ -369,6 +388,13 @@ class XArm5Bridge(Node):
         if not self._robot_state_fresh():
             res.success, res.message = False, "Sin estado reciente del robot (¿driver conectado? ¿report_type?)."
             return res
+        limit_problem = self._joint_limit_problem()
+        if limit_problem:
+            res.success = False
+            res.message = (f"ARMADO RECHAZADO: {limit_problem}. Con una junta pegada a su límite el controlador corta con "
+                           "C23 al primer paso. Llevarla dentro de rango con un movimiento articular (~/go_home2).")
+            self.get_logger().error(res.message)
+            return res
         if not self.dry_run:
             if self._robot_err != 0:
                 self.get_logger().warn(f"Controlador con error C{self._robot_err}: intentando clean_error...")
@@ -433,6 +459,16 @@ class XArm5Bridge(Node):
         if len(joints) < self.dof:
             res.success, res.message = False, f"{label}: se esperaban {self.dof} ángulos, hay {len(joints)}."
             return res
+        if self._joints is not None:
+            deltas = [abs(float(joints[i]) - self._joints[i]) for i in range(self.dof)]
+            worst = max(range(self.dof), key=lambda i: deltas[i])
+            if deltas[worst] > self.max_home_joint_delta:
+                hint = " Si es J1 desfasada 2*pi (+/-360 grados), usar ~/unwind_j1." if worst == 0 else ""
+                res.success = False
+                res.message = (f"{label} RECHAZADO: J{worst + 1} tendría que moverse {deltas[worst]:.2f} rad "
+                               f"(> max_home_joint_delta_rad = {self.max_home_joint_delta:.2f}).{hint}")
+                self.get_logger().error(res.message)
+                return res
         if self.dry_run:
             if self.simulate_robot_state:
                 with self._lock:
@@ -456,9 +492,70 @@ class XArm5Bridge(Node):
         res.message = f"{label} alcanzado." if ok else f"Falló el movimiento a {label} (ver log)."
         return res
 
+    def _wait_err_cleared(self, timeout_s: float = 1.5) -> int:
+        """Tras clean_error, espera a que robot_states refleje err == 0; devuelve el último código de error."""
+        end = time.time() + timeout_s
+        while time.time() < end and self._robot_err != 0:
+            time.sleep(0.05)
+        return self._robot_err
+
+    def _srv_unwind_j1(self, _req, res):
+        """Gira SOLO J1 +/-2*pi para devolverla a [-pi, pi] (misma postura física). Solo desarmado y a mano."""
+        if self._armed:
+            res.success, res.message = False, "Desarma primero (~/disarm)."
+            return res
+        if self._joints is None:
+            res.success, res.message = False, "Sin ángulos articulares del robot (robot_states)."
+            return res
+        current = list(self._joints)
+        j1 = current[0]
+        if abs(j1) <= math.pi:
+            res.success, res.message = True, f"J1 = {j1:.4f} rad ya está en [-pi, pi]: no hace falta desenrollar."
+            return res
+        target = list(current)
+        target[0] = j1 - 2.0 * math.pi if j1 > 0.0 else j1 + 2.0 * math.pi
+        detail = f"J1 {j1:.4f} -> {target[0]:.4f} rad (giro de {math.degrees(target[0] - j1):+.0f} grados de la base)"
+        if self.dry_run:
+            res.success, res.message = True, f"dry-run: se haría {detail}"
+            return res
+        if self._robot_err != 0:
+            self.get_logger().warn(f"Controlador con error C{self._robot_err}: intentando clean_error...")
+            if not self._call_ok(self._cli_clean_error, Call.Request(), "clean_error") or self._wait_err_cleared() != 0:
+                res.success = False
+                res.message = (f"unwind_j1 CANCELADO: el controlador sigue con error C{self._robot_err} "
+                               "(¿parada de emergencia pulsada? liberarla y reintentar).")
+                self.get_logger().error(res.message)
+                return res
+        if not self._set_mode_state(XARM_MODE_POSITION):
+            res.success, res.message = False, "No se pudo pasar a modo posición."
+            return res
+        ok, brake_detail = self._wait_brakes_released()
+        if not ok:
+            res.success, res.message = False, f"unwind_j1 CANCELADO: {brake_detail}"
+            self.get_logger().error(res.message)
+            return res
+        self.get_logger().warn(f"Desenrollando J1: {detail} a {self.unwind_speed:.2f} rad/s")
+        req = MoveJoint.Request()
+        req.angles = [float(v) for v in target]
+        timeout = 2.0 * math.pi / max(self.unwind_speed, 1e-3) + 15.0
+        req.speed, req.acc, req.wait, req.timeout = self.unwind_speed, self.home_acc, True, timeout
+        ok = self._call_ok(self._cli_servo_angle, req, "set_servo_angle(unwind_j1)", timeout=timeout + 5.0)
+        res.success = ok
+        res.message = f"Desenrollado: {detail}." if ok else "Falló el desenrollado de J1 (ver log)."
+        return res
+
     # ------------------------------------------------------------------------------------------
     # Frenos: comprobación de liberación (un freno puede no liberarse al habilitar motores)
     # ------------------------------------------------------------------------------------------
+    def _joint_limit_problem(self) -> Optional[str]:
+        """Texto con las juntas a menos de joint_limit_margin_rad de su límite, o None si todas están en rango."""
+        if self._joints is None:
+            return None
+        near = joints_near_limits(self._joints, self.joint_lower, self.joint_upper, self.joint_margin)
+        if not near:
+            return None
+        return "; ".join(f"J{j} = {q:.4f} rad a {abs(lim - q):.4f} rad de su límite {lim:+.4f}" for j, q, lim in near)
+
     def _brake_status_text(self) -> str:
         ok, stuck, disabled = brake_report(self._mt_brake, self._mt_able, self.dof)
         if ok:
@@ -540,6 +637,8 @@ class XArm5Bridge(Node):
             self._robot_mode, self._robot_state = msg.mode, msg.state
             new_err, self._robot_warn = msg.err, msg.warn
             self._mt_brake, self._mt_able = int(msg.mt_brake), int(msg.mt_able)
+            if len(msg.angle) >= self.dof:
+                self._joints = [float(v) for v in msg.angle[:self.dof]]
         if new_err != 0 and self._robot_err == 0:
             self.get_logger().error(f"El controlador reporta error C{new_err} (warn={msg.warn}).")
         self._robot_err = new_err
@@ -556,6 +655,15 @@ class XArm5Bridge(Node):
                 self._armed = False
                 self._target = None
             self.get_logger().error(f"DESARMADO: {self._brake_status_text()}")
+        elif self._armed and not self.dry_run and self._joint_limit_problem():
+            # Detener ANTES de que el controlador corte con C23 (Joint Angle Exceed Limit): se deja de enviar en este
+            # mismo callback y se vuelve a modo posición (brazo sostenido) en un hilo, una sola vez.
+            problem = self._joint_limit_problem()
+            with self._lock:
+                self._armed = False
+                self._target = None
+            self.get_logger().error(f"DESARMADO por límite articular: {problem}")
+            threading.Thread(target=self._set_mode_state, args=(XARM_MODE_POSITION,), daemon=True).start()
 
     def _joint_states_cb(self, msg: JointState):
         if self.gripper_type != "xarm_gripper":
@@ -776,7 +884,8 @@ class XArm5Bridge(Node):
                 f"robot_state_age_s={age:.2f} err={self._robot_err} warn={self._robot_warn} "
                 f"mode={self._robot_mode} state={self._robot_state} gripper_closed={self._gripper_closed_cmd} "
                 f"gripper_joint={self._gripper_real_pos} {pose} "
-                f"mt_brake=0b{self._mt_brake:0{self.dof}b} mt_able=0b{self._mt_able:0{self.dof}b}")
+                f"mt_brake=0b{self._mt_brake:0{self.dof}b} mt_able=0b{self._mt_able:0{self.dof}b} "
+                f"joints_rad={[round(v, 4) for v in self._joints] if self._joints else None}")
         self._pub_status.publish(String(data=text))
 
 

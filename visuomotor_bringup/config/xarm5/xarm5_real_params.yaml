@@ -123,7 +123,9 @@ xarm5_bridge:
     # home2 (servicio ~/go_home2): pose de trabajo actual, leída del brazo real el 2026-11-18 sin moverlo.
     #   TCP = brida (offset del controlador = 0, guardado con save_conf el 2026-11-18; sin herramienta montada):
     #   xyz = (0.2516, 0.0035, 0.2370) m, rpy = (3.1246, 0.2508, 0.0171)
-    home2_joints_rad: [6.2822, -0.5001, -0.2717, 1.0231, -0.0022]
+    #   J1 se representa en -0.0010 (= 6.2822 - 2*pi, misma postura física): el brazo estaba en J1 = +6.2822, a 0.001 rad
+    #   de su límite +2*pi, lo que provocó C23 al teleoperar. Hasta ejecutar ~/unwind_j1, go_home2 queda rechazado.
+    home2_joints_rad: [-0.0010, -0.5001, -0.2717, 1.0231, -0.0022]
     home_speed_rad_s: 0.35
     home_acc_rad_s2: 10.0
     home_timeout_s: 30.0
@@ -139,6 +141,17 @@ xarm5_bridge:
     dof: 5
     brake_check_enabled: true
     brake_check_timeout_s: 2.0
+
+    # --- Límites articulares (xarm_description/urdf/xarm5/xarm5.urdf.xacro) -------------------------
+    # No se arma si alguna junta está a menos de joint_limit_margin_rad de su límite, y armado se detiene antes de que
+    # el controlador corte con C23 (Joint Angle Exceed Limit). J1 y J5 tienen +/-2*pi (+/-360 grados).
+    joint_lower_limits_rad: [-6.283185, -2.059, -3.927, -1.69297, -6.283185]
+    joint_upper_limits_rad: [6.283185, 2.0944, 0.19198, 3.141593, 6.283185]
+    joint_limit_margin_rad: 0.10
+    # go_home / go_home2 se rechazan si alguna junta debe moverse más que esto (evita giros de base inesperados).
+    max_home_joint_delta_rad: 1.0
+    # ~/unwind_j1 (solo a mano, desarmado): gira SOLO J1 +/-2*pi para devolverla a [-pi, pi].
+    unwind_speed_rad_s: 0.3
 
 xarm5_teleop_marker:
   ros__parameters:

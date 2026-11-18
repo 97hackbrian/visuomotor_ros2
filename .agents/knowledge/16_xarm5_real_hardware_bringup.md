@@ -100,6 +100,15 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   no se movía porque el bringup estaba en dry-run (los clics sí llegaban a la Jetson; Humble↔Jazzy funcionó). Entre dos lecturas con frenos puestos la pose varió ~1.5 mm (posible deriva de freno).
 * **Certificación RViz2 Remota (2026-11-18):** Comunicación validada exitosamente entre el contenedor de la Jetson (Humble) y el equipo remoto (Jazzy) sobre la red del laboratorio mediante `tools/xarm5/run_remote_rviz.sh` y CycloneDDS con peer unicast dinámico (`DDS_PEER`). Telemetría de estado a 0.00 s de latencia, renderizado 3D del manipulador xArm5 verificado en pantalla y marcador interactivo `/xarm5_teleop` acoplado al TCP.
 
+## 5f. C23 por J1 en +2π y protección de límites articulares (2026-11-18)
+* Primera teleoperación real: C2 (Emergency IO) 4 s después de armar sin movimiento, y C23 (Joint Angle Exceed
+  Limit) 8 s después de "Seguir": J1 estaba en +6.2822 rad (límite +2π = 6.2832, URDF xarm5) y quedó en 6.2832.
+* Puente: `joint_lower/upper_limits_rad` (URDF), `joint_limit_margin_rad` 0.10 → no arma cerca de un límite y se
+  desarma (modo posición) antes del C23; `max_home_joint_delta_rad` 1.0 → go_home* rechazan giros grandes;
+  `~/unwind_j1` (manual, desarmado, `unwind_speed_rad_s` 0.3, limpia error si es posible) gira solo J1 ±2π.
+* home2 se representa con J1 = -0.0010 (misma postura que +6.2822). Fake driver: `initial_joints_rad` (home2) y
+  `/fake_xarm/set_joints`; checks 23-26 cubren el caso real.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
