@@ -7,11 +7,13 @@
     approx_sync: true
     queue_size: 20
     
-    # Parámetros VO calibrados para Approaching con D415
-    Odom/Strategy: "0"          # 0=Frame-to-Keyframe para mínima deriva
+    # Parámetros VO calibrados para Approaching con D415 (Baseline)
+    Odom/Strategy: "0"          # 0=Frame-to-Map para mínima deriva
     Odom/ResetCountdown: "0"    # 0=Desactivar reinicio a 0,0,0 en tracking loss
     Vis/CorType: "0"            # 0=Features Matching
-    Vis/FeatureType: "8"        # 8=ORB nativo de OpenCV (robusto a escala y rotación)
+    Vis/FeatureType: "8"        # 8=GFTT/ORB nativo de OpenCV (robusto y rápido)
     Vis/MaxFeatures: "1000"
     Vis/MinInliers: "10"
+    Vis/EstimationType: "1"     # 1=PnP 3D->2D
+    Vis/PnPReprojError: "2.0"
     Odom/FilteringStrategy: "1" # Filtro Kalman para suavizado continuo

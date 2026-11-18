@@ -104,6 +104,7 @@ informe_avance_visuomotor_cd.*
 *.fdb_latexmk
 datasets/visualizations_frameskip_v1/*
 datasets/visualizations_speed02_4eps/*
+datasets/visualizations_real_v2/*
 datasets/visualizations_v8/*.gif
 datasets/visualizations_v8/**/*.gif
 datasets/visualizations_v8/last_20_episodes_891_910/*.gif

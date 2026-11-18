@@ -197,9 +197,10 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Inviolabilidad de Pesos:* Las herramientas de análisis, graficado y re-evaluación operan estrictamente en modo de solo lectura sobre los checkpoints y `model.safetensors`.
    - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
 17. **Odometría Visual con RTAB-Map y RealSense D415 para Demostraciones Reales:**
-   - *Pipeline Desacoplado:* Captura manual de aproximación (*approaching*) en hardware real mediante `realsense2_camera` (640x480@30Hz, proyector IR activo y profundidad alineada) + `rtabmap_odom` (`rgbd_odometry`) operando a ~57 Hz en CPU i9-13950HX.
-   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino.
-   - *Lanzador y Permisos USB:* `tools/hardware/run_vo_container.sh` con montaje dinámico en caliente de `/dev` y `/dev/bus/usb`.
+   - *Pipeline Desacoplado:* Captura manual de aproximación (*approaching*) en hardware real mediante `realsense2_camera` (640x480@30Hz, proyector IR activo y profundidad alineada) + `rtabmap_odom` (`rgbd_odometry`). Visor gráfico RViz2 cargando `vo_vis.rviz`.
+   - *Benchmarking y Metrología:* Validación empírica con `tools/hardware/benchmark_vo.py`: Baseline GFTT/ORB certificado a $30.63\text{ Hz}$, $22.05\text{ ms}$ de CPU, $300.5\text{ inliers}$, $0.394\text{ mm}$ de jitter 3D y $0.0467^\circ$ angular, superando a SIFT debido a la interacción con la trama láser infrarroja activa de la D415.
+   - *Recolector FSM a 20 Hz y Primer Dataset Certificado:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino. Validación del dataset real `datasets/demonstrations_real_v2.zarr` (7 episodios, $2,909$ pasos, hold en destino $\ge 2.5\text{ s} - 4.2\text{ s}$) y visualización con `tools/visualize_dataset.py`.
+   - *Lanzador y Permisos USB:* `tools/hardware/run_vo_container.sh` con montaje dinámico en caliente de `/dev` y `/dev/bus/usb`, y grupos de sistema (`--group-add 44 --group-add 46`).
    - *Justificación Física:* RTAB-Map RGB-D es superior a cuVSLAM para la RealSense D415 al aprovechar el proyector IR y cómputo ASIC sin depender de IMU física ni sufrir divergencia por *rolling shutter*.
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
 
@@ -252,6 +253,11 @@ docker exec -it -u 1000 -w /ros visuomotor_ros2 bash -c "python3 /ros/visuomotor
 
 # 13. Parada Limpia a Demanda del Entrenamiento (sin pérdida de datos ni corrupción)
 touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
+
+# 14. Recolección y Visualización de Demostraciones Reales (RealSense D415 + RTAB-Map VO)
+./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d415_vo.launch.py gui:=true
+docker exec -it -u 1000 visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
+docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset datasets/demonstrations_real_v2.zarr --out-dir datasets/visualizations_real_v2
 ```
 
 ---

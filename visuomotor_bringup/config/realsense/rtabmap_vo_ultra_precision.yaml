@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    frame_id: "camera_link"
+    odom_frame_id: "odom"
+    publish_tf: true
+    wait_for_transform: 0.2
+    approx_sync: true
+    queue_size: 20
+    
+    # Parámetros VO Ultra-Precisión Calibrados (SIFT 30 Hz + Subpíxel + g2o BA)
+    Odom/Strategy: "0"                     # 0=Frame-to-Map para mínima deriva
+    Odom/ResetCountdown: "0"               # 0=Desactivar reinicio a 0,0,0 en tracking loss
+    Vis/CorType: "0"                       # 0=Features Matching
+    Vis/FeatureType: "1"                   # 1=SIFT (máxima precisión invariante a escala de approaching)
+    Vis/MaxFeatures: "400"                 # Calibrado a 400 para alcanzar 30 Hz en CPU
+    Vis/MinInliers: "15"                   # Mayor consistencia geométrica requerida
+    Vis/EstimationType: "1"                # 1=PnP 3D->2D
+    Vis/PnPReprojError: "1.5"              # Error de reproyección estricto
+    Vis/SubPixIterations: "10"             # Refinamiento subpíxel activo (cv::cornerSubPix)
+    Vis/SubPixWinSize: "3"                 # Ventana 3x3 de interpolación subpíxel
+    OdomF2M/BundleAdjustment: "1"         # Optimización g2o local de keyframes
+    OdomF2M/BundleAdjustmentMaxFrames: "8" # Ventana de 8 frames (equilibrio latencia/precisión)
+    Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo

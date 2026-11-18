@@ -19,13 +19,21 @@ if [ -n "$DISPLAY" ]; then
     xhost +local:1000 2>/dev/null || true
 fi
 
+# Flags interactivos si hay TTY
+INTERACTIVE_FLAGS=""
+if [ -t 0 ]; then
+    INTERACTIVE_FLAGS="-it"
+fi
+
 # Ejecutar contenedor con /dev y /dev/bus/usb mapeados en vivo
-docker run -it --rm \
+docker run $INTERACTIVE_FLAGS --rm \
     --name $CONTAINER_NAME \
     --net=host \
     --ipc=host \
     --privileged \
     --gpus all \
+    --group-add 44 \
+    --group-add 46 \
     -e DISPLAY="${DISPLAY:-:0}" \
     -e QT_X11_NO_MITSHM=1 \
     -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \

@@ -11,6 +11,7 @@ def generate_launch_description():
     data_coll_share = get_package_share_directory('visuomotor_data_collection')
     
     gui_arg = DeclareLaunchArgument('gui', default_value='false', description='Lanzar visor gráfico')
+    ultra_precision_arg = DeclareLaunchArgument('ultra_precision', default_value='false', description='Usar modo ultra-precisión (SIFT)')
     dataset_path_arg = DeclareLaunchArgument('dataset_path', default_value='AUTO', description='Ruta de guardado Zarr')
 
     vo_launch_path = os.path.join(bringup_share, 'launch', 'realsense_d415_vo.launch.py')
@@ -19,7 +20,10 @@ def generate_launch_description():
     # 1. Bringup de cámara D415 + RTAB-Map VO
     vo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(vo_launch_path),
-        launch_arguments={'gui': LaunchConfiguration('gui')}.items()
+        launch_arguments={
+            'gui': LaunchConfiguration('gui'),
+            'ultra_precision': LaunchConfiguration('ultra_precision')
+        }.items()
     )
 
     # 2. Nodo recolector interactivo Zarr
@@ -33,6 +37,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         gui_arg,
+        ultra_precision_arg,
         dataset_path_arg,
         vo_launch,
         collector_node
