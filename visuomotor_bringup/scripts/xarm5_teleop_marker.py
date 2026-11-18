@@ -58,6 +58,7 @@ class XArm5TeleopMarker(Node):
 
         self.following = False
         self.armed = False
+        self.dry_run = None  # desconocido hasta recibir el estado del puente
         self.last_msg = "Listo. Clic derecho para el menú."
         self.marker_pose: Pose | None = None
 
@@ -115,7 +116,10 @@ class XArm5TeleopMarker(Node):
         im.scale = self.marker_scale
         im.pose = copy.deepcopy(self.marker_pose)
         state = "SIGUIENDO" if self.following else "EN ESPERA"
-        im.description = f"xArm5 [{state} | {'ARMADO' if self.armed else 'DESARMADO'}]\n{self.last_msg}"
+        mode = "" if self.dry_run is False else (
+            "\n*** DRY-RUN: el brazo NO se moverá (relanzar con dry_run:=false) ***" if self.dry_run
+            else "\n(esperando estado del puente)")
+        im.description = f"xArm5 [{state} | {'ARMADO' if self.armed else 'DESARMADO'}]{mode}\n{self.last_msg}"
 
         body = InteractiveMarkerControl()
         body.always_visible = True
@@ -123,7 +127,12 @@ class XArm5TeleopMarker(Node):
         sphere = Marker()
         sphere.type = Marker.SPHERE
         sphere.scale.x = sphere.scale.y = sphere.scale.z = self.marker_scale * 0.3
-        sphere.color.r, sphere.color.g, sphere.color.b = (0.1, 0.9, 0.2) if self.following else (0.7, 0.7, 0.7)
+        if self.dry_run:          # amarillo: modo simulación, nada se mueve
+            sphere.color.r, sphere.color.g, sphere.color.b = (1.0, 0.85, 0.0)
+        elif self.following:      # verde: siguiendo al marcador
+            sphere.color.r, sphere.color.g, sphere.color.b = (0.1, 0.9, 0.2)
+        else:                     # gris: en espera
+            sphere.color.r, sphere.color.g, sphere.color.b = (0.7, 0.7, 0.7)
         sphere.color.a = 0.9
         body.markers.append(sphere)
         im.controls.append(body)
@@ -169,7 +178,11 @@ class XArm5TeleopMarker(Node):
             self._set_msg("No se activa: el puente está DESARMADO (usa 'Armar brazo').", error=True)
             return
         self.following = True
-        self._set_msg("Seguimiento ACTIVO: el brazo sigue al marcador (con límites del puente).")
+        if self.dry_run:
+            self._set_msg("Seguimiento ACTIVO en DRY-RUN: el brazo NO se moverá (relanzar con dry_run:=false).",
+                          error=True)
+        else:
+            self._set_msg("Seguimiento ACTIVO: el brazo sigue al marcador (con límites del puente).")
 
     def _menu_follow_off(self, _fb):
         self.following = False
@@ -212,6 +225,13 @@ class XArm5TeleopMarker(Node):
     # --- estado del puente y publicación -----------------------------------------------------------
     def _status_cb(self, msg: String):
         armed = "armed=True" in msg.data
+        dry_run = "dry_run=True" in msg.data
+        if dry_run != self.dry_run:
+            self.dry_run = dry_run
+            if dry_run:
+                self.get_logger().warn("Puente en DRY-RUN: los comandos se calculan pero NO se envían al brazo.")
+            if self.marker_pose is not None:
+                self._rebuild_marker()
         if armed != self.armed:
             self.armed = armed
             if not armed and self.following:

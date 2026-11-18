@@ -52,6 +52,11 @@ policy_node:
     home_pitch: 0.2508
     home_yaw: 0.0171
 
+    # --- Coordenadas Relativas (Modo UMI / Delta-Home) ---
+    # Debe coincidir con cómo se entrenó el checkpoint: true resta home (home_x/y/z, = home2) a la observación y lo
+    # suma a la acción predicha. Valor explícito (mismo que visuomotor_ros2/config/policy_params.yaml).
+    relative_coordinates: true
+
     # --- Auto-Stop Neuronal Desacoplado ---
     enable_neural_auto_stop: true
     neural_auto_stop_threshold: 0.50
