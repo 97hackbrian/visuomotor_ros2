@@ -6,6 +6,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+
+# Módulo Python puro con la lógica del xArm5 (visuomotor_bringup.xarm5_interface), testeable sin ROS
+ament_python_install_package(${PROJECT_NAME})
 
 install(DIRECTORY
   launch
@@ -18,6 +22,7 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/sixd_speed_limiter
   scripts/pose_smoother.py
+  scripts/xarm5_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

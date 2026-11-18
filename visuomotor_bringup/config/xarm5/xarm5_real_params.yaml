@@ -1,0 +1,128 @@
+# ==============================================================================
+# xArm5 REAL (UFACTORY, 5 GDL, 3 kg de carga) — configuración única del bringup real
+# ==============================================================================
+# Lo usa visuomotor_bringup/launch/xarm5_real.launch.py. Contiene dos nodos:
+#   * ufactory_driver : driver oficial xarm_api (xarm_ros2, rama humble). Este bloque se SUPERPONE
+#                       al xarm_params.yaml por defecto del paquete xarm_api.
+#   * xarm5_bridge    : puente seguro política -> servo cartesiano (visuomotor_bringup/scripts/xarm5_bridge.py)
+#
+# Unidades: el puente trabaja en metros/radianes; el controlador xArm en milímetros/radianes.
+# ==============================================================================
+
+ufactory_driver:
+  ros__parameters:
+    # IP del controlador (histórico en la Jetson: 192.168.1.228; 3 sesiones antiguas usaron .239).
+    # La Jetson debe tener una interfaz cableada en la misma subred (p. ej. 192.168.1.10/24).
+    robot_ip: "192.168.1.228"
+    dof: 5
+    robot_type: "xarm"
+    hw_ns: "xarm"
+    prefix: ""
+    # 'normal' y 'rich' reportan a baja frecuencia; 'dev' reporta a alta frecuencia, necesario para que
+    # la TF del TCP (estado de la política a 20 Hz) no quede retrasada.
+    report_type: "dev"
+    baud_checkset: true
+    default_gripper_baud: 2000000
+    services:
+      # Mínimo necesario para el puente (el resto queda como en xarm_params.yaml del paquete).
+      clean_error: true
+      motion_enable: true
+      set_mode: true
+      set_state: true
+      set_servo_angle: true
+      set_servo_cartesian: true
+      set_gripper_enable: true
+      set_gripper_mode: true
+      set_gripper_speed: true
+      set_gripper_position: true
+      set_vacuum_gripper: true
+
+xarm5_bridge:
+  ros__parameters:
+    hw_ns: "xarm"
+
+    # --- Seguridad general ----------------------------------------------------
+    # dry_run: true  -> NUNCA envía movimiento ni comandos de gripper (solo ~/command_preview).
+    # Cambiar a false solo tras validar en dry-run con el robot conectado.
+    dry_run: true
+    # true -> no necesita driver: el "robot" sigue al comando (pruebas sin hardware). Exige dry_run: true.
+    simulate_robot_state: false
+    service_timeout_s: 3.0
+    servo_response_timeout_s: 0.5       # set_servo_cartesian sin respuesta -> cuenta como fallo
+    robot_state_timeout_s: 1.0          # sin robot_states durante este tiempo -> desarme
+    max_consecutive_failures: 5         # fallos seguidos de set_servo_cartesian -> desarme
+
+    # --- Lazo de control ------------------------------------------------------
+    control_rate_hz: 30.0               # frecuencia de envío de set_servo_cartesian
+    state_publish_rate_hz: 30.0         # TF del TCP y estado del gripper para la política
+    status_rate_hz: 1.0
+    target_topic: "/target_frame"       # salida de pose_smoother (entrada: target_frame_raw de policy_node)
+    target_timeout_s: 0.5               # objetivo más viejo que esto -> se mantiene la posición
+    robot_states_topic: "/xarm/robot_states"
+    robot_joint_states_topic: "/xarm/joint_states"
+
+    # --- Frames (deben coincidir con base_frame / ee_frame del policy_node) ----
+    base_frame: "link_base"
+    tcp_frame: "xarm_tcp"               # TF publicada desde la pose que reporta el controlador
+    publish_tcp_tf: true
+
+    # --- Orientación con 5 GDL -------------------------------------------------
+    # top_down_yaw: garra vertical (roll/pitch fijos) + yaw de la política  [recomendado]
+    # fixed       : orientación constante (top_down_roll, top_down_pitch, fixed_yaw)
+    # passthrough : RPY de la política sin cambios (solo depuración; el controlador puede rechazarla)
+    orientation_mode: "top_down_yaw"
+    top_down_roll: 3.14159265
+    top_down_pitch: 0.0
+    fixed_yaw: 0.0
+    yaw_offset: 0.0
+    # Rango de yaw permitido (rad). El yaw se interpola SIN cruzar ±pi para evitar giros de 2*pi de la muñeca.
+    yaw_min: -2.6
+    yaw_max: 2.6
+
+    # --- Volumen de trabajo en link_base (metros) -------------------------------
+    # Conservador para las primeras pruebas; ampliar tras medir la celda real.
+    workspace_x_min: 0.15
+    workspace_x_max: 0.55
+    workspace_y_min: -0.30
+    workspace_y_max: 0.30
+    workspace_z_min: 0.10
+    workspace_z_max: 0.50
+    workspace_min_radius_xy: 0.15       # evita la singularidad sobre el eje de J1
+    workspace_max_radius_xy: 0.60       # alcance nominal del xArm5: 0.70 m
+
+    # --- Límites de velocidad -------------------------------------------------
+    max_linear_speed_m_s: 0.05          # 5 cm/s para la primera puesta en marcha
+    max_angular_speed_rad_s: 0.5
+    max_target_distance_m: 0.25         # objetivos más lejanos del TCP medido se rechazan
+    servo_speed: 0.0                    # argumentos speed/acc de set_servo_cartesian (0 = valor del firmware)
+    servo_acc: 0.0
+
+    # --- Gripper ---------------------------------------------------------------
+    # xarm_gripper | vacuum | none   (también define add_gripper / add_vacuum_gripper del driver)
+    gripper_type: "xarm_gripper"
+    gripper_command_topic: "/position_controller/commands"   # publicado por ActionExecutor
+    gripper_state_topic: "/visuomotor/gripper_joint_states"  # leer desde policy_node (joint_states_topic)
+    gripper_state_joint_name: "gripper"                      # coincide con gripper_joint_name_pattern
+    gripper_close_threshold: -0.001     # = gripper_binary_threshold del policy_node
+    gripper_hysteresis: 0.0005
+    gripper_policy_open_pos: 0.0        # escala de la política (simulación): abierto
+    gripper_policy_closed_pos: -0.01    # escala de la política (simulación): cerrado
+    gripper_min_command_interval_s: 0.5
+    # Gripper xArm por ACCIÓN GripperCommand (la acción publica drive_joint con cualquier firmware; el servicio
+    # set_gripper_position no lo hace con firmware < 2.7.101). Posición en escala de drive_joint.
+    xarm_gripper_action_name: "/xarm_gripper/gripper_action"
+    xarm_gripper_speed: 1500.0
+    xarm_gripper_joint_name: "drive_joint"
+    xarm_gripper_joint_open: 0.0        # objetivo/estado abierto (drive_joint)
+    xarm_gripper_joint_closed: 0.85     # objetivo/estado cerrado; bajar (p. ej. 0.7) si aprieta demasiado
+
+    # --- Home articular (servicio ~/go_home, solo desarmado) ---------------------
+    # "Home adaptado al gripper" usado previamente en la Jetson (xarm_examples/Nodo_home.py).
+    home_joints_rad: [0.0, -0.82, -0.28, 1.11, 0.0]
+    home_speed_rad_s: 0.35
+    home_acc_rad_s2: 10.0
+    home_timeout_s: 30.0
+
+    # --- Estado inicial cuando simulate_robot_state: true -------------------------
+    sim_initial_xyz: [0.25, 0.0, 0.40]
+    sim_initial_rpy: [3.14159265, 0.0, 0.0]

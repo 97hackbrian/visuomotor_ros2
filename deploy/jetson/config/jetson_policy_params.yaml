@@ -22,11 +22,20 @@ policy_node:
     # --- Configuración de Sensores y Tópicos de Hardware Real ---
     # Tópico de la cámara física (cambiar según el driver usado: RealSense, V4L2 USB Cam, etc.)
     camera_topic: "/camera/color/image_raw"
-    joint_states_topic: "/joint_states"
+    # xArm5 real: el puente xarm5_bridge publica la apertura del gripper ya convertida a la escala de la
+    # política (0.0 abierto .. -0.01 cerrado) con nombre "gripper" (ver config/xarm5/xarm5_real_params.yaml).
+    joint_states_topic: "/visuomotor/gripper_joint_states"
+    gripper_joint_name_pattern: "gripper"
+    gripper_open_pos: 0.0
+    gripper_closed_pos: -0.01
+    gripper_binary_threshold: -0.001
     action_chunk_topic: "policy/action_chunk"
-    
+    # Duración de la fase RESET (envía la pose home antes de ceder el control a la red)
+    reset_duration_s: 5.0
+
     # Marcos de referencia cinemáticos (TF2)
-    ee_frame: "gripper_base_link"
+    # xArm5 real: TF link_base -> xarm_tcp publicada por xarm5_bridge desde la pose del controlador.
+    ee_frame: "xarm_tcp"
     base_frame: "link_base"
     
     # Resolución de entrada de la red (256x256 RGB)

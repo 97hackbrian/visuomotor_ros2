@@ -1,5 +1,7 @@
 #  Copyright (c) 2026. Programacion Cientifica, DISC, Antofagasta, Chile.
 
+from __future__ import annotations  # compatibilidad Python 3.8 (Jetson JetPack 5)
+
 import datetime
 import logging
 import time

@@ -1,6 +1,12 @@
+from __future__ import annotations  # compatibilidad Python 3.8 (Jetson JetPack 5)
+
+from typing import TYPE_CHECKING
+
 import torch
-import datasets
 from torch import Tensor, nn
+
+if TYPE_CHECKING:  # solo para anotaciones; evita exigir HuggingFace `datasets` en inferencia
+    import datasets
 from safetensors.torch import load_file
 import numpy as np
 

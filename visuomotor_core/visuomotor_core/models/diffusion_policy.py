@@ -1,3 +1,5 @@
+from __future__ import annotations  # compatibilidad Python 3.8 (Jetson JetPack 5)
+
 from collections import deque
 import torch
 import torchvision
@@ -42,6 +44,10 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
         super().__init__()
         if config is None:
             config = DiffusionConfig()
+        elif isinstance(config, dict):
+            # `from_pretrained` entrega el config.json como dict cuando las anotaciones son cadenas
+            # (`from __future__ import annotations`, necesario en Python 3.8); se reconstruye el dataclass.
+            config = DiffusionConfig(**config)
         self.config = config
         self.normalize_inputs = Normalize(
             config.input_shapes, config.input_normalization_modes, dataset_stats
@@ -76,7 +82,7 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
             "action": deque(maxlen=self.config.n_action_steps),
         }
 
-    @torch.no_grad
+    @torch.no_grad()
     def select_action(self, batch: dict[str, Tensor]) -> Tensor:
 
         """n_obs_steps se odnosi na broj koraka koji se uzimaju u obzir prilikom generisanja akcija. Ako
@@ -606,7 +612,7 @@ class DiffusionConditionalUnet1d(nn.Module):
         # In channels / out channels for each downsampling block in the Unet's encoder. For the decoder, we
         # just reverse these.
         in_out = [(config.output_shapes["action"][0], config.down_dims[0])] + list(
-            zip(config.down_dims[:-1], config.down_dims[1:], strict=True)
+            zip(config.down_dims[:-1], config.down_dims[1:])  # strict=True requiere Python>=3.10; ambas listas tienen igual longitud
         )
 
         # Unet encoder.

@@ -1,3 +1,5 @@
+from __future__ import annotations  # compatibilidad Python 3.8 (Jetson JetPack 5)
+
 from dataclasses import dataclass, field
 
 @dataclass

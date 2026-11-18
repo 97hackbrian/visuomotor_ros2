@@ -203,6 +203,12 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Recolector FSM a 20 Hz:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
+18. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
+   - *Cadena:* `policy_node` → `target_frame_raw` → `pose_smoother` → `target_frame` → `xarm5_bridge` → `/xarm/set_servo_cartesian` (modo 1). TF `link_base→xarm_tcp` y `/visuomotor/gripper_joint_states` (escala de la política) los publica el puente.
+   - *Seguridad obligatoria:* el puente arranca **desarmado** y con `dry_run: true`; solo `~/arm` habilita movimiento. Caja de trabajo, límites de velocidad, rechazo de objetivos lejanos, watchdog y desarme ante error del controlador. Nunca desactivar estas protecciones en código; ajustarlas en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`.
+   - *5 GDL:* orientación 6D no alcanzable; `orientation_mode: top_down_yaw` (garra vertical + yaw de la política).
+   - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
+   - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
 
 ---
 

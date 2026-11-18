@@ -13,7 +13,7 @@ Este directorio contiene todo lo necesario para compilar y ejecutar el nodo de i
 
 ### Selección de Imagen Base Docker
 En JetPack 5.x, el runtime de NVIDIA (`nvidia-container-cli`) monta los drivers CUDA 11.4 del host. Para garantizar compatibilidad binaria absoluta con la GPU Tegra sin errores de `libcuda.so` ni dependencias rotas de glibc:
-* **JetPack 5.1.x (Por defecto):** Utiliza `dustynv/ros:humble-pytorch-l4t-r35.4.1` (Ubuntu 22.04 Jammy en contenedor, ROS 2 Humble, Python 3.10, PyTorch acelerado por hardware para Tegra).
+* **JetPack 5.1.x (Por defecto):** Utiliza `dustynv/ros:humble-desktop-pytorch-l4t-r35.4.1` (Ubuntu 20.04 Focal en contenedor, ROS 2 Humble Desktop compilado desde fuente en `/opt/ros/humble/install`, Python 3.8, PyTorch 2.0.0+nv23.05 con CUDA 11.4). La imagen solo añade dependencias de Python (`torchvision==0.15.1`, `diffusers==0.30.3`, etc.) y no modifica el sistema base. `visuomotor_core` incluye `from __future__ import annotations` para ser compatible con Python 3.8.
 * **JetPack 6.x (Si en el futuro actualizas la Jetson):** Puedes cambiar `BASE_IMAGE` a `dustynv/ros:jazzy-pytorch-l4t-r36.2.0` en `docker-compose.yml`.
 
 > [!NOTE]
@@ -70,7 +70,21 @@ docker compose build
 docker compose up -d
 ```
 
-Para ver los logs de inferencia en tiempo real:
+`docker compose up -d` deja el contenedor **en espera**: NO inicia la inferencia (el brazo no se mueve al encender la Jetson ni al reiniciar el contenedor). La inferencia se lanza manualmente cuando tú decidas:
+
+```bash
+# Opción A: lanzarla directamente
+docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh \
+  ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+
+# Opción B: entrar con ROS ya cargado y lanzarla desde dentro (Ctrl+C la detiene sin tumbar el contenedor)
+docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash
+ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+```
+
+Para inferencia automática al arrancar (modo producción), reemplazar `command: sleep infinity` en `docker-compose.yml` por el `ros2 launch` anterior.
+
+Para ver los logs del contenedor:
 ```bash
 docker compose logs -f
 ```
@@ -82,13 +96,75 @@ docker compose down
 
 ---
 
+## 3b. Manipulador real xArm5 (UFACTORY)
+
+La imagen incluye el driver oficial `xarm_ros2` (rama `humble`, fijado por commit) y el bringup
+`visuomotor_bringup/launch/xarm5_real.launch.py`. Toda la configuración (IP, gripper, límites, velocidades,
+home) está en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`, montado en el contenedor (se edita
+en el host sin reconstruir).
+
+```
+policy_node --target_frame_raw--> pose_smoother --target_frame--> xarm5_bridge --> /xarm/set_servo_cartesian
+policy_node --/position_controller/commands--> xarm5_bridge --> gripper xArm / ventosa
+/xarm/robot_states --> xarm5_bridge --> TF link_base->xarm_tcp + /visuomotor/gripper_joint_states --> policy_node
+```
+
+**Seguridad del puente (`xarm5_bridge`):** arranca **desarmado** y con `dry_run: true`; caja de trabajo y radio
+XY, 5 cm/s y 0.5 rad/s por defecto, rechazo de objetivos a más de 25 cm del TCP, *watchdog* de objetivo,
+y desarme automático si el controlador reporta error, se pierde `robot_states` o fallan 5 envíos seguidos.
+
+**Orientación con 5 GDL:** el xArm5 no puede seguir una orientación 6D arbitraria. Por defecto
+(`orientation_mode: top_down_yaw`) la garra se mantiene vertical y solo se usa el giro (yaw) que pide la política.
+
+### Red
+El controlador está en `192.168.1.228` (valor histórico). La Jetson necesita una interfaz **cableada** en esa
+subred, por ejemplo `192.168.1.10/24` (sin puerta de enlace, para no romper el Wi-Fi).
+
+### Puesta en marcha por etapas (dentro del contenedor: `docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash`)
+
+```bash
+# 0) Sin hardware: robot simulado (valida la cadena completa con la política)
+ros2 launch visuomotor_bringup xarm5_real.launch.py simulate_robot_state:=true
+
+# 1) Conexión (brazo energizado, paro de emergencia liberado): driver + puente en DRY-RUN. No mueve nada.
+ping -c 3 192.168.1.228
+ros2 launch visuomotor_bringup xarm5_real.launch.py
+ros2 topic echo /xarm5_bridge/status          # err=0, robot_state_age_s pequeño
+ros2 run tf2_ros tf2_echo link_base xarm_tcp  # debe coincidir con la pose del panel UFACTORY
+
+# 2) Home articular (desarmado, modo posición)
+ros2 service call /xarm5_bridge/go_home std_srvs/srv/Trigger
+
+# 3) Movimiento real: relanzar con dry_run:=false, armar y luego lanzar la política
+ros2 launch visuomotor_bringup xarm5_real.launch.py dry_run:=false
+ros2 service call /xarm5_bridge/arm std_srvs/srv/Trigger
+ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+
+# Detener en cualquier momento (además del paro de emergencia físico)
+ros2 service call /xarm5_bridge/disarm std_srvs/srv/Trigger
+```
+
+En dry-run, `ros2 topic echo /xarm5_bridge/command_preview` muestra la pose que se enviaría al brazo.
+`/xarm5_bridge/status` incluye la pose medida del TCP: tras `go_home`, úsala para ajustar `home_x/y/z` de
+`jetson_policy_params.yaml` (la fase RESET de la política envía esa pose y el puente rechaza objetivos a más de
+`max_target_distance_m` del TCP). En la primera conexión, verificar también `ros2 topic hz /xarm/robot_states`.
+
+### Comprobaciones sin hardware (driver falso)
+```bash
+python3 tools/xarm5/fake_xarm_driver.py &
+ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false &
+python3 tools/xarm5/check_xarm5_bridge.py      # 17 comprobaciones; código de salida 0 = OK
+```
+
+---
+
 ## 4. Benchmark de Latencia y VRAM en Borde
 
 Para verificar cuántos milisegundos toma la inferencia y cuánta memoria consume en la Jetson Orin Nano antes de conectar los motores físicos del robot:
 
 ```bash
 # Abrir una terminal interactiva dentro del contenedor en ejecución
-docker exec -it visuomotor_orin_inference bash
+docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash
 
 # Ejecutar el benchmark automatizado (evalúa FP32 vs FP16)
 python3 /ros_ws/src/visuomotor_ros2/deploy/jetson/scripts/benchmark_jetson.py --model_path /ros_ws/model
