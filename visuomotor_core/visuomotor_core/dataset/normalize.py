@@ -1,3 +1,5 @@
+from __future__ import annotations  # compatibilidad Python 3.8 (Jetson JetPack 5)
+
 from torch import Tensor, nn
 import torch
 from visuomotor_core.models.utils import create_stats_buffers
@@ -45,7 +47,7 @@ class Normalize(nn.Module):
             setattr(self, "buffer_" + key.replace(".", "_"), buffer)
 
     # TODO(rcadene): should we remove torch.no_grad?
-    @torch.no_grad
+    @torch.no_grad()
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
         out = dict(batch)
         for key, mode in self.modes.items():
@@ -113,7 +115,7 @@ class Unnormalize(nn.Module):
             setattr(self, "buffer_" + key.replace(".", "_"), buffer)
 
     # TODO(rcadene): should we remove torch.no_grad?
-    @torch.no_grad
+    @torch.no_grad()
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
         out = dict(batch)
         for key, mode in self.modes.items():

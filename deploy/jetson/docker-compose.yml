@@ -6,7 +6,7 @@ services:
       args:
         # Por defecto para JetPack 5.1.x (L4T R35.x)
         # Si actualizas a JetPack 6.x, descomenta: dustynv/ros:jazzy-pytorch-l4t-r36.2.0
-        BASE_IMAGE: dustynv/ros:humble-pytorch-l4t-r35.4.1
+        BASE_IMAGE: dustynv/ros:humble-desktop-pytorch-l4t-r35.4.1
     image: visuomotor_jetson:latest
     container_name: visuomotor_orin_inference
     restart: unless-stopped
@@ -30,5 +30,12 @@ services:
       - ./model:/ros_ws/model:ro
       # Sobrescritura de parámetros calibrados específicamente para la Jetson
       - ./config/jetson_policy_params.yaml:/ros_ws/install/visuomotor_ros2/share/visuomotor_ros2/config/policy_params.yaml:ro
-    command: >
-      ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+      # Configuración del xArm5 real (IP, límites, gripper): se edita en el host sin reconstruir la imagen
+      - ../../visuomotor_bringup/config/xarm5:/ros_ws/src/visuomotor_bringup/config/xarm5:ro
+    # El contenedor arranca EN ESPERA: no inicia la inferencia (el brazo no se mueve al encender la Jetson).
+    # Para lanzarla manualmente:
+    #   docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh \
+    #     ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+    # Para inferencia automática al arrancar (modo producción), reemplazar por:
+    #   command: ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+    command: sleep infinity

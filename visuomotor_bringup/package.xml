@@ -8,6 +8,17 @@
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <!-- xArm5 real (scripts/xarm5_bridge.py, launch/xarm5_real.launch.py).
+       xarm_api / xarm_msgs (xarm_ros2, rama humble) NO se declaran aquí a propósito: no están en rosdep
+       y el equipo de simulación (Isaac Sim) no los necesita. En la Jetson los compila deploy/jetson/Dockerfile.jetson. -->
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <exec_depend>visuomotor_ros2</exec_depend>
   <exec_depend>visuomotor_data_collection</exec_depend>

@@ -41,6 +41,7 @@ Para garantizar que el entrenamiento de Machine Learning (ML) no dependa de comp
 
 5. **`visuomotor_bringup`** (ament_cmake)
    - *Rol:* Archivos `launch` específicos para unificar el modelo con el ecosistema de un robot o simulación real (Ej. Integrar el publicador de TFs de Isaac Sim y los actuadores de XArm).
+   - *xArm5 real (Jetson):* `launch/xarm5_real.launch.py` + `config/xarm5/xarm5_real_params.yaml` + `scripts/xarm5_bridge.py` (puente seguro `target_frame` → `/xarm/set_servo_cartesian`, arranca desarmado y en dry-run, proyección de orientación a 5 GDL `top_down_yaw`). Lógica pura en `visuomotor_bringup/xarm5_interface.py` con pruebas en `tests/test_xarm5_interface.py`. Detalle en `.agents/knowledge/15_xarm5_real_hardware_bringup.md`.
 
 ---
 

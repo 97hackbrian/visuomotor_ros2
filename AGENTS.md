@@ -196,6 +196,12 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Doble Eje X Sincrónico:* Todo gráfico de pérdida temporal debe mostrar de forma explícita el eje X inferior en **Pasos de Optimización** y el eje X superior en **Épocas de Entrenamiento** ($1\text{ Época} = N\text{ Pasos}$).
    - *Inviolabilidad de Pesos:* Las herramientas de análisis, graficado y re-evaluación operan estrictamente en modo de solo lectura sobre los checkpoints y `model.safetensors`.
    - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
+17. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
+   - *Cadena:* `policy_node` → `target_frame_raw` → `pose_smoother` → `target_frame` → `xarm5_bridge` → `/xarm/set_servo_cartesian` (modo 1). TF `link_base→xarm_tcp` y `/visuomotor/gripper_joint_states` (escala de la política) los publica el puente.
+   - *Seguridad obligatoria:* el puente arranca **desarmado** y con `dry_run: true`; solo `~/arm` habilita movimiento. Caja de trabajo, límites de velocidad, rechazo de objetivos lejanos, watchdog y desarme ante error del controlador. Nunca desactivar estas protecciones en código; ajustarlas en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`.
+   - *5 GDL:* orientación 6D no alcanzable; `orientation_mode: top_down_yaw` (garra vertical + yaw de la política).
+   - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
+   - *Memoria Modular:* `.agents/knowledge/15_xarm5_real_hardware_bringup.md`.
 
 ---
 
