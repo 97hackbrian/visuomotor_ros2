@@ -16,9 +16,10 @@ services:
     privileged: true
     environment:
       - DISPLAY=${DISPLAY:-:0}
-      # Dominio DDS del ROBOT REAL. Distinto del 42/43 de la simulación (Isaac Sim) del otro equipo: si coincidieran,
-      # una política simulada podría publicar objetivos que moverían el brazo real. RViz2 remoto debe usar este mismo.
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+      # Dominio DDS del ROBOT REAL (todo proceso del contenedor lo hereda, con o sin entrypoint). RViz2 remoto debe
+      # usar el mismo. ATENCIÓN: 42 coincide con la simulación (Isaac Sim) del otro equipo: no correr simulación ni
+      # políticas en el dominio 42 de la red del laboratorio mientras el brazo real esté conectado.
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       # DDS por la red del laboratorio (no por eth0, que es la red del controlador xArm). Ver config/cyclonedds.xml
       - CYCLONEDDS_URI=file:///ros_ws/cyclonedds.xml

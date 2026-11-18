@@ -122,8 +122,10 @@ El controlador está en `192.168.1.228` (verificado). La Jetson usa `eth0` con `
 el driver habla con el controlador por TCP, no por DDS. Si la red bloquea multicast, definir `DDS_PEER=<IP del otro
 equipo>` antes de `docker compose up -d`.
 
-**Dominio DDS del robot real: `ROS_DOMAIN_ID=30`** (compose). La simulación del otro equipo usa 42/43: mantenerlos
-distintos evita que una política simulada publique objetivos que muevan el brazo real.
+**Dominio DDS del robot real: `ROS_DOMAIN_ID=42`** con `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` (compose; todo el
+contenedor lo hereda). **Precaución:** la simulación del otro equipo también usa 42: mientras el brazo real esté
+conectado, no correr simulación ni políticas en el dominio 42 de la misma red (o usarlas con `ROS_LOCALHOST_ONLY=1`),
+porque sus objetivos (`/target_frame_raw`) llegarían al puente del brazo real.
 
 ### Puesta en marcha por etapas (dentro del contenedor: `docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash`)
 
@@ -156,7 +158,7 @@ En dry-run, `ros2 topic echo /xarm5_bridge/command_preview` muestra la pose que 
 
 ### Teleoperación desde RViz2 en otro equipo
 En la Jetson, `xarm5_real.launch.py` lanza además `robot_state_publisher` (URDF del xArm5 desde `xarm_description`)
-y `xarm5_teleop_marker` (marcador interactivo `/xarm5_teleop`). En el otro equipo (mismo `ROS_DOMAIN_ID=30`, RMW
+y `xarm5_teleop_marker` (marcador interactivo `/xarm5_teleop`). En el otro equipo (mismo `ROS_DOMAIN_ID=42`, RMW
 CycloneDDS y `xarm_description` instalado para las mallas):
 ```bash
 ros2 launch visuomotor_bringup xarm5_rviz.launch.py

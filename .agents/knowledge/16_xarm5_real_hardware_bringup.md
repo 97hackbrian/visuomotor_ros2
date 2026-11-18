@@ -84,8 +84,9 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   `/xarm/joint_states`; `xacro` 2.0.8 se compila en `/opt/xarm_ws`. El equipo remoto necesita `xarm_description` para
   las mallas.
 * **Red:** Jetson con dos interfaces (eth0 robot / wlan0 laboratorio). `deploy/jetson/config/cyclonedds.xml` fija la
-  interfaz DDS con `DDS_IFACE` (defecto wlan0) y admite `DDS_PEER` (unicast). `ROS_DOMAIN_ID=30` para el robot real,
-  separado de 42/43 de la simulación. Humble (Jetson) ↔ Jazzy (otro equipo): interoperabilidad DDS no garantizada
+  interfaz DDS con `DDS_IFACE` (defecto wlan0) y admite `DDS_PEER` (unicast). `ROS_DOMAIN_ID=42` para el robot real
+  (decisión del usuario 2026-11-18; coincide con la simulación: con el brazo conectado, simulación/políticas solo
+  con `ROS_LOCALHOST_ONLY=1`). Humble (Jetson) ↔ Jazzy (otro equipo): interoperabilidad DDS no garantizada
   oficialmente; alternativa: RViz2 en un contenedor Humble en el otro equipo.
 * **Frenos:** SDK (`xarm_report.cc`): `motor_brake_states[i] = (mt_brake >> i) & 1`, listo solo si todos los ejes = 1
   → bit 1 = freno liberado; `mt_able` bit 1 = motor habilitado. El puente verifica ambos tras `motion_enable` (armar,
