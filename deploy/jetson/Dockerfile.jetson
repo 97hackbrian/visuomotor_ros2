@@ -52,9 +52,11 @@ RUN pip3 install --no-cache-dir --no-deps "torchvision==0.15.1" && \
 # 2. Driver oficial del xArm5 real (UFACTORY xarm_ros2, rama humble) en un workspace subyacente.
 #   - Fijado por commit para que el build sea reproducible.
 #   - control_msgs no viene en la imagen base y xarm_api lo necesita (acción GripperCommand).
+#   - xacro (2.0.8) no viene en la imagen base: robot_state_publisher genera con él la URDF del xArm5 (RViz2).
 #   - Solo se compilan los paquetes del driver (sin MoveIt, Gazebo ni RViz).
 ARG XARM_ROS2_COMMIT=ac736c92b02de7ca7e0be6f737d77d46707464d8
 ARG CONTROL_MSGS_COMMIT=4418bbf3efda12828795e4bb011742133c67a6e2
+ARG XACRO_COMMIT=344e25b49f3a01a2389f0f30304ed667d68a82bd
 ENV XARM_WS=/opt/xarm_ws
 RUN mkdir -p ${XARM_WS}/src && cd ${XARM_WS}/src && \
     git init -q xarm_ros2 && cd xarm_ros2 && \
@@ -64,8 +66,11 @@ RUN mkdir -p ${XARM_WS}/src && cd ${XARM_WS}/src && \
     cd ${XARM_WS}/src && git init -q control_msgs && cd control_msgs && \
     git remote add origin https://github.com/ros-controls/control_msgs.git && \
     git fetch -q --depth 1 origin ${CONTROL_MSGS_COMMIT} && git checkout -q FETCH_HEAD && \
+    cd ${XARM_WS}/src && git init -q xacro && cd xacro && \
+    git remote add origin https://github.com/ros/xacro.git && \
+    git fetch -q --depth 1 origin ${XACRO_COMMIT} && git checkout -q FETCH_HEAD && \
     cd ${XARM_WS} && /bin/bash -c "source ${ROS_SETUP} && \
-        colcon build --packages-select control_msgs xarm_msgs xarm_sdk xarm_description xarm_api \
+        colcon build --packages-select control_msgs xacro xarm_msgs xarm_sdk xarm_description xarm_api \
             --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" && \
     rm -rf ${XARM_WS}/build ${XARM_WS}/log ${XARM_WS}/src
 

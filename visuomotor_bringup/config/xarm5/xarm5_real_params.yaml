@@ -118,11 +118,45 @@ xarm5_bridge:
 
     # --- Home articular (servicio ~/go_home, solo desarmado) ---------------------
     # "Home adaptado al gripper" usado previamente en la Jetson (xarm_examples/Nodo_home.py).
+    # ATENCIÓN: J1 del brazo está en ~+2*pi (6.28 rad). Este home con J1 = 0 giraría la base 360 grados.
     home_joints_rad: [0.0, -0.82, -0.28, 1.11, 0.0]
+    # home2 (servicio ~/go_home2): pose de trabajo actual, leída del brazo real el 2026-11-18 sin moverlo.
+    #   TCP (con el offset de 126 mm del controlador): xyz = (0.2204, 0.0008, 0.1150) m, rpy = (3.1246, 0.2508, 0.0171)
+    home2_joints_rad: [6.2822, -0.5001, -0.2717, 1.0231, -0.0022]
     home_speed_rad_s: 0.35
     home_acc_rad_s2: 10.0
     home_timeout_s: 30.0
 
     # --- Estado inicial cuando simulate_robot_state: true -------------------------
-    sim_initial_xyz: [0.25, 0.0, 0.40]
-    sim_initial_rpy: [3.14159265, 0.0, 0.0]
+    sim_initial_xyz: [0.2204, 0.0008, 0.1150]     # = home2
+    sim_initial_rpy: [3.1246, 0.2508, 0.0171]
+
+    # --- Comprobación de frenos -------------------------------------------------------------
+    # Tras habilitar motores (al armar o antes de ~/go_home*), TODOS los ejes deben reportar freno liberado
+    # (bit 1 en mt_brake) y motor habilitado (bit 1 en mt_able); si no, no se envía movimiento. Mientras está
+    # armado, si un eje pierde cualquiera de los dos bits, el puente se desarma. ~/check_brakes informa sin actuar.
+    dof: 5
+    brake_check_enabled: true
+    brake_check_timeout_s: 2.0
+
+xarm5_teleop_marker:
+  ros__parameters:
+    # Marcador interactivo para mover el brazo desde RViz2 (local o en otro equipo con el mismo ROS_DOMAIN_ID).
+    base_frame: "link_base"
+    tcp_frame: "xarm_tcp"
+    target_topic: "/target_frame"          # entrada de xarm5_bridge (no usar a la vez que la política)
+    bridge_namespace: "/xarm5_bridge"
+    marker_server_name: "xarm5_teleop"     # en RViz2: InteractiveMarkers -> /xarm5_teleop
+    publish_rate_hz: 20.0                  # > 1/target_timeout_s del puente
+    marker_scale: 0.15
+    tf_timeout_s: 0.2
+    init_retry_s: 1.0
+
+xarm5_robot_description:
+  ros__parameters:
+    # Argumentos de xarm_description/urdf/xarm_device.urdf.xacro para robot_state_publisher (RViz2).
+    dof: "5"
+    robot_type: "xarm"
+    hw_ns: "xarm"
+    attach_to: "world"
+    joint_states_topic: "/xarm/joint_states"   # publicado por el driver (joint1..joint5)

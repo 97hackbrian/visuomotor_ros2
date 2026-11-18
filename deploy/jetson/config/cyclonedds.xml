@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS de la Jetson (xArm5 real + RViz2 remoto).
+  La Jetson tiene dos redes: eth0 (controlador xArm, 192.168.1.x) y wlan0 (laboratorio, donde está el equipo con RViz2).
+  DDS debe publicar por la interfaz del laboratorio: se elige con la variable DDS_IFACE (por defecto wlan0).
+  El driver habla con el controlador por TCP (no DDS), así que no necesita eth0 en DDS.
+  Si la red del laboratorio bloquea multicast, definir DDS_PEER con la IP del otro equipo (descubrimiento unicast).
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="${DDS_IFACE:-wlan0}" priority="default" multicast="default"/>
+      </Interfaces>
+      <AllowMulticast>default</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer address="${DDS_PEER:-localhost}"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

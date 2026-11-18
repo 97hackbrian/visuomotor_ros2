@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "visuomotor_bringup
 from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     GripperBinarizer,
     WorkspaceLimits,
+    brake_report,
     clamp_yaw,
+    joints_with_bit_cleared,
     from_robot_pose,
     is_finite_pose,
     limit_angle_step,
@@ -184,6 +186,32 @@ class TestStepLimits(unittest.TestCase):
         self.assertFalse(is_finite_pose([float("nan"), 0, 0.3], [0, 0, 0, 1]))
         self.assertFalse(is_finite_pose([0.3, 0, 0.3], [0, float("inf"), 0, 1]))
         self.assertFalse(is_finite_pose([0.3, 0, 0.3], [0, 0, 0, 0]))
+
+
+class TestBrakes(unittest.TestCase):
+    def test_all_released_and_enabled(self):
+        ok, stuck, disabled = brake_report(0b11111, 0b11111, 5)
+        self.assertTrue(ok)
+        self.assertEqual((stuck, disabled), ([], []))
+
+    def test_motors_off_brakes_on(self):
+        """Estado medido en el xArm5 real con motores deshabilitados: mt_brake=0, mt_able=0."""
+        ok, stuck, disabled = brake_report(0, 0, 5)
+        self.assertFalse(ok)
+        self.assertEqual(stuck, [1, 2, 3, 4, 5])
+        self.assertEqual(disabled, [1, 2, 3, 4, 5])
+
+    def test_single_stuck_brake(self):
+        ok, stuck, disabled = brake_report(0b11011, 0b11111, 5)  # J3 con freno aplicado
+        self.assertFalse(ok)
+        self.assertEqual(stuck, [3])
+        self.assertEqual(disabled, [])
+
+    def test_bits_beyond_dof_ignored(self):
+        self.assertTrue(brake_report(0b0011111, 0b1111111, 5)[0])
+        self.assertEqual(joints_with_bit_cleared(0b10000000 | 0b11111, 5), [])
+        with self.assertRaises(ValueError):
+            joints_with_bit_cleared(0, 0)
 
 
 class TestUnitsAndGripper(unittest.TestCase):

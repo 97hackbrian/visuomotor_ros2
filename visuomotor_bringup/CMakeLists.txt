@@ -23,6 +23,7 @@ install(PROGRAMS
   scripts/sixd_speed_limiter
   scripts/pose_smoother.py
   scripts/xarm5_bridge.py
+  scripts/xarm5_teleop_marker.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

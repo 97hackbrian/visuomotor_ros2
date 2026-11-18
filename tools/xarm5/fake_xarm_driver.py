@@ -8,7 +8,10 @@ Imita el contrato del driver oficial (xarm_ros2, rama humble) que usa el puente:
   * Tópicos /<hw_ns>/robot_states (pose en mm/rad, mode, state, err) y /<hw_ns>/joint_states (drive_joint).
 Como el controlador real, rechaza set_servo_cartesian (ret != 0) si mode != 1, state != 0 o hay error.
 
-Inyección de fallos (std_srvs/SetBool en /fake_xarm/...): inject_error, fail_servo, pause_states, slow_servo.
+Frenos/motores: mt_brake/mt_able = 0 con motores deshabilitados (como el brazo real); motion_enable(8, 1) pone a 1 los
+bits de los ejes 1..dof (bit 1 = freno liberado / motor habilitado, semántica del SDK) y motion_enable(8, 0) los borra.
+Inyección de fallos (std_srvs/SetBool en /fake_xarm/...): inject_error, fail_servo, pause_states, slow_servo,
+stuck_brake (el freno de J3 no se libera al habilitar; si ya estaba habilitado, se aplica de golpe).
 Estadísticas: /fake_xarm/get_stats (std_srvs/Trigger, JSON en `message`).
 
 Uso (dentro del contenedor Jetson):  python3 tools/xarm5/fake_xarm_driver.py
@@ -42,15 +45,20 @@ class FakeXArmDriver(Node):
         self.declare_parameter("initial_pose_mm_rad", [250.0, 0.0, 400.0, math.pi, 0.0, 0.0])
         self.declare_parameter("home_pose_mm_rad", [250.0, 0.0, 400.0, math.pi, 0.0, 0.0])
         self.declare_parameter("state_rate_hz", 100.0)
+        self.declare_parameter("dof", 5)
+        self.declare_parameter("stuck_brake_joint", 3)
+        self.dof = int(self.get_parameter("dof").value)
+        self.stuck_joint = int(self.get_parameter("stuck_brake_joint").value)
         ns = "/" + self.get_parameter("hw_ns").value.strip("/")
         self.home_pose = list(self.get_parameter("home_pose_mm_rad").value)
 
         self.lock = threading.Lock()
         self.pose = list(self.get_parameter("initial_pose_mm_rad").value)
-        self.mode, self.state, self.err = 0, 0, 0
+        self.mode, self.state, self.err = 0, 4, 0
+        self.mt_brake, self.mt_able = 0, 0   # motores deshabilitados y frenos aplicados (estado real medido)
         self.gripper = 0.0
         self.vacuum_on = False
-        self.faults = {"fail_servo": False, "pause_states": False, "slow_servo": False}
+        self.faults = {"fail_servo": False, "pause_states": False, "slow_servo": False, "stuck_brake": False}
         self.stats = {"motion_enable": 0, "set_mode": [], "set_state": [], "clean_error": 0,
                       "servo_ok": 0, "servo_rejected": 0, "max_step_mm": 0.0, "last_servo_pose": None,
                       "set_servo_angle": [], "gripper_enable": 0, "gripper_mode": 0, "gripper_speed": None,
@@ -68,7 +76,7 @@ class FakeXArmDriver(Node):
         srv(SetInt16, "set_gripper_mode", self._gripper_mode)
         srv(SetFloat32, "set_gripper_speed", self._gripper_speed)
         srv(VacuumGripperCtrl, "set_vacuum_gripper", self._vacuum)
-        for name in ("inject_error", "fail_servo", "pause_states", "slow_servo"):
+        for name in ("inject_error", "fail_servo", "pause_states", "slow_servo", "stuck_brake"):
             self.create_service(SetBool, f"/fake_xarm/{name}", lambda req, res, n=name: self._fault(n, req, res),
                                 callback_group=cb)
         self.create_service(Trigger, "/fake_xarm/get_stats", self._get_stats, callback_group=cb)
@@ -82,8 +90,19 @@ class FakeXArmDriver(Node):
         self.get_logger().info(f"Driver xArm FALSO listo en {ns} (sin hardware).")
 
     # --- servicios del "controlador" ---------------------------------------------------------
+    def _all_axes(self):
+        return (1 << self.dof) - 1
+
     def _motion_enable(self, req, res):
         self.stats["motion_enable"] += 1
+        with self.lock:
+            if req.data:
+                self.mt_able = self._all_axes()
+                self.mt_brake = self._all_axes()
+                if self.faults["stuck_brake"]:
+                    self.mt_brake &= ~(1 << (self.stuck_joint - 1))
+            else:
+                self.mt_able, self.mt_brake = 0, 0
         res.ret = 0
         return res
 
@@ -113,6 +132,7 @@ class FakeXArmDriver(Node):
             time.sleep(1.0)
         with self.lock:
             ok = (self.mode == 1 and self.state == 0 and self.err == 0 and not self.faults["fail_servo"]
+                  and self.mt_able == self._all_axes() and self.mt_brake == self._all_axes()
                   and len(req.pose) >= 6 and all(math.isfinite(v) for v in req.pose))
             if ok:
                 step = math.dist(self.pose[:3], list(req.pose[:3]))
@@ -129,7 +149,8 @@ class FakeXArmDriver(Node):
     def _servo_angle(self, req, res):
         self.stats["set_servo_angle"].append([round(v, 3) for v in req.angles])
         with self.lock:
-            ok = self.mode == 0 and self.err == 0 and len(req.angles) >= 5
+            ok = (self.mode == 0 and self.err == 0 and len(req.angles) >= self.dof
+                  and self.mt_able == self._all_axes() and self.mt_brake == self._all_axes())
             if ok:
                 self.pose = list(self.home_pose)
         res.ret = 0 if ok else 1
@@ -181,12 +202,16 @@ class FakeXArmDriver(Node):
                     self.state = 4  # el controlador real pasa a estado detenido ante un error
         else:
             self.faults[name] = bool(req.data)
+            if name == "stuck_brake" and req.data:
+                with self.lock:  # el freno se aplica en un eje mientras los motores siguen habilitados
+                    self.mt_brake &= ~(1 << (self.stuck_joint - 1))
         res.success, res.message = True, f"{name}={req.data}"
         return res
 
     def _get_stats(self, _req, res):
         with self.lock:
             data = dict(self.stats, mode=self.mode, state=self.state, err=self.err, pose=self.pose,
+                        mt_brake=self.mt_brake, mt_able=self.mt_able,
                         gripper=self.gripper, vacuum_on=self.vacuum_on)
         res.success, res.message = True, json.dumps(data)
         return res
@@ -198,6 +223,7 @@ class FakeXArmDriver(Node):
             msg = RobotMsg()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.state, msg.mode, msg.err = self.state, self.mode, self.err
+            msg.mt_brake, msg.mt_able = self.mt_brake, self.mt_able
             msg.pose = [float(v) for v in self.pose]
         self.pub_state.publish(msg)
         js = JointState()

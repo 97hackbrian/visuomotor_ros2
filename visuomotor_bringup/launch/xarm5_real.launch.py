@@ -13,6 +13,9 @@ Ejemplos::
     # 3) Movimiento real (solo tras validar 2): dry_run:=false y luego `ros2 service call /xarm5_bridge/arm ...`
     ros2 launch visuomotor_bringup xarm5_real.launch.py dry_run:=false
 
+    # 4) Teleoperación desde RViz2 en otro equipo (mismo ROS_DOMAIN_ID): este launch ya publica robot_description,
+    #    TF y el marcador interactivo /xarm5_teleop; en el otro equipo: ros2 launch visuomotor_bringup xarm5_rviz.launch.py
+
 Todo argumento vacío ('') toma el valor de config/xarm5/xarm5_real_params.yaml.
 """
 
@@ -103,6 +106,39 @@ def launch_setup(context, *args, **kwargs):
         ],
     ))
 
+    if _as_bool(LaunchConfiguration("start_rsp").perform(context)):
+        import xacro  # solo se exige si se pide la descripción del robot
+
+        rd = cfg["xarm5_robot_description"]["ros__parameters"]
+        xacro_file = os.path.join(get_package_share_directory("xarm_description"), "urdf", "xarm_device.urdf.xacro")
+        mappings = {
+            "dof": str(rd["dof"]),
+            "robot_type": str(rd["robot_type"]),
+            "hw_ns": str(rd["hw_ns"]),
+            "attach_to": str(rd["attach_to"]),
+            "robot_ip": robot_ip,
+            "add_gripper": "true" if gripper_type == "xarm_gripper" else "false",
+            "add_vacuum_gripper": "true" if gripper_type == "vacuum" else "false",
+        }
+        robot_description = xacro.process_file(xacro_file, mappings=mappings).toxml()
+        actions.append(Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="xarm5_robot_state_publisher",
+            output="screen",
+            parameters=[{"robot_description": robot_description}],
+            remappings=[("joint_states", rd["joint_states_topic"])],
+        ))
+
+    if _as_bool(LaunchConfiguration("start_teleop").perform(context)):
+        actions.append(Node(
+            package="visuomotor_bringup",
+            executable="xarm5_teleop_marker.py",
+            name="xarm5_teleop_marker",
+            output="screen",
+            parameters=[params_file],
+        ))
+
     mode = "DRY-RUN" if dry_run else "REAL (el brazo SE MOVERÁ tras ~/arm)"
     source = "SIMULADO (sin driver)" if simulate else (f"driver -> {robot_ip}" if start_driver else "driver externo")
     summary = LogInfo(msg=f"[xarm5_real] modo={mode} | estado={source} | gripper={gripper_type}")
@@ -114,7 +150,7 @@ def generate_launch_description():
         get_package_share_directory("visuomotor_bringup"), "config", "xarm5", "xarm5_real_params.yaml")
     return LaunchDescription([
         DeclareLaunchArgument("params_file", default_value=default_params,
-                              description="YAML con secciones ufactory_driver y xarm5_bridge"),
+                              description="YAML con secciones ufactory_driver, xarm5_bridge, xarm5_teleop_marker y xarm5_robot_description"),
         DeclareLaunchArgument("robot_ip", default_value="", description="IP del controlador ('' = YAML)"),
         DeclareLaunchArgument("gripper_type", default_value="",
                               description="xarm_gripper | vacuum | none ('' = YAML)"),
@@ -125,5 +161,9 @@ def generate_launch_description():
                               description="Lanzar el driver xarm_api (false si ya corre aparte)"),
         DeclareLaunchArgument("start_smoother", default_value="true",
                               description="Lanzar pose_smoother (target_frame_raw -> target_frame)"),
+        DeclareLaunchArgument("start_rsp", default_value="true",
+                              description="robot_state_publisher con la URDF del xArm5 (RobotModel en RViz2)"),
+        DeclareLaunchArgument("start_teleop", default_value="true",
+                              description="Marcador interactivo para RViz2 (no publica hasta 'Seguir' + ARMADO)"),
         OpaqueFunction(function=launch_setup),
     ])

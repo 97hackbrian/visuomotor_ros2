@@ -49,6 +49,7 @@ from visuomotor_bringup.xarm5_interface import (
     ORIENTATION_MODES,
     GripperBinarizer,
     WorkspaceLimits,
+    brake_report,
     clamp_yaw,
     from_robot_pose,
     is_finite_pose,
@@ -99,6 +100,8 @@ class XArm5Bridge(Node):
         self._robot_warn = 0
         self._robot_mode = -1
         self._robot_state = -1
+        self._mt_brake = 0
+        self._mt_able = 0
         self._servo_pending = False
         self._servo_sent_time = 0.0
         self._servo_seq = 0
@@ -149,6 +152,8 @@ class XArm5Bridge(Node):
         self.create_service(Trigger, "~/arm", self._srv_arm, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/disarm", self._srv_disarm, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/go_home", self._srv_go_home, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/go_home2", self._srv_go_home2, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/check_brakes", self._srv_check_brakes, callback_group=self._cb_srv)
 
         if self.simulate_robot_state:
             self._measured_xyz = np.array(self.sim_initial_xyz, dtype=np.float64)
@@ -227,6 +232,10 @@ class XArm5Bridge(Node):
         d("home_speed_rad_s", 0.35)
         d("home_acc_rad_s2", 10.0)
         d("home_timeout_s", 30.0)
+        d("home2_joints_rad", [0.0, -0.82, -0.28, 1.11, 0.0])
+        d("dof", 5)
+        d("brake_check_enabled", True)
+        d("brake_check_timeout_s", 2.0)
         d("sim_initial_xyz", [0.25, 0.0, 0.40])
         d("sim_initial_rpy", [math.pi, 0.0, 0.0])
 
@@ -280,6 +289,10 @@ class XArm5Bridge(Node):
         self.home_speed = float(g("home_speed_rad_s"))
         self.home_acc = float(g("home_acc_rad_s2"))
         self.home_timeout = float(g("home_timeout_s"))
+        self.home2_joints = [float(v) for v in g("home2_joints_rad")]
+        self.dof = int(g("dof"))
+        self.brake_check_enabled = bool(g("brake_check_enabled"))
+        self.brake_check_timeout_s = float(g("brake_check_timeout_s"))
         self.sim_initial_xyz = [float(v) for v in g("sim_initial_xyz")]
         self.sim_initial_rpy = [float(v) for v in g("sim_initial_rpy")]
 
@@ -363,6 +376,14 @@ class XArm5Bridge(Node):
             if not self._set_mode_state(XARM_MODE_SERVO):
                 res.success, res.message = False, "No se pudo pasar a modo servo (ver log)."
                 return res
+            ok, detail = self._wait_brakes_released()
+            if not ok:
+                # Motores habilitados pero algún freno/motor no respondió: se vuelve a modo posición (el brazo queda
+                # sostenido). NO se deshabilitan motores: hacerlo con el brazo en el aire lo hizo caer ~5 cm.
+                self._set_mode_state(XARM_MODE_POSITION)
+                res.success, res.message = False, f"ARMADO RECHAZADO: {detail}"
+                self.get_logger().error(res.message)
+                return res
             if self.gripper_type == "xarm_gripper" and not self._setup_xarm_gripper():
                 res.success, res.message = False, "No se pudo configurar el gripper xArm (ver log)."
                 return res
@@ -400,25 +421,76 @@ class XArm5Bridge(Node):
             self._set_mode_state(XARM_MODE_POSITION)
 
     def _srv_go_home(self, _req, res):
+        return self._go_joints(self.home_joints, "home", res)
+
+    def _srv_go_home2(self, _req, res):
+        return self._go_joints(self.home2_joints, "home2", res)
+
+    def _go_joints(self, joints, label: str, res):
         if self._armed:
             res.success, res.message = False, "Desarma primero (~/disarm)."
+            return res
+        if len(joints) < self.dof:
+            res.success, res.message = False, f"{label}: se esperaban {self.dof} ángulos, hay {len(joints)}."
             return res
         if self.dry_run:
             if self.simulate_robot_state:
                 with self._lock:
                     self._measured_xyz = np.array(self.sim_initial_xyz, dtype=np.float64)
                     self._measured_rpy = tuple(self.sim_initial_rpy)
-            res.success, res.message = True, f"dry-run: se enviaría home articular {self.home_joints}"
+            res.success, res.message = True, f"dry-run: se enviaría {label} articular {joints}"
             return res
         if not self._set_mode_state(XARM_MODE_POSITION):
             res.success, res.message = False, "No se pudo pasar a modo posición."
             return res
+        ok, detail = self._wait_brakes_released()
+        if not ok:
+            res.success, res.message = False, f"{label} CANCELADO: {detail}"
+            self.get_logger().error(res.message)
+            return res
         req = MoveJoint.Request()
-        req.angles = self.home_joints
+        req.angles = [float(v) for v in joints]
         req.speed, req.acc, req.wait, req.timeout = self.home_speed, self.home_acc, True, self.home_timeout
-        ok = self._call_ok(self._cli_servo_angle, req, "set_servo_angle(home)", timeout=self.home_timeout + 5.0)
+        ok = self._call_ok(self._cli_servo_angle, req, f"set_servo_angle({label})", timeout=self.home_timeout + 5.0)
         res.success = ok
-        res.message = "Home alcanzado." if ok else "Falló el movimiento a home (ver log)."
+        res.message = f"{label} alcanzado." if ok else f"Falló el movimiento a {label} (ver log)."
+        return res
+
+    # ------------------------------------------------------------------------------------------
+    # Frenos: comprobación de liberación (un freno puede no liberarse al habilitar motores)
+    # ------------------------------------------------------------------------------------------
+    def _brake_status_text(self) -> str:
+        ok, stuck, disabled = brake_report(self._mt_brake, self._mt_able, self.dof)
+        if ok:
+            return f"todos los frenos liberados y motores habilitados (J1..J{self.dof})"
+        parts = []
+        if stuck:
+            parts.append(f"freno APLICADO en J{', J'.join(str(j) for j in stuck)}")
+        if disabled:
+            parts.append(f"motor DESHABILITADO en J{', J'.join(str(j) for j in disabled)}")
+        return "; ".join(parts) + f" (mt_brake=0b{self._mt_brake:0{self.dof}b}, mt_able=0b{self._mt_able:0{self.dof}b})"
+
+    def _wait_brakes_released(self):
+        """Tras motion_enable, espera a que TODOS los ejes reporten freno liberado y motor habilitado."""
+        if not self.brake_check_enabled:
+            return True, "comprobación de frenos desactivada"
+        end = time.time() + self.brake_check_timeout_s
+        while time.time() < end:
+            if brake_report(self._mt_brake, self._mt_able, self.dof)[0] and self._robot_state_fresh():
+                self.get_logger().info(f"Frenos OK: {self._brake_status_text()}")
+                return True, self._brake_status_text()
+            time.sleep(0.05)
+        return False, (f"tras {self.brake_check_timeout_s:.1f} s {self._brake_status_text()}. "
+                       "No se enviará movimiento: revisar el freno indicado (UFACTORY Studio / reinicio del controlador).")
+
+    def _srv_check_brakes(self, _req, res):
+        """Solo lectura: informa el estado de frenos/motores por articulación (no habilita nada)."""
+        if not self._robot_state_fresh():
+            res.success, res.message = False, "Sin estado reciente del robot."
+            return res
+        ok, _, _ = brake_report(self._mt_brake, self._mt_able, self.dof)
+        res.success = ok
+        res.message = self._brake_status_text() + ("" if ok else " [normal si los motores están deshabilitados]")
         return res
 
     def _setup_xarm_gripper(self) -> bool:
@@ -467,6 +539,7 @@ class XArm5Bridge(Node):
             self._robot_state_time = time.time()
             self._robot_mode, self._robot_state = msg.mode, msg.state
             new_err, self._robot_warn = msg.err, msg.warn
+            self._mt_brake, self._mt_able = int(msg.mt_brake), int(msg.mt_able)
         if new_err != 0 and self._robot_err == 0:
             self.get_logger().error(f"El controlador reporta error C{new_err} (warn={msg.warn}).")
         self._robot_err = new_err
@@ -476,6 +549,13 @@ class XArm5Bridge(Node):
                 self._armed = False
                 self._target = None
             self.get_logger().error(f"DESARMADO por error del controlador C{new_err}. Revisa y llama a ~/arm.")
+        elif (self._armed and not self.dry_run and self.brake_check_enabled
+              and not brake_report(self._mt_brake, self._mt_able, self.dof)[0]):
+            # Un freno se aplicó o un motor se deshabilitó durante el movimiento: dejar de enviar comandos.
+            with self._lock:
+                self._armed = False
+                self._target = None
+            self.get_logger().error(f"DESARMADO: {self._brake_status_text()}")
 
     def _joint_states_cb(self, msg: JointState):
         if self.gripper_type != "xarm_gripper":
@@ -695,7 +775,8 @@ class XArm5Bridge(Node):
         text = (f"armed={self._armed} dry_run={self.dry_run} simulated={self.simulate_robot_state} "
                 f"robot_state_age_s={age:.2f} err={self._robot_err} warn={self._robot_warn} "
                 f"mode={self._robot_mode} state={self._robot_state} gripper_closed={self._gripper_closed_cmd} "
-                f"gripper_joint={self._gripper_real_pos} {pose}")
+                f"gripper_joint={self._gripper_real_pos} {pose} "
+                f"mt_brake=0b{self._mt_brake:0{self.dof}b} mt_able=0b{self._mt_able:0{self.dof}b}")
         self._pub_status.publish(String(data=text))
 
 
