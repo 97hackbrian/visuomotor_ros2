@@ -29,4 +29,4 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 docker exec -it -u 1000 "$CONTAINER_NAME" bash -c \
-    "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 run visuomotor_data_collection vo_collector --ros-args -p dataset_path:='$DATASET_ARG'"
+    "export ROS_LOCALHOST_ONLY=1 && export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST && source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 run visuomotor_data_collection vo_collector --ros-args -p dataset_path:='$DATASET_ARG'"

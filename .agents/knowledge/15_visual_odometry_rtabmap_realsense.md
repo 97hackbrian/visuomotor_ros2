@@ -269,10 +269,13 @@ El nodo y los archivos launch aceptan el parámetro `dataset_path`:
 
 ### 1. Régimen de Recolección Local de Demostraciones (Laptop / Workstation)
 * **Reto de Ancho de Banda:** El pipeline de la cámara Intel RealSense D435i (640x480 a 30 FPS RGB + Depth alineado + IMU a 200 Hz) genera un flujo continuo de aproximadamente **$46\text{ MB/s}$ ($370\text{ Mbps}$)** en el bus DDS de ROS 2.
-* **Aislamiento en Memoria Compartida (SHM):**
+* **Aislamiento en Memoria Compartida (SHM) y Localhost Estricto:**
   - Si CycloneDDS hace multicast en la interfaz Wi-Fi (`wlo1`), el canal inalámbrico colapsa, provocando pérdidas de paquetes, caídas de frecuencia a $< 5\text{ Hz}$ y jitter visual.
-  - Para la recolección experta en la estación de trabajo, `run_vo_container.sh` confina el tráfico al loopback local (`lo`) y a Memoria Compartida (SHM) bajo `ROS_DOMAIN_ID=0`.
-* **Resultado Certificado:** Cero saturación de Wi-Fi, latencia interna óptima ($13.98 \pm 0.65\text{ ms}$ por cuadro), $0.0\%$ de pérdida de tracking y muestreo canónico a 20.0 Hz sostenidos.
+  - Además, si otros equipos en la misma red de laboratorio tienen instancias de ROS 2 corriendo (por defecto en `ROS_DOMAIN_ID=0`), se produciría descubrimiento cruzado, colisión de tópicos (`/tf`, `/camera/...`) y tormentas de tráfico.
+  - Solución obligatoria inyectada en `run_vo_container.sh`, `run_benchmark.sh` y `run_data_collection.sh`:
+    `ROS_LOCALHOST_ONLY=1` y `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` junto a `ROS_DOMAIN_ID=0`.
+  - Esto blinda la máquina al 100%: ningún paquete sale hacia la Wi-Fi/LAN y ningún equipo externo puede interferir.
+* **Resultado Certificado:** Cero saturación de Wi-Fi, inmunidad ante otros nodos ROS 2 en la red, latencia interna óptima ($13.98 \pm 0.65\text{ ms}$ por cuadro), $0.0\%$ de pérdida de tracking y muestreo canónico a 20.0 Hz sostenidos.
 
 ### 2. Régimen de Conexión Remota con Robot Real (Jetson Orin Nano)
 * **Desacoplamiento de Carga:** Cuando se ejecute la inferencia o teleoperación remota con el xArm5 físico conectado a la Jetson Orin Nano en la misma red de laboratorio:

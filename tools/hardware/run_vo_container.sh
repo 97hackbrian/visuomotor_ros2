@@ -40,6 +40,8 @@ docker run $INTERACTIVE_FLAGS --rm \
     ${CYCLONEDDS_URI:+-e CYCLONEDDS_URI="$CYCLONEDDS_URI"} \
     ${DDS_PEER:+-e DDS_PEER="$DDS_PEER"} \
     -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
+    -e ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}" \
+    -e ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}" \
     -e ROS_HOME=/tmp/.ros \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /dev:/dev:rw \
