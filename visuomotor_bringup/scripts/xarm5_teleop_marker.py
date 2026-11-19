@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import copy
 import math
+import time
 
 import rclpy
 from geometry_msgs.msg import Pose, PoseStamped
@@ -49,6 +50,7 @@ class XArm5TeleopMarker(Node):
         d("marker_scale", 0.25)
         d("tf_timeout_s", 0.2)
         d("init_retry_s", 1.0)
+        d("unwind_confirm_window_s", 15.0)
         g = lambda n: self.get_parameter(n).value
         self.base_frame = g("base_frame")
         self.tcp_frame = g("tcp_frame")
@@ -61,13 +63,15 @@ class XArm5TeleopMarker(Node):
         self.dry_run = None  # desconocido hasta recibir el estado del puente
         self.last_msg = "Listo. Clic derecho para el menú."
         self.marker_pose: Pose | None = None
+        self.unwind_confirm_window = float(g("unwind_confirm_window_s"))
+        self._unwind_armed_until = 0.0
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pub_target = self.create_publisher(PoseStamped, g("target_topic"), 10)
         self.create_subscription(String, f"{bridge}/status", self._status_cb, 10)
         self.cli = {name: self.create_client(Trigger, f"{bridge}/{name}")
-                    for name in ("arm", "disarm", "go_home2", "check_brakes")}
+                    for name in ("arm", "disarm", "go_home2", "check_brakes", "unwind_j1")}
 
         self.server = InteractiveMarkerServer(self, g("marker_server_name"))
         self.menu = MenuHandler()
@@ -78,6 +82,7 @@ class XArm5TeleopMarker(Node):
         self.menu.insert("Desarmar brazo", callback=lambda f: self._call_bridge("disarm"))
         self.menu.insert("Ir a home2 (solo desarmado)", callback=lambda f: self._call_bridge("go_home2"))
         self.menu.insert("Comprobar frenos", callback=lambda f: self._call_bridge("check_brakes"))
+        self.menu.insert("Desenrollar J1 (GIRO DE BASE 360 grados, doble clic)", callback=self._menu_unwind)
 
         self.create_timer(1.0 / float(g("publish_rate_hz")), self._publish_target)
         self._init_timer = self.create_timer(float(g("init_retry_s")), self._try_init)
@@ -203,6 +208,18 @@ class XArm5TeleopMarker(Node):
         self.server.applyChanges()
         self._set_msg("Marcador sincronizado con el TCP.")
         return True
+
+    def _menu_unwind(self, _fb):
+        """Doble confirmación: el primer clic solo avisa; el segundo dentro de la ventana ejecuta ~/unwind_j1."""
+        now = time.time()
+        if now > self._unwind_armed_until:
+            self._unwind_armed_until = now + self.unwind_confirm_window
+            self._set_msg(f"ATENCIÓN: la BASE girará 360 grados. Despeja la zona y vuelve a elegir 'Desenrollar J1' "
+                          f"antes de {self.unwind_confirm_window:.0f} s para confirmar.", error=True)
+            return
+        self._unwind_armed_until = 0.0
+        self.following = False
+        self._call_bridge("unwind_j1")
 
     def _call_bridge(self, name: str, sync: bool = False):
         if sync:

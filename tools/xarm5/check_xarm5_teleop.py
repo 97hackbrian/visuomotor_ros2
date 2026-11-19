@@ -31,7 +31,7 @@ P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/co
 TM = P["xarm5_teleop_marker"]["ros__parameters"]
 MARKER = "xarm5_tcp_target"
 # Orden de inserción del menú en xarm5_teleop_marker.py (MenuHandler numera desde 1)
-FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, HOME2, BRAKES = 1, 2, 3, 4, 5, 6, 7
+FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, HOME2, BRAKES, UNWIND = 1, 2, 3, 4, 5, 6, 7, 8
 
 
 class TeleopChecker(Node):
@@ -169,6 +169,23 @@ class TeleopChecker(Node):
         self.check("10. Menú 'Ir a home2' (desarmado) -> set_servo_angle con home2_joints_rad",
                    s["set_servo_angle"][-1:] == [[round(v, 3) for v in
                                                   P["xarm5_bridge"]["ros__parameters"]["home2_joints_rad"]]])
+
+        from xarm_msgs.srv import SetFloat32List
+        cli = self.create_client(SetFloat32List, "/fake_xarm/set_joints")
+        cli.wait_for_service(timeout_sec=5.0)
+        fut = cli.call_async(SetFloat32List.Request(datas=[6.2833, -0.5504, -0.127, 0.6855, 0.4098]))
+        while not fut.done():
+            rclpy.spin_once(self, timeout_sec=0.05)
+        self.spin_for(0.5)
+        n_angle = len(self.stats()["set_servo_angle"])
+        self.menu(UNWIND, wait=2.0)
+        first_only = len(self.stats()["set_servo_angle"]) == n_angle
+        self.menu(UNWIND, wait=4.0)
+        s = self.stats()
+        sent = s["set_servo_angle"][-1] if len(s["set_servo_angle"]) > n_angle else None
+        self.check("11. Menú 'Desenrollar J1': 1er clic solo avisa; 2º clic gira solo J1 6.2833 -> ~0",
+                   first_only and sent is not None and abs(sent[0] - (6.2833 - 2 * 3.141592653589793)) < 1e-3
+                   and sent[1:] == [-0.55, -0.127, 0.686, 0.41], f"enviado={sent}")
 
         print(f"\nRESUMEN: {sum(self.results)}/{len(self.results)} comprobaciones OK", flush=True)
         return all(self.results)
