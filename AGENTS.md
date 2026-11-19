@@ -272,6 +272,11 @@ touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d415_vo.launch.py gui:=true
 docker exec -it -u 1000 visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
 docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset datasets/demonstrations_real_v2.zarr --out-dir datasets/visualizations_real_v2
+
+# 15. Benchmarking de VIO y Recolección Experta Real (RealSense D435i + RTAB-Map VIO SOTA UMI)
+./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=true
+./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"
+docker exec -it -u 1000 visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
 ```
 
 ---

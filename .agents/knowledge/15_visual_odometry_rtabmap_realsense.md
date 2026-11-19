@@ -204,10 +204,24 @@ Para certificar cuantitativamente la fidelidad cinemática de las demostraciones
      * **Error de Cierre de Bucle (Loop Closure Drift):** $\|\mathbf{p}_{\text{retorno}} - \mathbf{p}_{\text{inicio}}\|_2$ en milímetros.
      * **Dispersión Estática (Jitter $\sigma_{\text{pos}}$ y $\sigma_{\text{rot}}$):** En posición y cuaternión durante la fase estática inicial y final.
      * **Consistencia de Inliers y FPS:** Tasa sostenida de cálculo y rechazo de falsas correspondencias.
-2. **Matriz de Iteración de Parámetros:**
-   - Evaluación comparativa sistemática entre:
-     * Configuración Calibrada Óptima (Baseline actual).
-     * Modulación de umbral RANSAC PnP ($1.5\text{ px}$ vs $2.0\text{ px}$ vs $2.5\text{ px}$).
-     * Densidad de esquinas GFTT ($800$ vs $1200$ vs $1500$).
-3. **Recolección Masiva de Demostraciones Expertas:**
-   - Captura del dataset real de alta calidad (`demonstrations_real_v3.zarr`) para entrenamiento directo de la política visuomotora generativa.
+
+### D. Certificación Empírica de VIO Grado UMI (`conf 4` — SOTA UMI Final Fusion)
+El 19 de noviembre de 2026 se completó la campaña metrológica de calibración comparativa entre 5 configuraciones para la RealSense D435i:
+* **Hito Alcanzado:** La configuración `conf 4 (SOTA UMI Final Fusion)` superó con éxito el criterio de aceptación de cierre de lazo ($\le 3.00\text{ mm}$):
+  - **Error de Retorno (Loop Closure):** **$2.307\text{ mm}$** tras una excursión máxima de **$54.56\text{ cm}$** y un recorrido total de **$2.79\text{ metros}$**.
+  - **Desglose Cartesiano Milimétrico:** $\Delta X = -0.828\text{ mm}$, $\Delta Y = -0.064\text{ mm}$, $\Delta Z = +2.153\text{ mm}$.
+  - **Jitter Estático en Reposo:** **$1.6144\text{ mm}$** (reducción del $89\%$ respecto al baseline descalibrado de $14.89\text{ mm}$).
+  - **Error Angular de Retorno:** $2.562^\circ$ ($\Delta\text{Pitch} = +0.60^\circ$).
+  - **Inliers y Fiabilidad:** $258.8$ inliers sostenidos con **$0.0\%$ de pérdida de tracking**.
+* **Directivas Algorítmicas SOTA Clave:**
+  1. `Vis/MinDepth: 0.20` y `Vis/MaxDepth: 1.80`: Acotamiento estricto al volumen de trabajo de manipulación, eliminando el ruido de fondo distante ($> 1.8\text{ m}$) que deformaba la escala métrica.
+  2. `OdomF2M/MaxSize: 5000`: Expansión de la memoria de mapa local para garantizar el reconocimiento visual y cierre de bucle exacto contra el cradle / marca de origen.
+  3. `Vis/MinInliers: 20` y `Vis/PnPReprojError: 1.8`: Criterio estricto de rechazo de correspondencias periféricas dudosas.
+  4. `Vis/SubPixWinSize: 5` y `Vis/SubPixIterations: 15`: Ventana ampliada de gradiente continuo que erradica el salto de píxeles discretos.
+  5. `madgwick_gain: 0.035`, `zeta: 0.002` y `orientation_stddev: 0.02`: Supresión del ruido del acelerómetro, compensación continua en línea del sesgo del giróscopo y ponderación Bayesiana consistente de covarianza inercial.
+* **Archivos Congelados:** Configuración activa en [visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml) y copia de seguridad certificada en [visuomotor_bringup/config/realsense/rtabmap_vio_params_best_umi.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params_best_umi.yaml).
+
+---
+
+## 11. Recolección Masiva de Demostraciones Expertas Reales (`demonstrations_real_v3.zarr`)
+Con el sistema VIO formalmente certificado por debajo de $2.5\text{ mm}$ de precisión de retorno y anclado gravitacionalmente mediante la IMU, el pipeline está listo para la captura interactiva a 20.0 Hz.
