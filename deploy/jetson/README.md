@@ -191,6 +191,14 @@ ros2 service call /xarm5_bridge/unwind_j1 std_srvs/srv/Trigger   # gira SOLO la 
 Solo a mano (no está en el menú de RViz2), desarmado, con la zona alrededor del brazo despejada y alguien en la parada
 de emergencia. Con C2 activo (seta pulsada) se cancela: liberar la seta y reintentar.
 
+### Poner y quitar frenos (menú de RViz2 o servicios)
+* **Quitar frenos** (`~/brakes_off`): habilita motores en modo posición, el brazo queda sostenido (no arma ni mueve);
+  pasa por la comprobación de frenos con reintento de J3.
+* **Poner frenos** (`~/brakes_on`, doble clic en RViz2): deshabilita motores. Solo desarmado y con el brazo quieto
+  `brakes_on_min_idle_s` (1 s): la caída de ~5 cm ocurrió al deshabilitar justo tras un movimiento; en reposo se midió
+  0 mm. Informa el desplazamiento del TCP al frenar.
+* **Desenrollar J1** también está en el menú (doble clic).
+
 ### home2
 `home2_joints_rad` = pose de trabajo actual (leída del brazo el 2026-11-18). `~/go_home2` la recupera (desarmado).
 El home de la política (`jetson_policy_params.yaml`) apunta a su TCP.

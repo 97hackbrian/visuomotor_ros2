@@ -161,6 +161,11 @@ xarm5_bridge:
     max_home_joint_delta_rad: 1.0
     # ~/unwind_j1 (solo a mano, desarmado): gira SOLO J1 +/-2*pi para devolverla a [-pi, pi].
     unwind_speed_rad_s: 0.3
+    # ~/brakes_on (poner frenos = deshabilitar motores): solo desarmado y con el brazo en reposo al menos este tiempo
+    # (la caída de ~5 cm ocurrió al deshabilitar justo tras un movimiento; en reposo se midió 0 mm). Informa el
+    # desplazamiento del TCP tras brakes_on_settle_s. ~/brakes_off habilita motores en modo posición (no arma).
+    brakes_on_min_idle_s: 1.0
+    brakes_on_settle_s: 1.0
 
 xarm5_teleop_marker:
   ros__parameters:

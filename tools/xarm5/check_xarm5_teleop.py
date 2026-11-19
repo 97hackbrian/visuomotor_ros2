@@ -31,7 +31,7 @@ P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/co
 TM = P["xarm5_teleop_marker"]["ros__parameters"]
 MARKER = "xarm5_tcp_target"
 # Orden de inserción del menú en xarm5_teleop_marker.py (MenuHandler numera desde 1)
-FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, HOME2, BRAKES, UNWIND = 1, 2, 3, 4, 5, 6, 7, 8
+FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, HOME2, BRAKES, UNWIND, BRAKES_OFF, BRAKES_ON = range(1, 11)
 
 
 class TeleopChecker(Node):
@@ -186,6 +186,18 @@ class TeleopChecker(Node):
         self.check("11. Menú 'Desenrollar J1': 1er clic solo avisa; 2º clic gira solo J1 6.2833 -> ~0",
                    first_only and sent is not None and abs(sent[0] - (6.2833 - 2 * 3.141592653589793)) < 1e-3
                    and sent[1:] == [-0.55, -0.127, 0.686, 0.41], f"enviado={sent}")
+
+        self.menu(BRAKES_OFF, wait=3.0)
+        s = self.stats()
+        self.check("12. Menú 'Quitar frenos': motores habilitados sin armar", s["mt_able"] == 31 and s["mt_brake"] == 31
+                   and "armed=False" in self.status)
+        self.spin_for(1.0)
+        self.menu(BRAKES_ON, wait=1.5)
+        first_only = self.stats()["mt_able"] == 31
+        self.menu(BRAKES_ON, wait=3.0)
+        s = self.stats()
+        self.check("13. Menú 'Poner frenos': 1er clic solo avisa; 2º clic deshabilita motores",
+                   first_only and s["mt_able"] == 0 and s["mt_brake"] == 0, f"llamadas={s['motion_enable_calls'][-2:]}")
 
         print(f"\nRESUMEN: {sum(self.results)}/{len(self.results)} comprobaciones OK", flush=True)
         return all(self.results)

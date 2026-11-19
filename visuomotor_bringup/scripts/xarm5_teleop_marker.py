@@ -65,13 +65,14 @@ class XArm5TeleopMarker(Node):
         self.marker_pose: Pose | None = None
         self.unwind_confirm_window = float(g("unwind_confirm_window_s"))
         self._unwind_armed_until = 0.0
+        self._brakes_on_armed_until = 0.0
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pub_target = self.create_publisher(PoseStamped, g("target_topic"), 10)
         self.create_subscription(String, f"{bridge}/status", self._status_cb, 10)
         self.cli = {name: self.create_client(Trigger, f"{bridge}/{name}")
-                    for name in ("arm", "disarm", "go_home2", "check_brakes", "unwind_j1")}
+                    for name in ("arm", "disarm", "go_home2", "check_brakes", "unwind_j1", "brakes_off", "brakes_on")}
 
         self.server = InteractiveMarkerServer(self, g("marker_server_name"))
         self.menu = MenuHandler()
@@ -83,6 +84,8 @@ class XArm5TeleopMarker(Node):
         self.menu.insert("Ir a home2 (solo desarmado)", callback=lambda f: self._call_bridge("go_home2"))
         self.menu.insert("Comprobar frenos", callback=lambda f: self._call_bridge("check_brakes"))
         self.menu.insert("Desenrollar J1 (GIRO DE BASE 360 grados, doble clic)", callback=self._menu_unwind)
+        self.menu.insert("Quitar frenos (motores sostienen el brazo)", callback=lambda f: self._call_bridge("brakes_off"))
+        self.menu.insert("Poner frenos (deshabilita motores, doble clic)", callback=self._menu_brakes_on)
 
         self.create_timer(1.0 / float(g("publish_rate_hz")), self._publish_target)
         self._init_timer = self.create_timer(float(g("init_retry_s")), self._try_init)
@@ -220,6 +223,18 @@ class XArm5TeleopMarker(Node):
         self._unwind_armed_until = 0.0
         self.following = False
         self._call_bridge("unwind_j1")
+
+    def _menu_brakes_on(self, _fb):
+        """Doble confirmación: deshabilitar motores puede dejar caer el brazo si no está en reposo."""
+        now = time.time()
+        if now > self._brakes_on_armed_until:
+            self._brakes_on_armed_until = now + self.unwind_confirm_window
+            self._set_msg(f"ATENCIÓN: se deshabilitarán los motores (frenos). Brazo DESARMADO y quieto; vuelve a elegir "
+                          f"'Poner frenos' antes de {self.unwind_confirm_window:.0f} s para confirmar.", error=True)
+            return
+        self._brakes_on_armed_until = 0.0
+        self.following = False
+        self._call_bridge("brakes_on")
 
     def _call_bridge(self, name: str, sync: bool = False):
         if sync:

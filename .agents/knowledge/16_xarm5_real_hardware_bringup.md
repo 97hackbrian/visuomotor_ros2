@@ -121,6 +121,17 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * Nota: el otro equipo añadió anillos de pitch/roll al marcador; con `orientation_mode: top_down_yaw` el puente los
   ignora (garra vertical), solo el yaw llega al brazo.
 
+## 5h. Operación desde RViz2 en el host: desenrollado real y frenos (2026-11-19)
+* Primer `unwind_j1` real con J1 = 6.2833 (fuera de rango por 0.0001): rechazado con ret=-9 y C23. El segundo intento
+  (tras C2 por la seta y `clean_error`) sí fue aceptado: J1 6.2833 → 0.0001 a 0.3 rad/s, postura idéntica.
+* Frenos: el controlador reportó `mt_brake=11111` (liberados) mientras el esfuerzo de J3 se mantuvo en ~76 (límite 92)
+  frente a ~5 en J2; el usuario sospecha que el freno de J3 no se libera físicamente aunque el bit diga liberado.
+  Pendiente: detección por esfuerzo anómalo de J3.
+* `motion_enable(8, 0)` con el brazo en reposo (state 2): 0.0 mm de desplazamiento (la caída de ~5 cm previa fue justo
+  tras un movimiento servo). Pulsar la seta tampoco movió el brazo.
+* Menú RViz2 nuevo: Desenrollar J1 (doble clic), Quitar frenos (`~/brakes_off`), Poner frenos (`~/brakes_on`, doble
+  clic, solo desarmado y quieto >= `brakes_on_min_idle_s`). Checks: puente 31/31, teleop 13/13.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

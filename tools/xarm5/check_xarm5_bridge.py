@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (28 comprobaciones; código de salida 0 = todas OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (31 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -298,6 +298,24 @@ class Checker(Node):
                    not r.success and f"{BR['brake_release_retries']} reintento" in r.message and "J3" in r.message,
                    r.message[:110])
         self.fault("stuck_brake", False)
+
+        # --- Poner / quitar frenos ------------------------------------------------------------------------
+        self.disarm()
+        r = self.call(Trigger, "/xarm5_bridge/brakes_off")
+        s = self.stats()
+        self.check("29. Quitar frenos: motores habilitados, modo posición y SIN armar",
+                   r.success and s["mt_able"] == all_axes and s["mt_brake"] == all_axes and s["mode"] == 0
+                   and not self.armed(), r.message[:90])
+        self.arm()
+        r = self.call(Trigger, "/xarm5_bridge/brakes_on")
+        self.check("30. Poner frenos estando ARMADO -> rechazado", not r.success and "Desarma" in r.message, r.message)
+        self.disarm()
+        self.spin_for(1.2)
+        r = self.call(Trigger, "/xarm5_bridge/brakes_on", timeout=20)
+        s = self.stats()
+        self.check("31. Poner frenos desarmado y en reposo: motion_enable(8, 0), frenos aplicados, informa desplazamiento",
+                   r.success and s["mt_able"] == 0 and s["mt_brake"] == 0 and s["motion_enable_calls"][-1] == [8, 0]
+                   and "mm" in r.message, r.message[:110])
 
         n_fail = sum(1 for _, ok in self.results if not ok)
         print(f"\nRESUMEN: {len(self.results) - n_fail}/{len(self.results)} comprobaciones OK", flush=True)

@@ -104,6 +104,7 @@ class XArm5Bridge(Node):
         self._mt_brake = 0
         self._mt_able = 0
         self._joints: Optional[list] = None
+        self._last_moving_time = time.time()  # último reporte con state == 1 (en movimiento)
         self._servo_pending = False
         self._servo_sent_time = 0.0
         self._servo_seq = 0
@@ -157,6 +158,8 @@ class XArm5Bridge(Node):
         self.create_service(Trigger, "~/go_home2", self._srv_go_home2, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/check_brakes", self._srv_check_brakes, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/unwind_j1", self._srv_unwind_j1, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/brakes_off", self._srv_brakes_off, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/brakes_on", self._srv_brakes_on, callback_group=self._cb_srv)
 
         if self.simulate_robot_state:
             self._measured_xyz = np.array(self.sim_initial_xyz, dtype=np.float64)
@@ -249,6 +252,8 @@ class XArm5Bridge(Node):
         d("joint_limit_margin_rad", 0.10)
         d("max_home_joint_delta_rad", 1.0)
         d("unwind_speed_rad_s", 0.3)
+        d("brakes_on_min_idle_s", 1.0)
+        d("brakes_on_settle_s", 1.0)
         d("sim_initial_xyz", [0.25, 0.0, 0.40])
         d("sim_initial_rpy", [math.pi, 0.0, 0.0])
 
@@ -316,6 +321,8 @@ class XArm5Bridge(Node):
         self.joint_margin = float(g("joint_limit_margin_rad"))
         self.max_home_joint_delta = float(g("max_home_joint_delta_rad"))
         self.unwind_speed = float(g("unwind_speed_rad_s"))
+        self.brakes_on_min_idle_s = float(g("brakes_on_min_idle_s"))
+        self.brakes_on_settle_s = float(g("brakes_on_settle_s"))
         self.sim_initial_xyz = [float(v) for v in g("sim_initial_xyz")]
         self.sim_initial_rpy = [float(v) for v in g("sim_initial_rpy")]
 
@@ -513,6 +520,70 @@ class XArm5Bridge(Node):
             time.sleep(0.05)
         return self._robot_err
 
+    def _srv_brakes_off(self, _req, res):
+        """Quita los frenos: habilita motores y deja el brazo SOSTENIDO en modo posición (no arma, no mueve)."""
+        if self._armed:
+            res.success, res.message = True, "Ya está armado (motores habilitados)."
+            return res
+        if not self._robot_state_fresh():
+            res.success, res.message = False, "Sin estado reciente del robot."
+            return res
+        if self.dry_run:
+            res.success, res.message = True, "dry-run: se habilitarían los motores (frenos liberados) en modo posición."
+            return res
+        if self._robot_err != 0:
+            self.get_logger().warn(f"Controlador con error C{self._robot_err}: intentando clean_error...")
+            if not self._call_ok(self._cli_clean_error, Call.Request(), "clean_error") or self._wait_err_cleared() != 0:
+                res.success = False
+                res.message = f"No se pudo limpiar el error C{self._robot_err} (¿parada de emergencia pulsada?)."
+                return res
+        if not self._set_mode_state(XARM_MODE_POSITION):
+            res.success, res.message = False, "No se pudo habilitar motores / modo posición (ver log)."
+            return res
+        ok, detail = self._wait_brakes_released(XARM_MODE_POSITION)
+        res.success = ok
+        res.message = (f"Frenos QUITADOS: brazo sostenido por los motores. {detail}" if ok
+                       else f"Motores habilitados pero {detail}")
+        if ok:
+            self.get_logger().info(res.message)
+        else:
+            self.get_logger().error(res.message)
+        return res
+
+    def _srv_brakes_on(self, _req, res):
+        """Pone los frenos deshabilitando motores. Solo desarmado y con el brazo en reposo (riesgo de caída)."""
+        if self._armed:
+            res.success, res.message = False, "Desarma primero (~/disarm)."
+            return res
+        if not self._robot_state_fresh():
+            res.success, res.message = False, "Sin estado reciente del robot."
+            return res
+        idle = time.time() - self._last_moving_time
+        if self._robot_state == 1 or idle < self.brakes_on_min_idle_s:
+            res.success = False
+            res.message = (f"El brazo se movió hace {idle:.1f} s: esperar >= {self.brakes_on_min_idle_s:.1f} s en "
+                           "reposo antes de poner frenos (la caída de 5 cm ocurrió tras un movimiento).")
+            return res
+        if self.dry_run:
+            res.success, res.message = True, "dry-run: se deshabilitarían los motores (frenos aplicados)."
+            return res
+        before = self._measured_xyz.copy()
+        if not self._motion_enable_joint(MOTION_ENABLE_ALL_JOINTS, False):
+            res.success, res.message = False, "motion_enable(8, 0) falló (ver log)."
+            return res
+        time.sleep(self.brakes_on_settle_s)
+        drop_mm = float(np.linalg.norm(self._measured_xyz - before)) * 1000.0
+        applied = self._mt_brake == 0 and self._mt_able == 0
+        res.success = applied
+        res.message = (f"Frenos {'PUESTOS' if applied else 'NO confirmados'}: "
+                       f"{self._brake_status_text() if not applied else 'motores deshabilitados en J1..J' + str(self.dof)}"
+                       f". Desplazamiento del TCP al frenar: {drop_mm:.1f} mm.")
+        if drop_mm > 2.0:
+            self.get_logger().error(res.message)
+        else:
+            self.get_logger().info(res.message)
+        return res
+
     def _srv_unwind_j1(self, _req, res):
         """Gira SOLO J1 +/-2*pi para devolverla a [-pi, pi] (misma postura física). Solo desarmado y a mano."""
         if self._armed:
@@ -695,6 +766,8 @@ class XArm5Bridge(Node):
             self._measured_xyz, self._measured_rpy = xyz, rpy
             self._robot_state_time = time.time()
             self._robot_mode, self._robot_state = msg.mode, msg.state
+            if msg.state == 1:
+                self._last_moving_time = time.time()
             new_err, self._robot_warn = msg.err, msg.warn
             self._mt_brake, self._mt_able = int(msg.mt_brake), int(msg.mt_able)
             if len(msg.angle) >= self.dof:
