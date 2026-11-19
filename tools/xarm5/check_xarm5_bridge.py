@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (26 comprobaciones; código de salida 0 = todas OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (28 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -24,7 +24,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
-from xarm_msgs.srv import SetFloat32List
+from xarm_msgs.srv import SetFloat32List, SetInt16
 
 from visuomotor_bringup.xarm5_interface import rpy_to_quat
 
@@ -278,6 +278,26 @@ class Checker(Node):
         s = self.stats()
         self.check("26. Tras unwind arma; junta acercándose a su límite -> desarme y modo posición",
                    ok_arm and not armed_near and s["mode"] == 0, self.status[-70:])
+
+        # --- Freno intermitente de J3 (fallo real): reintento de liberación solo sobre esa junta -------------
+        self.call(SetFloat32List, "/fake_xarm/set_joints",
+                  SetFloat32List.Request(datas=[-0.0010, -0.5001, -0.2717, 1.0231, -0.0022]))
+        self.call(SetInt16, "/fake_xarm/set_stuck_release_after", SetInt16.Request(data=2))
+        self.fault("stuck_brake", True)
+        n_calls = len(self.stats()["motion_enable_calls"])
+        r = self.call(Trigger, "/xarm5_bridge/arm", timeout=30)
+        calls = self.stats()["motion_enable_calls"][n_calls:]
+        self.check("27. Freno de J3 que se libera al 2º intento -> reintento solo sobre J3 y armado OK",
+                   r.success and "reintento" in r.message and [3, 1] in calls and [3, 0] not in calls
+                   and all(c[0] in (3, 8) for c in calls), f"{r.message[-60:]} | llamadas={calls}")
+        self.disarm()
+
+        self.call(SetInt16, "/fake_xarm/set_stuck_release_after", SetInt16.Request(data=-1))
+        r = self.call(Trigger, "/xarm5_bridge/arm", timeout=30)
+        self.check(f"28. Freno de J3 que nunca se libera -> rechazado tras {BR['brake_release_retries']} reintentos",
+                   not r.success and f"{BR['brake_release_retries']} reintento" in r.message and "J3" in r.message,
+                   r.message[:110])
+        self.fault("stuck_brake", False)
 
         n_fail = sum(1 for _, ok in self.results if not ok)
         print(f"\nRESUMEN: {len(self.results) - n_fail}/{len(self.results)} comprobaciones OK", flush=True)

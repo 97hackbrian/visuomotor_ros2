@@ -173,7 +173,10 @@ No usar el marcador y la política a la vez (ambos publican en `/target_frame`).
 Al armar y antes de `~/go_home`/`~/go_home2`, el puente habilita motores y exige que **todos** los ejes reporten freno
 liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) en `brake_check_timeout_s`; si no, no envía
 movimiento e indica la articulación (p. ej. `freno APLICADO en J3`). Armado, si un eje pierde un bit, se desarma.
-`ros2 service call /xarm5_bridge/check_brakes std_srvs/srv/Trigger` informa sin actuar. No deshabilitar motores
+`ros2 service call /xarm5_bridge/check_brakes std_srvs/srv/Trigger` informa sin actuar.
+**Freno intermitente (J3 del brazo real):** si un eje no libera, el puente re-habilita SOLO ese eje hasta
+`brake_release_retries` veces (3); el ciclo bloquear/desbloquear de ese eje (`brake_retry_disable_cycle`) está
+desactivado hasta validarlo. Solo cuentan reportes de estado posteriores a la habilitación (`brake_state_settle_s`). No deshabilitar motores
 (`motion_enable` data=0) con el brazo en el aire: hizo caer el brazo ~5 cm.
 
 ### Límites articulares y desenrollado de J1

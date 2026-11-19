@@ -141,6 +141,15 @@ xarm5_bridge:
     dof: 5
     brake_check_enabled: true
     brake_check_timeout_s: 2.0
+    # Reintento si un freno no se libera (fallo intermitente observado en J3): se re-habilita SOLO esa junta.
+    brake_release_retries: 3
+    brake_retry_wait_s: 1.5
+    # true = además, ciclo deshabilitar/habilitar de ESA junta (solo si su freno reporta APLICADO, es decir, la sostiene
+    # el freno). Replica el "bloquear/desbloquear" manual. Desactivado hasta validarlo con el brazo real.
+    brake_retry_disable_cycle: false
+    brake_retry_pause_s: 0.3
+    # Solo cuentan reportes de robot_states posteriores a la habilitación + este margen (evita leer un estado viejo).
+    brake_state_settle_s: 0.15
 
     # --- Límites articulares (xarm_description/urdf/xarm5/xarm5.urdf.xacro) -------------------------
     # No se arma si alguna junta está a menos de joint_limit_margin_rad de su límite, y armado se detiene antes de que

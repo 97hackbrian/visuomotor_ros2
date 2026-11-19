@@ -63,11 +63,12 @@ class FakeXArmDriver(Node):
         self.gripper = 0.0
         self.joints = [float(v) for v in self.get_parameter("initial_joints_rad").value]
         self.vacuum_on = False
+        self.stuck_release_after, self.stuck_attempts = -1, 0
         self.faults = {"fail_servo": False, "pause_states": False, "slow_servo": False, "stuck_brake": False}
         self.stats = {"motion_enable": 0, "set_mode": [], "set_state": [], "clean_error": 0,
                       "servo_ok": 0, "servo_rejected": 0, "max_step_mm": 0.0, "last_servo_pose": None,
                       "set_servo_angle": [], "gripper_enable": 0, "gripper_mode": 0, "gripper_speed": None,
-                      "gripper_goals": [], "vacuum": []}
+                      "gripper_goals": [], "vacuum": [], "motion_enable_calls": []}
 
         cb = ReentrantCallbackGroup()
         srv = lambda t, name, fn: self.create_service(t, f"{ns}/{name}", fn, callback_group=cb)
@@ -86,6 +87,8 @@ class FakeXArmDriver(Node):
                                 callback_group=cb)
         self.create_service(Trigger, "/fake_xarm/get_stats", self._get_stats, callback_group=cb)
         self.create_service(SetFloat32List, "/fake_xarm/set_joints", self._set_joints, callback_group=cb)
+        self.create_service(SetInt16, "/fake_xarm/set_stuck_release_after", self._set_stuck_release_after,
+                            callback_group=cb)
         ActionServer(self, GripperCommand, "/xarm_gripper/gripper_action", self._gripper_execute,
                      goal_callback=lambda _g: GoalResponse.ACCEPT,
                      cancel_callback=lambda _g: CancelResponse.ACCEPT, callback_group=cb)
@@ -100,15 +103,31 @@ class FakeXArmDriver(Node):
         return (1 << self.dof) - 1
 
     def _motion_enable(self, req, res):
+        """id 8 = todas las juntas; 1..dof = una junta. Con stuck_brake, el freno de stuck_joint no se libera hasta
+        el intento número stuck_release_after (-1 = nunca) de habilitar esa junta."""
         self.stats["motion_enable"] += 1
+        self.stats["motion_enable_calls"].append([int(req.id), int(req.data)])
+        joints = list(range(1, self.dof + 1)) if req.id == 8 else [int(req.id)]
         with self.lock:
-            if req.data:
-                self.mt_able = self._all_axes()
-                self.mt_brake = self._all_axes()
-                if self.faults["stuck_brake"]:
-                    self.mt_brake &= ~(1 << (self.stuck_joint - 1))
-            else:
-                self.mt_able, self.mt_brake = 0, 0
+            for j in joints:
+                bit = 1 << (j - 1)
+                if req.data:
+                    self.mt_able |= bit
+                    self.mt_brake |= bit
+                    if self.faults["stuck_brake"] and j == self.stuck_joint:
+                        self.stuck_attempts += 1
+                        if self.stuck_release_after < 0 or self.stuck_attempts < self.stuck_release_after:
+                            self.mt_brake &= ~bit
+                else:
+                    self.mt_able &= ~bit
+                    self.mt_brake &= ~bit
+        res.ret = 0
+        return res
+
+    def _set_stuck_release_after(self, req, res):
+        with self.lock:
+            self.stuck_release_after = int(req.data)
+            self.stuck_attempts = 0
         res.ret = 0
         return res
 

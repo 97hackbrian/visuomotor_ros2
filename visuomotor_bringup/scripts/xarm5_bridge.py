@@ -239,6 +239,11 @@ class XArm5Bridge(Node):
         d("dof", 5)
         d("brake_check_enabled", True)
         d("brake_check_timeout_s", 2.0)
+        d("brake_release_retries", 3)
+        d("brake_retry_wait_s", 1.5)
+        d("brake_retry_disable_cycle", False)
+        d("brake_retry_pause_s", 0.3)
+        d("brake_state_settle_s", 0.15)
         d("joint_lower_limits_rad", [-2.0 * math.pi, -2.059, -3.927, -1.69297, -2.0 * math.pi])
         d("joint_upper_limits_rad", [2.0 * math.pi, 2.0944, 0.19198, math.pi, 2.0 * math.pi])
         d("joint_limit_margin_rad", 0.10)
@@ -301,6 +306,11 @@ class XArm5Bridge(Node):
         self.dof = int(g("dof"))
         self.brake_check_enabled = bool(g("brake_check_enabled"))
         self.brake_check_timeout_s = float(g("brake_check_timeout_s"))
+        self.brake_release_retries = int(g("brake_release_retries"))
+        self.brake_retry_wait_s = float(g("brake_retry_wait_s"))
+        self.brake_retry_disable_cycle = bool(g("brake_retry_disable_cycle"))
+        self.brake_retry_pause_s = float(g("brake_retry_pause_s"))
+        self.brake_state_settle_s = float(g("brake_state_settle_s"))
         self.joint_lower = [float(v) for v in g("joint_lower_limits_rad")]
         self.joint_upper = [float(v) for v in g("joint_upper_limits_rad")]
         self.joint_margin = float(g("joint_limit_margin_rad"))
@@ -388,6 +398,7 @@ class XArm5Bridge(Node):
         if not self._robot_state_fresh():
             res.success, res.message = False, "Sin estado reciente del robot (¿driver conectado? ¿report_type?)."
             return res
+        brake_note = ""
         limit_problem = self._joint_limit_problem()
         if limit_problem:
             res.success = False
@@ -402,7 +413,8 @@ class XArm5Bridge(Node):
             if not self._set_mode_state(XARM_MODE_SERVO):
                 res.success, res.message = False, "No se pudo pasar a modo servo (ver log)."
                 return res
-            ok, detail = self._wait_brakes_released()
+            ok, detail = self._wait_brakes_released(XARM_MODE_SERVO)
+            brake_note = detail if "reintento" in detail else ""
             if not ok:
                 # Motores habilitados pero algún freno/motor no respondió: se vuelve a modo posición (el brazo queda
                 # sostenido). NO se deshabilitan motores: hacerlo con el brazo en el aire lo hizo caer ~5 cm.
@@ -426,6 +438,8 @@ class XArm5Bridge(Node):
                 self._gripper.closed = measured_closed
             self._armed = True
         msg = "ARMADO" + (" (dry-run: no se envían comandos)" if self.dry_run else " (modo servo, enviando comandos)")
+        if not self.dry_run and brake_note:
+            msg += f" | frenos: {brake_note}"
         self.get_logger().warn(msg)
         res.success, res.message = True, msg
         return res
@@ -479,7 +493,7 @@ class XArm5Bridge(Node):
         if not self._set_mode_state(XARM_MODE_POSITION):
             res.success, res.message = False, "No se pudo pasar a modo posición."
             return res
-        ok, detail = self._wait_brakes_released()
+        ok, detail = self._wait_brakes_released(XARM_MODE_POSITION)
         if not ok:
             res.success, res.message = False, f"{label} CANCELADO: {detail}"
             self.get_logger().error(res.message)
@@ -529,7 +543,7 @@ class XArm5Bridge(Node):
         if not self._set_mode_state(XARM_MODE_POSITION):
             res.success, res.message = False, "No se pudo pasar a modo posición."
             return res
-        ok, brake_detail = self._wait_brakes_released()
+        ok, brake_detail = self._wait_brakes_released(XARM_MODE_POSITION)
         if not ok:
             res.success, res.message = False, f"unwind_j1 CANCELADO: {brake_detail}"
             self.get_logger().error(res.message)
@@ -567,17 +581,63 @@ class XArm5Bridge(Node):
             parts.append(f"motor DESHABILITADO en J{', J'.join(str(j) for j in disabled)}")
         return "; ".join(parts) + f" (mt_brake=0b{self._mt_brake:0{self.dof}b}, mt_able=0b{self._mt_able:0{self.dof}b})"
 
-    def _wait_brakes_released(self):
-        """Tras motion_enable, espera a que TODOS los ejes reporten freno liberado y motor habilitado."""
+    def _poll_brakes(self, timeout_s: float, since: float) -> bool:
+        """True si un robot_states recibido DESPUÉS de ``since`` + brake_state_settle_s reporta todo liberado.
+
+        Ignorar los reportes previos es imprescindible: si los motores ya estaban habilitados, un reporte anterior a
+        la nueva habilitación diría "todo liberado" aunque el freno acabe de quedar aplicado.
+        """
+        not_before = since + self.brake_state_settle_s
+        end = time.time() + timeout_s
+        while time.time() < end:
+            if (self._robot_state_time > not_before and self._robot_state_fresh()
+                    and brake_report(self._mt_brake, self._mt_able, self.dof)[0]):
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _motion_enable_joint(self, joint: int, enable: bool) -> bool:
+        req = SetInt16ById.Request()
+        req.id, req.data = int(joint), 1 if enable else 0
+        return self._call_ok(self._cli_motion_enable, req, f"motion_enable(J{joint}, {req.data})")
+
+    def _wait_brakes_released(self, mode: Optional[int] = None):
+        """Tras motion_enable, espera a que TODOS los ejes reporten freno liberado y motor habilitado.
+
+        Si algún eje no libera (fallo intermitente observado en J3 del brazo real), reintenta SOLO sobre ese eje:
+        re-habilitación (siempre) y, si brake_retry_disable_cycle es true, ciclo deshabilitar/habilitar de esa junta,
+        únicamente cuando su freno reporta estar APLICADO (la junta está sostenida por su freno). Nunca se
+        deshabilitan todas las juntas a la vez. Tras un reintento exitoso se reafirman modo y estado.
+        """
         if not self.brake_check_enabled:
             return True, "comprobación de frenos desactivada"
-        end = time.time() + self.brake_check_timeout_s
-        while time.time() < end:
-            if brake_report(self._mt_brake, self._mt_able, self.dof)[0] and self._robot_state_fresh():
-                self.get_logger().info(f"Frenos OK: {self._brake_status_text()}")
-                return True, self._brake_status_text()
-            time.sleep(0.05)
-        return False, (f"tras {self.brake_check_timeout_s:.1f} s {self._brake_status_text()}. "
+        ok = self._poll_brakes(self.brake_check_timeout_s, since=time.time())
+        attempt = 0
+        while not ok and attempt < self.brake_release_retries:
+            attempt += 1
+            _, stuck, disabled = brake_report(self._mt_brake, self._mt_able, self.dof)
+            joints = sorted(set(stuck) | set(disabled))
+            self.get_logger().warn(
+                f"Reintento {attempt}/{self.brake_release_retries} de liberación: {self._brake_status_text()}")
+            for j in joints:
+                if self.brake_retry_disable_cycle and j in stuck:
+                    self._motion_enable_joint(j, False)
+                    time.sleep(self.brake_retry_pause_s)
+                self._motion_enable_joint(j, True)
+            ok = self._poll_brakes(self.brake_retry_wait_s, since=time.time())
+        if ok:
+            if attempt and mode is not None:
+                req_m = SetInt16.Request()
+                req_m.data = mode
+                req_s = SetInt16.Request()
+                req_s.data = XARM_STATE_READY
+                if not (self._call_ok(self._cli_set_mode, req_m, f"set_mode({mode})")
+                        and self._call_ok(self._cli_set_state, req_s, "set_state(0)")):
+                    return False, "frenos liberados tras reintento, pero falló reafirmar modo/estado (ver log)"
+            extra = f" (tras {attempt} reintento(s))" if attempt else ""
+            self.get_logger().info(f"Frenos OK{extra}: {self._brake_status_text()}")
+            return True, self._brake_status_text() + extra
+        return False, (f"tras {self.brake_check_timeout_s:.1f} s y {attempt} reintento(s): {self._brake_status_text()}. "
                        "No se enviará movimiento: revisar el freno indicado (UFACTORY Studio / reinicio del controlador).")
 
     def _srv_check_brakes(self, _req, res):

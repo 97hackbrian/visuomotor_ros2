@@ -109,6 +109,18 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * home2 se representa con J1 = -0.0010 (misma postura que +6.2822). Fake driver: `initial_joints_rad` (home2) y
   `/fake_xarm/set_joints`; checks 23-26 cubren el caso real.
 
+## 5g. Freno intermitente de J3 y lectura de estado obsoleto (2026-11-19)
+* Reporte del usuario: el freno de J3 a veces no se libera al habilitar; se resolvía bloqueando/desbloqueando hasta
+  que liberaba. El puente reintenta SOLO sobre la junta fallida: `motion_enable(id=j, 1)` hasta `brake_release_retries`
+  (3) con `brake_retry_wait_s`; opcional `brake_retry_disable_cycle` (deshabilitar/habilitar esa junta solo si su freno
+  reporta APLICADO; nunca todas). Tras un reintento exitoso reafirma modo y estado; el mensaje de armado lo indica.
+* Bug encontrado por los checks: con motores ya habilitados, el sondeo aceptaba un `robot_states` ANTERIOR a la nueva
+  habilitación ("todo liberado") aunque el freno acabara de quedar aplicado. Corregido: solo cuentan reportes
+  posteriores a la llamada + `brake_state_settle_s` (0.15 s).
+* Fake driver: `motion_enable` por junta y `/fake_xarm/set_stuck_release_after` (libera al intento N); checks 27-28.
+* Nota: el otro equipo añadió anillos de pitch/roll al marcador; con `orientation_mode: top_down_yaw` el puente los
+  ignora (garra vertical), solo el yaw llega al brazo.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
