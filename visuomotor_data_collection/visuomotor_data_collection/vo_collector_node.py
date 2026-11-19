@@ -16,7 +16,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
 from rclpy.callback_groups import ReentrantCallbackGroup
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, JointState
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 
@@ -40,6 +40,8 @@ class VOCollectorNode(Node):
         self.declare_parameter('record_done_flag', True)
         self.declare_parameter('min_inliers_tracking', 10)
         self.declare_parameter('relative_coordinates', True)
+        self.declare_parameter('gripper_topic', '/visuomotor/gripper_joint_states')
+        self.declare_parameter('gripper_closed_val', -0.005)
         
         # Resolución robusta de ruta de dataset
         raw_path = self.get_parameter('dataset_path').value
@@ -100,15 +102,18 @@ class VOCollectorNode(Node):
         self.latest_img = None
         self.latest_pose = None # [X, Y, Z, Qx, Qy, Qz, Qw]
         self.initial_pose = None
+        self.current_gripper = 0.0 # 0.0=abierto, -0.005=cerrado
         
         self.image_size = self.get_parameter('image_size').value
         
         # Suscriptores
         camera_topic = self.get_parameter('camera_topic').value
         odom_topic = self.get_parameter('odom_topic').value
+        gripper_topic = self.get_parameter('gripper_topic').value
         
         self.create_subscription(Image, camera_topic, self._img_cb, 10, callback_group=self.cbg)
         self.create_subscription(Odometry, odom_topic, self._odom_cb, 10, callback_group=self.cbg)
+        self.create_subscription(JointState, gripper_topic, self._gripper_cb, 10, callback_group=self.cbg)
         
         # Servicio de control de episodios
         self.create_service(EpisodeTrigger, '~/trigger_episode', self._srv_trigger, callback_group=self.cbg)
@@ -127,6 +132,7 @@ class VOCollectorNode(Node):
         self.get_logger().info(f" Episodios existentes en dataset: {num_existing}")
         self.get_logger().info(" Controles de Teclado:")
         self.get_logger().info("   [ESPACIO] -> Iniciar Grabación (START)")
+        self.get_logger().info("   [G]       -> Alternar Gripper (Abrir 0.0 <-> Cerrar -0.005)")
         self.get_logger().info("   [H]       -> Llegada a Destino (HOLD_TARGET / done=1.0)")
         self.get_logger().info("   [S]       -> Guardar Episodio (SAVE)")
         self.get_logger().info("   [D]       -> Descartar Episodio (DISCARD)")
@@ -173,6 +179,21 @@ class VOCollectorNode(Node):
             self.get_logger().info("✅ [Stream OK] Primera lectura recibida de odometría VIO (/rtabmap/odom).")
         self.latest_pose = np.array([pos.x, pos.y, pos.z, qx, qy, qz, qw], dtype=np.float32)
 
+    def _gripper_cb(self, msg: JointState):
+        """Lectura automática desde hardware si existe un publicador de joint_states de gripper."""
+        if msg.position and len(msg.position) > 0:
+            self.current_gripper = float(msg.position[0])
+
+    def _toggle_gripper(self):
+        """Conmutación manual de pinza por teclado [G] o servicio para demostraciones expertas."""
+        closed_val = float(self.get_parameter('gripper_closed_val').value)
+        if abs(self.current_gripper) < 1e-4:
+            self.current_gripper = closed_val
+            self.get_logger().info(f">>> [GRIPPER] ✊ Pinza CERRADA ({self.current_gripper:.4f})")
+        else:
+            self.current_gripper = 0.0
+            self.get_logger().info(f">>> [GRIPPER] 🖐️ Pinza ABIERTA (0.0000)")
+
     def _sample_step(self):
         if not self.is_recording:
             return
@@ -204,7 +225,7 @@ class VOCollectorNode(Node):
         state_vec = np.zeros(8, dtype=np.float32)
         state_vec[0:3] = rel_pos
         state_vec[3:7] = rel_ori
-        state_vec[7] = 0.0 # Gripper abierto (manual approaching)
+        state_vec[7] = self.current_gripper # 0.0 abierto, -0.005 cerrado
         
         # 2. action: 9 Dimensiones (Target_X, Target_Y, Target_Z, Target_Q, Target_Gripper, Done_Flag)
         record_done = self.get_parameter('record_done_flag').value
@@ -213,13 +234,13 @@ class VOCollectorNode(Node):
             action_vec = np.zeros(9, dtype=np.float32)
             action_vec[0:3] = rel_pos
             action_vec[3:7] = rel_ori
-            action_vec[7] = 0.0
+            action_vec[7] = self.current_gripper
             action_vec[8] = done_val
         else:
             action_vec = np.zeros(8, dtype=np.float32)
             action_vec[0:3] = rel_pos
             action_vec[3:7] = rel_ori
-            action_vec[7] = 0.0
+            action_vec[7] = self.current_gripper
         
         self.buffer.append({
             'image': self.latest_img.copy(),
@@ -236,6 +257,7 @@ class VOCollectorNode(Node):
         self.buffer.clear()
         self.initial_pose = None
         self.is_holding = False
+        self.current_gripper = 0.0
         self.is_recording = True
         self.get_logger().info(">>> [REC] Grabando episodio... Mueva la cámara hacia el objetivo.")
 
@@ -308,6 +330,10 @@ class VOCollectorNode(Node):
             self._hold_target()
             res.success = True
             res.message = "Hold target activado"
+        elif cmd in ("GRIPPER", "TOGGLE_GRIPPER"):
+            self._toggle_gripper()
+            res.success = True
+            res.message = f"Gripper={self.current_gripper}"
         elif cmd == "SAVE":
             succ, msg = self._save_episode()
             res.success = succ
@@ -340,6 +366,8 @@ class VOCollectorNode(Node):
                     ch = sys.stdin.read(1)
                     if ch == ' ':
                         self._start_recording()
+                    elif ch.lower() == 'g':
+                        self._toggle_gripper()
                     elif ch.lower() == 'h':
                         self._hold_target()
                     elif ch.lower() == 's':
