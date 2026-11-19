@@ -1,5 +1,7 @@
 vo_collector_node:
   ros__parameters:
+    # 'AUTO' para crear nueva versión incremental demonstrations_real_vX.zarr,
+    # o nombre/ruta para continuar aumentando dataset existente (ej. 'demonstrations_real_v5')
     dataset_path: "AUTO"
     dataset_prefix: "demonstrations_real"
     sampling_rate_hz: 20.0

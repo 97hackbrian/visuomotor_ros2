@@ -7,6 +7,10 @@ class ZarrStorage:
         self.path = path
         # Usaremos zarr.open_group para inicializar o abrir el grupo Zarr
         self.root = zarr.open_group(self.path, mode='a')
+
+    def get_num_episodes(self) -> int:
+        """Retorna el número total de episodios existentes en este almacenamiento Zarr."""
+        return len([k for k in self.root.group_keys() if k.startswith("episode_")])
         
     def append_episode(self, buffer, attrs=None):
         """
@@ -33,4 +37,6 @@ class ZarrStorage:
 
         if attrs and isinstance(attrs, dict):
             episode_group.attrs.update(attrs)
+            
+        return episode_idx, len(existing_indices) + 1
 

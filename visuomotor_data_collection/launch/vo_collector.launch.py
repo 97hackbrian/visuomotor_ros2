@@ -12,7 +12,7 @@ def generate_launch_description():
     dataset_path_arg = DeclareLaunchArgument(
         'dataset_path',
         default_value='AUTO',
-        description='Ruta del dataset Zarr o AUTO para incremento de version'
+        description='Ruta o nombre de carpeta del dataset Zarr a continuar/aumentar, o AUTO para crear demonstrations_real_vX.zarr'
     )
 
     collector_node = Node(

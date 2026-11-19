@@ -225,3 +225,40 @@ El 19 de noviembre de 2026 se completó la campaña metrológica de calibración
 
 ## 11. Recolección Masiva de Demostraciones Expertas Reales (`demonstrations_real_v3.zarr`)
 Con el sistema VIO formalmente certificado por debajo de $2.5\text{ mm}$ de precisión de retorno y anclado gravitacionalmente mediante la IMU, el pipeline está listo para la captura interactiva a 20.0 Hz.
+
+---
+
+## E. Protocolo de Recolección de Demostraciones UMI y Parámetro `dataset_path`
+
+### 1. Alineación Matemática con UMI (Universal Manipulation Interface) y Diffusion Policy
+El recolector `vo_collector_node` reproduce fielmente el estándar UMI (Chi et al., RSS 2024 / Stanford / TRI) y es 100% compatible con la arquitectura de Diffusion Policy del repositorio:
+1. **Frecuencia Canónica:** 20.0 Hz sincronizados con timer de ROS 2.
+2. **Observación Propioceptiva (`observation.state`) — 8D:**
+   - $[X, Y, Z]$ traslación cartesiana relativa al punto de inicio del episodio ($t=0 \to (0, 0, 0)$).
+   - $[q_x, q_y, q_z, q_w]$ cuaternión absoluto de orientación con estabilización de semiesfera superior ($q_w \ge 0$) y norma unitaria.
+   - Gripper físico en $0.0$.
+   - **Regla Inviolable:** CERO fuga causal: la señal `done` nunca forma parte de `observation.state`.
+3. **Espacio de Acciones (`action`) — 9D:**
+   - $[X, Y, Z]$ traslaciones relativas objetivo a predecir ($H_{act} = 16$).
+   - $[q_x, q_y, q_z, q_w]$ orientaciones relativas objetivo.
+   - Gripper objetivo.
+   - `done_flag` (9ª dimensión): $0.0$ durante trayectoria, $1.0$ durante la fase de llegada/asentamiento (`HOLD_TARGET`), garantizando un piso de $\ge 2.0\text{ s}$ (40 frames a 20 Hz) con `done=1.0`.
+4. **Almacenamiento Zarr:** Grupos indexados `episode_0`, `episode_1`, etc., con datasets `image` (uint8, $256 \times 256 \times 3$), `state` (float32, $N \times 8$) y `action` (float32, $N \times 9$).
+
+### 2. Parámetro de Lanzamiento Flexible: Auto-Incremento vs Aumento de Dataset
+El nodo y los archivos launch aceptan el parámetro `dataset_path`:
+* **Modo AUTO (`dataset_path:=AUTO` o sin definir):**
+  - Escanea `datasets/` buscando patrones `demonstrations_real_v*.zarr`.
+  - Determina automáticamente la versión máxima existente ($v_{\max}$) y crea una nueva carpeta incremental: `datasets/demonstrations_real_v{max+1}.zarr`.
+* **Modo AUMENTO / CONTINUACIÓN (`dataset_path:=<nombre_o_ruta>`):**
+  - Si se proporciona un nombre (ej. `demonstrations_real_v5` o `demonstrations_real_v5.zarr` o `datasets/demonstrations_real_v5.zarr`), normaliza la ruta hacia `datasets/`.
+  - Si el dataset ya existe, detecta el número de episodios previos existentes (ej. 8 episodios), emite un log informativo y anexa los nuevos episodios consecutivamente a partir de `episode_8`.
+
+### 3. Ejecución Rápida
+```bash
+# Modo 1: Crear automáticamente un nuevo dataset incremental demonstrations_real_vX.zarr
+./tools/hardware/run_data_collection.sh
+
+# Modo 2: Continuar aumentando un dataset específico existente
+./tools/hardware/run_data_collection.sh demonstrations_real_v5
+```

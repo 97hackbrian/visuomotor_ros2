@@ -12,7 +12,11 @@ def generate_launch_description():
     
     gui_arg = DeclareLaunchArgument('gui', default_value='false', description='Lanzar visor gráfico RViz2')
     ultra_precision_arg = DeclareLaunchArgument('ultra_precision', default_value='false', description='Modo ultra-precisión')
-    dataset_path_arg = DeclareLaunchArgument('dataset_path', default_value='AUTO', description='Ruta de guardado Zarr')
+    dataset_path_arg = DeclareLaunchArgument(
+        'dataset_path',
+        default_value='AUTO',
+        description='Ruta o nombre de carpeta del dataset Zarr a continuar/aumentar, o AUTO para crear demonstrations_real_vX.zarr'
+    )
 
     vio_launch_path = os.path.join(bringup_share, 'launch', 'realsense_d435i_vio.launch.py')
     collector_config = os.path.join(data_coll_share, 'config', 'vo_data_collection_params.yaml')

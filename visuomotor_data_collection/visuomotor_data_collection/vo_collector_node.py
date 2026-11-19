@@ -41,12 +41,20 @@ class VOCollectorNode(Node):
         self.declare_parameter('min_inliers_tracking', 10)
         self.declare_parameter('relative_coordinates', True)
         
-        # Resolución de ruta de dataset
-        storage_path = self.get_parameter('dataset_path').value
+        # Resolución robusta de ruta de dataset
+        raw_path = self.get_parameter('dataset_path').value
         prefix = self.get_parameter('dataset_prefix').value
-        if storage_path == 'AUTO':
-            base_dir = "datasets"
-            os.makedirs(base_dir, exist_ok=True)
+        base_dir = "datasets"
+        os.makedirs(base_dir, exist_ok=True)
+        
+        raw_str = str(raw_path).strip() if raw_path is not None else ""
+        is_auto = (
+            not raw_str or 
+            raw_str.upper() in ('AUTO', 'NONE', 'DEFAULT', '""', "''")
+        )
+        
+        if is_auto:
+            # Modo AUTO: Escanear datasets/ para encontrar la versión máxima existente
             pattern = os.path.join(base_dir, f"{prefix}_v*.zarr")
             existing = glob.glob(pattern)
             max_v = 0
@@ -56,12 +64,33 @@ class VOCollectorNode(Node):
                     v = int(match.group(1))
                     if v > max_v:
                         max_v = v
-            storage_path = os.path.join(base_dir, f"{prefix}_v{max_v + 1}.zarr")
-            self.get_logger().info(f"[VO Collector] Modo AUTO: Creando nuevo dataset en {storage_path}")
+            next_v = max_v + 1
+            storage_path = os.path.join(base_dir, f"{prefix}_v{next_v}.zarr")
+            self.get_logger().info(f"✨ [VO Collector] Modo AUTO (sin dataset específico): Creando NUEVO dataset en '{storage_path}'")
         else:
-            self.get_logger().info(f"[VO Collector] Usando dataset especificado: {storage_path}")
-            
+            clean_path = raw_str
+            # Asegurar extensión .zarr
+            if not clean_path.endswith('.zarr'):
+                clean_path = f"{clean_path}.zarr"
+                
+            # Si no es ruta absoluta ni empieza por datasets/, normalizar a datasets/
+            if not os.path.isabs(clean_path) and not clean_path.startswith("datasets/"):
+                storage_path = os.path.join(base_dir, clean_path)
+            else:
+                storage_path = clean_path
+
+        self.storage_path = storage_path
         self.storage = ZarrStorage(storage_path)
+        num_existing = self.storage.get_num_episodes()
+        
+        if not is_auto and num_existing > 0:
+            self.get_logger().info(
+                f"🔄 [VO Collector] MODO AUMENTO: Continuando dataset existente '{storage_path}' "
+                f"({num_existing} episodios previos detectados). "
+                f"Los nuevos episodios se indexarán a partir de 'episode_{num_existing}'."
+            )
+        elif not is_auto:
+            self.get_logger().info(f"📁 [VO Collector] Creando nuevo dataset especificado en '{storage_path}'.")
         
         # Variables de estado
         self.is_recording = False
@@ -93,8 +122,9 @@ class VOCollectorNode(Node):
         self.keyboard_thread.start()
         
         self.get_logger().info("=================================================================")
-        self.get_logger().info(" Nodo VO Collector Inicializado (RealSense D415 + RTAB-Map VO)")
-        self.get_logger().info(f" Frecuencia: {rate} Hz | Imagen: {self.image_size}x{self.image_size} | Dataset: {storage_path}")
+        self.get_logger().info(" Nodo VO Collector Inicializado (RealSense D435i/D415 + RTAB-Map VIO)")
+        self.get_logger().info(f" Frecuencia: {rate} Hz | Imagen: {self.image_size}x{self.image_size} | Dataset: {self.storage_path}")
+        self.get_logger().info(f" Episodios existentes en dataset: {num_existing}")
         self.get_logger().info(" Controles de Teclado:")
         self.get_logger().info("   [ESPACIO] -> Iniciar Grabación (START)")
         self.get_logger().info("   [H]       -> Llegada a Destino (HOLD_TARGET / done=1.0)")
@@ -252,8 +282,11 @@ class VOCollectorNode(Node):
             attrs['initial_pos_y'] = float(self.initial_pose[1])
             attrs['initial_pos_z'] = float(self.initial_pose[2])
         
-        self.storage.append_episode(self.buffer, attrs=attrs)
-        self.get_logger().info(f"✔ [SAVE] Episodio guardado con éxito: {total_frames} frames ({total_frames/rate:.2f} s).")
+        ep_idx, total_count = self.storage.append_episode(self.buffer, attrs=attrs)
+        self.get_logger().info(
+            f"✔ [SAVE] Episodio #{ep_idx} guardado con éxito en '{self.storage_path}': "
+            f"{total_frames} frames ({total_frames/rate:.2f} s). Total en dataset: {total_count} episodios."
+        )
         self.buffer.clear()
         return True, f"Guardado {total_frames} frames"
 
@@ -291,6 +324,11 @@ class VOCollectorNode(Node):
     def _keyboard_loop(self):
         # Solo activa captura de teclado interactivo si stdin es un tty
         if not sys.stdin.isatty():
+            self.get_logger().info(
+                "ℹ️ [Teclado] stdin no es un TTY interactivo (ej. en launch). "
+                "Para controlar con teclado [ESPACIO/H/S/D], lanza vo_collector en terminal interactiva "
+                "o envía comandos mediante el servicio ~/trigger_episode."
+            )
             return
             
         old_settings = termios.tcgetattr(sys.stdin)
