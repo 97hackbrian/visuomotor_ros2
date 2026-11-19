@@ -14,6 +14,7 @@ import cv2
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry
@@ -108,6 +109,8 @@ class VOCollectorNode(Node):
             # Redimensionar en RAM a 256x256 para optimizar almacenamiento y compatibilidad
             if cv_img.shape[0] != self.image_size or cv_img.shape[1] != self.image_size:
                 cv_img = cv2.resize(cv_img, (self.image_size, self.image_size), interpolation=cv2.INTER_AREA)
+            if self.latest_img is None:
+                self.get_logger().info("✅ [Stream OK] Primera imagen recibida de la cámara.")
             self.latest_img = cv_img
         except Exception as e:
             self.get_logger().error(f"Error procesando imagen: {e}")
@@ -136,6 +139,8 @@ class VOCollectorNode(Node):
         else:
             qx, qy, qz, qw = 0.0, 0.0, 0.0, 1.0
             
+        if self.latest_pose is None:
+            self.get_logger().info("✅ [Stream OK] Primera lectura recibida de odometría VIO (/rtabmap/odom).")
         self.latest_pose = np.array([pos.x, pos.y, pos.z, qx, qy, qz, qw], dtype=np.float32)
 
     def _sample_step(self):
@@ -193,6 +198,11 @@ class VOCollectorNode(Node):
         })
 
     def _start_recording(self):
+        if self.latest_img is None or self.latest_pose is None:
+            img_status = "OK" if self.latest_img is not None else "FALTA (/camera/camera/color/image_raw)"
+            odom_status = "OK" if self.latest_pose is not None else "FALTA (/rtabmap/odom)"
+            self.get_logger().warn(f"⚠️ [REC RECHAZADO] No se puede iniciar grabación: faltan tópicos -> Imagen: {img_status} | Odometría: {odom_status}")
+            return
         self.buffer.clear()
         self.initial_pose = None
         self.is_holding = False
@@ -300,6 +310,7 @@ class VOCollectorNode(Node):
                         self._discard_episode()
                     elif ch.lower() == 'q':
                         self.get_logger().info("Saliendo...")
+                        rclpy.try_shutdown()
                         break
         except Exception:
             pass
@@ -311,11 +322,12 @@ def main(args=None):
     node = VOCollectorNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

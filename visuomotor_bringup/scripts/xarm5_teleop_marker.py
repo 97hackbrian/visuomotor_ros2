@@ -46,7 +46,7 @@ class XArm5TeleopMarker(Node):
         d("bridge_namespace", "/xarm5_bridge")
         d("marker_server_name", "xarm5_teleop")
         d("publish_rate_hz", 20.0)
-        d("marker_scale", 0.15)
+        d("marker_scale", 0.25)
         d("tf_timeout_s", 0.2)
         d("init_retry_s", 1.0)
         g = lambda n: self.get_parameter(n).value
@@ -126,7 +126,7 @@ class XArm5TeleopMarker(Node):
         body.interaction_mode = InteractiveMarkerControl.MENU  # clic derecho -> menú
         sphere = Marker()
         sphere.type = Marker.SPHERE
-        sphere.scale.x = sphere.scale.y = sphere.scale.z = self.marker_scale * 0.3
+        sphere.scale.x = sphere.scale.y = sphere.scale.z = self.marker_scale * 0.45
         if self.dry_run:          # amarillo: modo simulación, nada se mueve
             sphere.color.r, sphere.color.g, sphere.color.b = (1.0, 0.85, 0.0)
         elif self.following:      # verde: siguiendo al marcador
@@ -137,12 +137,14 @@ class XArm5TeleopMarker(Node):
         body.markers.append(sphere)
         im.controls.append(body)
 
-        # Ejes en el marco fijo (base): traslación X/Y/Z y giro alrededor de Z (yaw de la garra vertical)
+        # Ejes en el marco fijo (base): traslación X/Y/Z y giros (yaw/Z paralelo a la base; pitch/Y y roll/X perpendiculares)
         for name, (w, x, y, z), mode in (
                 ("mover_x", (_H, _H, 0.0, 0.0), InteractiveMarkerControl.MOVE_AXIS),
                 ("mover_y", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.MOVE_AXIS),
                 ("mover_z", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.MOVE_AXIS),
-                ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS)):
+                ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS),
+                ("girar_pitch", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.ROTATE_AXIS),
+                ("girar_roll", (1.0, 0.0, 0.0, 0.0), InteractiveMarkerControl.ROTATE_AXIS)):
             c = InteractiveMarkerControl()
             c.name = name
             c.orientation.w, c.orientation.x, c.orientation.y, c.orientation.z = w, x, y, z

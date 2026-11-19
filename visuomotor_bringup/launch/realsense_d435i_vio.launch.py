@@ -1,7 +1,7 @@
 import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 
@@ -73,7 +73,7 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
             arguments=['-d', rviz_config]
         )
-        nodes.append(rviz_node)
+        nodes.append(TimerAction(period=2.5, actions=[rviz_node]))
 
     return nodes
 

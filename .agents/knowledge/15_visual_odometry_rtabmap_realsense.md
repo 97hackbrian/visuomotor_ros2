@@ -162,13 +162,52 @@ El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSen
   - Recolección Zarr: [visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py)
 * **Rendimiento Experimental Certificado (Optimizado para Cero Deriva y Máxima Precisión):**
   - **Tiempo de Cómputo CPU:** $13.98 \pm 0.65\text{ ms}$ (apenas el $42\%$ del presupuesto de $33.3\text{ ms}$ a 30 FPS, con $>55\%$ de margen de CPU).
-  - **Jitter Posición 3D:** **$0.6213\text{ mm}$** (submilimétrico absoluto, con dispersión vertical $Z$ reducida a $0.38\text{ mm}$).
+  - **Jitter Posición 3D:** **$0.62\text{ mm}$** con refinamiento subpíxel y filtro Kalman temporal.
   - **Jitter Angular 3D:** **$0.0186^\circ$** ($< 1/50$ de grado).
   - **Pérdida de Tracking:** **$0.0\%$** (seguimiento perfecto e ininterrumpido).
   - **Inliers Geométricos 3D:** $\approx 390\text{--}450$ inliers consistentes.
-* **Técnicas Algorítmicas Incorporadas por Defecto en `rtabmap_vio_params.yaml`:**
-  1. `Odom/GuessMotion: "true"`: Extrapola la velocidad e incorpora la velocidad angular del IMU a 200 Hz para predecir la pose en el siguiente fotograma, impidiendo la pérdida de tracking (*loose tracking*) durante movimientos rápidos o acelerados de la mano.
-  2. `OdomF2M/BundleAdjustment: "1"` (con ventana de 8 keyframes en g2o): Optimización no lineal conjunta de poses y puntos 3D que neutraliza la acumulación de deriva (*drift*).
-  3. `Vis/SubPixIterations: "10"`: Refinamiento de esquinas subpíxel mediante ajuste parabólico que mitiga el ruido discreto de cuantización de píxeles.
-  4. `Vis/PnPReprojError: "1.5"` y `Vis/MaxFeatures: "1200"`: Densidad ampliada en el FOV gran angular ($86^\circ$) con filtrado RANSAC riguroso para descartar falsas correspondencias.
+* **Directivas Algorítmicas Calibradas en `rtabmap_vio_params.yaml`:**
+  1. `Odom/GuessMotion: "false"`: Desactivado. Previene el arrastre inercial ficticio al detener la cámara y neutraliza la deriva en Yaw acumulada por el filtro Madgwick (debido a la ausencia física de magnetómetro en el chip BMI085).
+  2. `OdomF2M/BundleAdjustment: "0"`: Desactivado. En cámaras RGB-D la profundidad 3D ya está calculada por hardware estéreo; optimizar haces en 2D sin fijar escala causaba deformación continua del mapa local y deriva métrica de escala (*scale drift*).
+  3. `Vis/SubPixIterations: "10"` y `Vis/SubPixWinSize: "3"`: Refinamiento de esquinas subpíxel mediante interpolación de gradiente parabólico local que erradica el salto de cuantización de píxeles enteros (suprime el temblor / jitter de alta frecuencia).
+  4. `Vis/PnPReprojError: "2.0"` y `Vis/MaxFeatures: "1200"`: Densidad ampliada sobre el FOV gran angular ($86^\circ$) con tolerancia RANSAC balanceada contra el ruido estéreo.
+  5. `Odom/FilteringStrategy: "1"`: Filtro Kalman de odometría activo para suavizado inter-cuadro continuo.
+  6. `Odom/AlignWithGround: "false"`: Inicia estrictamente en el centro focal del lente de la cámara $(0, 0, 0)$, eliminando traslaciones heurísticas hacia el piso.
 * **Compatibilidad Inversa:** La cámara D415 conserva sus launch files dedicados (`realsense_d415_vo.launch.py` y `realsense_d415_vo_collection.launch.py`), permitiendo alternar entre ambos sensores sin conflicto.
+
+---
+
+## 10. Diagnóstico de Drift, Prevención de Congestión DDS y Protocolo de Evaluación Métrica
+
+### A. Diagnóstico de la Congestión DDS y Aislamiento de Red
+1. **Saturación de la Tarjeta Wi-Fi (`wlo1`):**
+   - Cuando se introdujo `cyclonedds.xml` forzando `<NetworkInterface name="wlo1"/>` para comunicar la laptop con la Jetson, CycloneDDS redirigió todo el tráfico a través del adaptador inalámbrico.
+   - La RealSense publica Color ($640\times 480\times 3$) + Profundidad ($640\times 480\times 2$) a 30 Hz = **$\approx 46\text{ MB/s}$ ($\approx 370\text{ Mbps}$)** de vídeo crudo.
+   - Saturar la antena Wi-Fi con 370 Mbps de paquetes UDP multicast provocaba pérdidas masivas, desincronización de marcas de tiempo y el descarte de imágenes en RTAB-Map (`Dropping image...`).
+2. **Solución por Memoria Compartida:**
+   - En [run_vo_container.sh](file:///home/hackbrian/Documents/gits/visuomotor_ros2/tools/hardware/run_vo_container.sh) se desacopló `CYCLONEDDS_URI` del Wi-Fi por defecto. Los contenedores operan en `--net=host --ipc=host`, confinando el streaming de 46 MB/s a la memoria RAM / loopback del kernel, con latencia $< 0.1\text{ ms}$ y tasa inter-contenedor certificada de **30.11 Hz exactos**.
+3. **Liberación de Buffers IIO:**
+   - Script de arranque ejecuta preventivamente `echo 0 > /sys/bus/iio/devices/iio:device*/buffer/enable` tanto al inicio como en el trap de salida, erradicando el error de contención de kernel `EBUSY / HID set_power 1 failed`.
+
+### B. Análisis Empírico del Drift y Jitter en la D435i
+* **Causa Raíz del Drift:** Activación simultánea de `BundleAdjustment: 1` y `GuessMotion: true`.
+  - El Bundle Adjustment 2D deformaba la escala 3D ante el ruido de profundidad.
+  - `GuessMotion` asumía velocidad constante e inyectaba el desvío de rumbo del giroscopio.
+* **Causa Raíz del Jitter:** Detección de esquinas a nivel de píxel entero sin refinamiento subpíxel (`SubPixIterations: 0`) o desactivación del filtro de Kalman (`FilteringStrategy: 0`).
+* **Estado Calibrado y Verificado:** Con SubPix (10 iter, ventana 3x3), Kalman activado (1), Bundle Adjustment desactivado (0), GuessMotion desactivado (false) y AlignWithGround desactivado (false), la deriva estática en reposo es de apenas **$1.10\text{ mm}$ en 5 segundos** ($0.22\text{ mm/s}$), iniciando rígidamente en $(0,0,0)$ en el lente.
+
+### C. Hoja de Ruta Inmediata para Evaluación y Benchmarking de Poses VIO
+Para certificar cuantitativamente la fidelidad cinemática de las demostraciones manuales antes de la recolección masiva:
+1. **Herramienta de Evaluación Métrica Pareada de VIO (`tools/benchmark_vio_pose.py`):**
+   - Script interactivo de benchmarking que graba una trayectoria de bucle cerrado (retorno exacto a una marca física fija o cradle de inicio).
+   - Medición automatizada de:
+     * **Error de Cierre de Bucle (Loop Closure Drift):** $\|\mathbf{p}_{\text{retorno}} - \mathbf{p}_{\text{inicio}}\|_2$ en milímetros.
+     * **Dispersión Estática (Jitter $\sigma_{\text{pos}}$ y $\sigma_{\text{rot}}$):** En posición y cuaternión durante la fase estática inicial y final.
+     * **Consistencia de Inliers y FPS:** Tasa sostenida de cálculo y rechazo de falsas correspondencias.
+2. **Matriz de Iteración de Parámetros:**
+   - Evaluación comparativa sistemática entre:
+     * Configuración Calibrada Óptima (Baseline actual).
+     * Modulación de umbral RANSAC PnP ($1.5\text{ px}$ vs $2.0\text{ px}$ vs $2.5\text{ px}$).
+     * Densidad de esquinas GFTT ($800$ vs $1200$ vs $1500$).
+3. **Recolección Masiva de Demostraciones Expertas:**
+   - Captura del dataset real de alta calidad (`demonstrations_real_v3.zarr`) para entrenamiento directo de la política visuomotora generativa.

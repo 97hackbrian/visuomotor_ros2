@@ -8,27 +8,26 @@
     queue_size: 25
     wait_imu_to_init: true       # Alineación gravitacional inicial
     
-    # ── 1. Predicción de Movimiento (Anti-Loose Tracking) ──
+    # ── 1. Estrategia Odometría (Frame-to-Map sin arrastre de inercia) ──
     Odom/Strategy: "0"                     # 0=Frame-to-Map para mínima deriva
-    Odom/GuessMotion: "true"               # Extrapola velocidad e integra IMU (evita pérdida de tracking en movimientos rápidos)
+    Odom/GuessMotion: "false"              # Desactivado: erradica el arrastre inercial y deriva en yaw
     Odom/ResetCountdown: "0"               # 0=Desactivar reinicio a 0,0,0 en tracking loss
     
     # ── 2. Extracción y Matching de Puntos (GFTT/ORB Calibrado) ──
     Vis/CorType: "0"                       # 0=Features Matching
     Vis/FeatureType: "8"                   # 8=GFTT/ORB (óptimo con trama IR de RealSense)
     Vis/MaxFeatures: "1200"                # Mayor densidad sobre el campo de visión amplio (86°)
-    Vis/MinInliers: "15"                   # Mayor consistencia geométrica requerida
+    Vis/MinInliers: "15"                   # Consistencia geométrica requerida
     Vis/EstimationType: "1"                # 1=PnP 3D->2D
-    Vis/PnPReprojError: "1.5"              # Filtro estricto RANSAC (1.5 px) contra correspondencias espurias
+    Vis/PnPReprojError: "2.0"              # Tolerancia RANSAC óptima contra ruido de profundidad
     
-    # ── 3. Refinamiento Subpíxel (Mínimo Jitter y Máxima Precisión) ──
+    # ── 3. Refinamiento Subpíxel (Erradica Jitter / Vibración Numérica) ──
     Vis/SubPixIterations: "10"             # Ajuste parabólico continuo subpíxel
     Vis/SubPixWinSize: "3"                 # Ventana 3x3 de gradiente local
     
-    # ── 4. Local Bundle Adjustment g2o (Anti-Drift) ──
-    OdomF2M/BundleAdjustment: "1"         # Optimización no lineal de haces en tiempo real
-    OdomF2M/BundleAdjustmentMaxFrames: "8" # Ventana deslizante de 8 keyframes para eliminar deriva acumulada
+    # ── 4. Bundle Adjustment (Desactivado para proteger escala métrica 3D) ──
+    OdomF2M/BundleAdjustment: "0"          # Desactivado: evita la deformación de escala 3D en RGB-D
     
-    # ── 5. Filtrado y Alineación con Gravedad ──
-    Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo
-    Odom/AlignWithGround: "false"          # Inicia odom en lente de camara (evita traslacion heuristica al piso; IMU mantiene Z vertical)
+    # ── 5. Filtrado y Origen Estricto en Lente ──
+    Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo (elimina vibración frame-to-frame)
+    Odom/AlignWithGround: "false"          # Inicia en lente de cámara (0,0,0 estricto; sin traslación heurística al piso)

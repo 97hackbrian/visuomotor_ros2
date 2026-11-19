@@ -162,7 +162,7 @@ xarm5_teleop_marker:
     bridge_namespace: "/xarm5_bridge"
     marker_server_name: "xarm5_teleop"     # en RViz2: InteractiveMarkers -> /xarm5_teleop
     publish_rate_hz: 20.0                  # > 1/target_timeout_s del puente
-    marker_scale: 0.15
+    marker_scale: 0.25
     tf_timeout_s: 0.2
     init_retry_s: 1.0
 

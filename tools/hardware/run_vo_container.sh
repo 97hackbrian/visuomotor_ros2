@@ -37,7 +37,9 @@ docker run $INTERACTIVE_FLAGS --rm \
     -e DISPLAY="${DISPLAY:-:0}" \
     -e QT_X11_NO_MITSHM=1 \
     -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
-    -e ROS_DOMAIN_ID=0 \
+    ${CYCLONEDDS_URI:+-e CYCLONEDDS_URI="$CYCLONEDDS_URI"} \
+    ${DDS_PEER:+-e DDS_PEER="$DDS_PEER"} \
+    -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
     -e ROS_HOME=/tmp/.ros \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /dev:/dev:rw \
@@ -46,4 +48,4 @@ docker run $INTERACTIVE_FLAGS --rm \
     -v "$WORKSPACE_DIR":/ros:rw \
     -w /ros \
     $IMAGE_NAME \
-    bash -c "trap 'chown -R 1000:1000 /ros/datasets /ros/build /ros/install 2>/dev/null || true' EXIT; source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"
+    bash -c "for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; mkdir -p /tmp/.ros && chmod -R 777 /tmp/.ros 2>/dev/null || true; trap 'for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; chown -R 1000:1000 /ros/datasets /ros/build /ros/install 2>/dev/null || true' EXIT; source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"

@@ -40,7 +40,7 @@ Visualization Manager:
       Plane Cell Count: 20
       Reference Frame: <Fixed Frame>
       Value: true
-    - Alpha: 1
+    - Alpha: 0.5
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
       Description File: ""
@@ -58,6 +58,11 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        link5:
+          Alpha: 0.4
+          Show Axes: true
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -73,9 +78,11 @@ Visualization Manager:
         All Enabled: false
         link_base:
           Value: true
+        link5:
+          Value: true
         xarm_tcp:
           Value: true
-      Marker Scale: 0.15000000596046448
+      Marker Scale: 0.25
       Name: TF
       Show Arrows: false
       Show Axes: true
@@ -87,21 +94,21 @@ Visualization Manager:
       Enabled: true
       Interactive Markers Namespace: /xarm5_teleop
       Name: Teleop xArm5 (clic derecho = menú)
-      Show Axes: false
+      Show Axes: true
       Show Descriptions: true
-      Show Visual Aids: false
+      Show Visual Aids: true
       Value: true
     - Alpha: 1
-      Axes Length: 0.05000000074505806
-      Axes Radius: 0.004999999888241291
+      Axes Length: 0.12
+      Axes Radius: 0.008
       Class: rviz_default_plugins/Pose
       Color: 255; 170; 0
       Enabled: true
-      Head Length: 0.02
-      Head Radius: 0.01
+      Head Length: 0.03
+      Head Radius: 0.015
       Name: Objetivo (/target_frame)
-      Shaft Length: 0.05
-      Shaft Radius: 0.005
+      Shaft Length: 0.12
+      Shaft Radius: 0.008
       Shape: Axes
       Topic:
         Depth: 5
@@ -111,16 +118,16 @@ Visualization Manager:
         Value: /target_frame
       Value: true
     - Alpha: 1
-      Axes Length: 0.03999999910593033
-      Axes Radius: 0.006000000052154064
+      Axes Length: 0.10
+      Axes Radius: 0.008
       Class: rviz_default_plugins/Pose
       Color: 0; 255; 255
       Enabled: true
-      Head Length: 0.02
-      Head Radius: 0.01
+      Head Length: 0.025
+      Head Radius: 0.012
       Name: Comando enviado (command_preview)
-      Shaft Length: 0.05
-      Shaft Radius: 0.005
+      Shaft Length: 0.10
+      Shaft Radius: 0.008
       Shape: Axes
       Topic:
         Depth: 5
@@ -137,7 +144,7 @@ Visualization Manager:
   Name: root
   Tools:
     - Class: rviz_default_plugins/Interact
-      Hide Inactive Objects: true
+      Hide Inactive Objects: false
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
