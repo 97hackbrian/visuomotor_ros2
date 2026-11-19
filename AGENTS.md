@@ -218,6 +218,16 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Recolección Real e Isaac Sim:* Activado mediante `relative_coordinates: true` en `vo_data_collection_params.yaml` y `data_collection_params.yaml`. En simulación resta la pose inicial Home ($\mathbf{p}_t - \mathbf{p}_{\text{home}}$); en recolección manual resta la pose inicial del lente ($\mathbf{p}_t - \mathbf{p}_{\text{start}}$). Certificado en metadatos Zarr (`ep.attrs['relative_coordinates'] = True`) y auditado por `tools/verify_zarr_dataset.py`.
    - *Inferencia en Robot:* `policy_node.py` resta `home_pos` a `observation.state[0:3]` y suma `home_pos` a las trayectorias predichas en `action[0:3]` (soporta vectores 1D y chunks 2D) antes de publicarlas hacia `ActionChunk` / `xarm5_bridge`, manteniendo consistencia sim-to-real idéntica sin requerir tags en la mesa. Estabilización estricta de cuaternión en semiesfera superior ($q_w \ge 0$) y norma unitaria. Test suite: `tests/test_relative_coordinates.py` (15/15 passed).
 
+20. **Certificación VIO Grado UMI, Recolección con Auto-Incremento y Topología de Red Dual (Local vs. Jetson Orin):**
+    - *Certificación VIO:* Error de retorno métrico en bucle cerrado de $2.307\text{ mm}$ (criterio $\le 3.0\text{ mm}$), jitter $1.61\text{ mm}$ (criterio $\le 2.5\text{ mm}$) y $0.0\%$ de pérdida de tracking con $258.8$ inliers sostenidos.
+    - *Topología de Red Aislada (Zero-Latency Local):* Para recolección de demostraciones expertas a mano alzada en la estación de trabajo, el stream de video de $46\text{ MB/s}$ de la RealSense y la odometría se confinan a Memoria Compartida (SHM) / loopback local (`lo`) bajo `ROS_DOMAIN_ID=0`. Esto erradica saturación de Wi-Fi y garantiza frecuencia canónica a $20.0\text{ Hz}$ sin latencia interna.
+    - *Topología de Red Remota (Jetson Orin xArm5):* El despliegue de inferencia y teleoperación remota con el manipulador xArm5 en la Jetson Orin opera bajo `ROS_DOMAIN_ID=42` vía CycloneDDS Unicast (`DDS_PEER=<ip_jetson>` o `deploy/jetson/config/cyclonedds.xml`), transmitiendo únicamente telemetría ligera de control (`ActionChunk`, `/target_frame`, `/policy/metrics` a $< 50\text{ KB/s}$) sin interferir con el bus de video local.
+    - *Flexibilidad de Recolección Zarr:* `vo_collector_node` y `run_data_collection.sh` aceptan `dataset_path`:
+      - Modo `AUTO`: Genera automáticamente `demonstrations_real_vX.zarr` incremental escaneando versiones existentes.
+      - Modo `AUMENTO`: Normaliza la ruta hacia `datasets/` (ej. `demonstrations_real_v5`), detecta episodios previos y añade episodios nuevos consecutivamente (`episode_N`).
+    - *Desacoplamiento de Gripper:* Vector de estado 8D y acción 9D se preservan con `0.0` para pinza (sin sesgo en entrenamiento, compatible sim-to-real con `demonstrations_v8.zarr`), tecla interactiva `[G]` para alternar abierto/cerrado, y lectura automática opcional de `/visuomotor/gripper_joint_states`.
+    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md` y `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
+
 ---
 
 ## 7. Comandos de Referencia Rápida
@@ -272,6 +282,13 @@ touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d415_vo.launch.py gui:=true
 docker exec -it -u 1000 visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
 docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset datasets/demonstrations_real_v2.zarr --out-dir datasets/visualizations_real_v2
+
+# 15. Benchmarking y Recolección Visual-Inercial Grado UMI (RealSense D435i + RTAB-Map VIO)
+./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=false
+./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"   # Evalúa jitter y error de retorno métrico en bucle cerrado
+./tools/hardware/run_data_collection.sh                              # Recolección AUTO (crea demonstrations_real_vX.zarr)
+./tools/hardware/run_data_collection.sh demonstrations_real_v5       # Continuar aumentando dataset existente
+
 
 # 15. Benchmarking de VIO y Recolección Experta Real (RealSense D435i + RTAB-Map VIO SOTA UMI)
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=true
