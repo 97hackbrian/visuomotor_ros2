@@ -14,11 +14,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "visuomotor_bringup
 
 from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     GripperBinarizer,
+    ReachLimit,
     WorkspaceLimits,
     arm_azimuth,
     arm_plane_params,
     arm_plane_quat,
     brake_report,
+    clamp_to_workspace,
     clamp_yaw,
     continuous_rpy,
     joints_near_limits,
@@ -336,3 +338,47 @@ class TestArmPlane(unittest.TestCase):
         self.assertLessEqual(abs(r), math.pi)
         r, _, _ = continuous_rpy((3.1, 0.0, 0.0), (-3.1, 0.0, 0.0))
         self.assertAlmostEqual(r, 3.1, places=9)
+
+
+class TestReachLimit(unittest.TestCase):
+    """Alcance hombro-muñeca del xArm5 (geometría de la URDF)."""
+
+    def setUp(self):
+        self.reach = ReachLimit([0.0, 0.0, 0.267], [-0.076, 0.0, -0.097], 0.6086, 0.12)
+        self.box = WorkspaceLimits(0.15, 0.65, -0.30, 0.30, 0.10, 0.75, 0.15, 0.65)
+
+    def test_wrist_center_vertical_and_tilted(self):
+        # garra vertical: la muñeca (J4) queda 0.097 m sobre la brida y 0.076 m hacia la base
+        np.testing.assert_allclose(self.reach.wrist_center([0.40, 0.0, 0.30]), [0.324, 0.0, 0.397], atol=1e-12)
+        w = self.reach.wrist_center([0.0, 0.40, 0.30])  # mismo caso con acimut 90°
+        np.testing.assert_allclose(w, [0.0, 0.324, 0.397], atol=1e-12)
+        self.assertNotAlmostEqual(self.reach.reach([0.4, 0, 0.3], 0.8), self.reach.reach([0.4, 0, 0.3], 0.0))
+
+    def test_home3_is_inside(self):
+        self.assertTrue(0.12 <= self.reach.reach([0.2221, -0.004, 0.116]) <= 0.6086)
+        _, clamped, valid = clamp_to_workspace([0.2221, -0.004, 0.116], 0.0, self.box, self.reach)
+        self.assertFalse(clamped)
+        self.assertTrue(valid)
+
+    def test_far_high_target_is_clamped_to_sphere_keeping_azimuth(self):
+        out, clamped, valid = clamp_to_workspace([0.60, 0.10, 0.75], 0.0, self.box, self.reach)
+        self.assertTrue(clamped and valid)
+        self.assertAlmostEqual(self.reach.reach(out), 0.6086, places=6)
+        self.assertAlmostEqual(math.atan2(out[1], out[0]), math.atan2(0.10, 0.60), places=9)
+
+    def test_height_limit_decreases_with_radius(self):
+        z_max = [max(z for z in np.arange(0.10, 0.75, 0.001) if self.reach.reach([x, 0, z]) <= 0.6086)
+                 for x in (0.35, 0.50, 0.65)]
+        self.assertTrue(z_max[0] > z_max[1] > z_max[2])
+        self.assertAlmostEqual(z_max[2], 0.372, delta=0.002)
+
+    def test_folded_arm_is_pushed_out(self):
+        out, clamped = self.reach.clamp([0.15, 0.0, 0.17])
+        self.assertTrue(clamped)
+        self.assertAlmostEqual(self.reach.reach(out), 0.12, places=6)
+
+    def test_invalid_parameters(self):
+        with self.assertRaises(ValueError):
+            ReachLimit([0.1, 0.0, 0.267], [-0.076, 0.0, -0.097], 0.6)
+        with self.assertRaises(ValueError):
+            ReachLimit([0.0, 0.0, 0.267], [-0.076, 0.0, -0.097], 0.6, 0.7)

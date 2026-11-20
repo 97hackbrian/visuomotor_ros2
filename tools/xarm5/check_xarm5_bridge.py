@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (32 comprobaciones; código de salida 0 = todas OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (35 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -26,8 +26,8 @@ from std_msgs.msg import Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 from xarm_msgs.srv import SetFloat32List, SetInt16
 
-from visuomotor_bringup.xarm5_interface import (arm_azimuth, arm_plane_quat, project_orientation, rotation_angle,
-                                                 rpy_to_quat)
+from visuomotor_bringup.xarm5_interface import (ReachLimit, WorkspaceLimits, arm_azimuth, arm_plane_quat,
+                                                 clamp_to_workspace, project_orientation, rotation_angle, rpy_to_quat)
 
 P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/config/xarm5/xarm5_real_params.yaml"))
 BR = P["xarm5_bridge"]["ros__parameters"]
@@ -148,15 +148,37 @@ class Checker(Node):
                        err < 2e-3, f"rpy={[round(v, 3) for v in pose[3:]]} err={err:.4f} rad")
             self.spin_for(2.5, every=lambda: self.target(0.35, 0.05, 0.35, yaw=0.5))  # vuelve a garra vertical
 
+        # Alcance hombro-muñeca: objetivo alto y lejano (dentro de la caja, fuera de alcance) -> recortado a la esfera
+        reach = ReachLimit(BR["workspace_shoulder_xyz_m"], BR["workspace_wrist_offset_m"], BR["workspace_max_reach_m"],
+                           BR["workspace_min_reach_m"])
+        box = WorkspaceLimits(*(BR[k] for k in (
+            "workspace_x_min", "workspace_x_max", "workspace_y_min", "workspace_y_max", "workspace_z_min",
+            "workspace_z_max", "workspace_min_radius_xy", "workspace_max_radius_xy")))
+        far = (0.55, 0.0, min(0.70, BR["workspace_z_max"]))
+        expected_far, _, _ = clamp_to_workspace(far, 0.0, box, reach)
+        self.spin_for(5.0, every=lambda: self.target(0.45, 0.0, 0.45))
+        self.spin_for(5.0, every=lambda: self.target(*far))
+        pose = self.stats()["pose"]
+        xyz = [v / 1000.0 for v in pose[:3]]
+        self.check(f"5d. Objetivo {far} fuera de alcance -> recortado a {BR['workspace_max_reach_m']} m hombro-muñeca",
+                   reach.reach(xyz) <= reach.max_reach + 1e-3 and math.dist(xyz, expected_far) < 2e-3,
+                   f"tcp={[round(v, 3) for v in xyz]} esperado={[round(float(v), 3) for v in expected_far]} "
+                   f"alcance={reach.reach(xyz):.4f} m")
+        self.spin_for(5.0, every=lambda: self.target(0.45, 0.0, 0.45))
+        self.spin_for(5.0, every=lambda: self.target(0.35, 0.05, 0.35, yaw=0.5))
+
         before = self.stats()["pose"]
         self.spin_for(1.0, every=lambda: self.target(0.30, 0.0, 0.30, frame="world"))
         self.spin_for(1.0, every=lambda: self.target(0.30, 0.0, 0.30, nan=True))
         after = self.stats()["pose"]
         self.check("6. Ignora objetivos en otro frame y con NaN", math.dist(before[:3], after[:3]) < 1e-6)
 
-        self.spin_for(1.0, every=lambda: self.target(0.35, 0.05, 0.35, yaw=0.5))
+        # Acercarse al techo de la caja por etapas (< max_target_distance_m) en una zona donde el alcance no limita
+        z_top = BR["workspace_z_max"]
+        self.spin_for(5.0, every=lambda: self.target(0.30, 0.0, 0.35 + 0.5 * (z_top - 0.35)))
+        self.spin_for(5.0, every=lambda: self.target(0.25, 0.0, z_top - 0.10))
         before = self.stats()["pose"]
-        self.spin_for(1.5, every=lambda: self.target(0.35, 0.05, 0.35 + 0.30))  # z fuera de caja -> 0.50 (15 cm)
+        self.spin_for(1.5, every=lambda: self.target(0.25, 0.0, z_top + 0.20))  # z fuera de caja -> z_max
         # Esperar a que el watchdog invalide el objetivo anterior: si no, un ciclo residual con ese objetivo
         # movería el brazo después de tomar la referencia y la comprobación 8 fallaría de forma intermitente.
         self.spin_for(BR["target_timeout_s"] + 0.3)
@@ -186,6 +208,10 @@ class Checker(Node):
                        and abs(closed_state - BR["gripper_policy_closed_pos"]) < 1e-6
                        and abs(self.grip_state - BR["gripper_policy_open_pos"]) < 1e-6,
                        f"goals={s['gripper_goals']} estado_cerrado={closed_state} estado_abierto={self.grip_state}")
+
+        # Volver por etapas a la zona de trabajo de los checks siguientes (objetivos a z = 0.35)
+        self.spin_for(5.0, every=lambda: self.target(0.30, 0.0, 0.35 + 0.5 * (z_top - 0.35)))
+        self.spin_for(6.0, every=lambda: self.target(0.34, 0.05, 0.35))
 
         self.fault("inject_error", True)
         self.spin_for(0.5)

@@ -406,6 +406,7 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
   - `convert_vio_dataset_to_xarm5.py`: cámara en odom → TCP en link_base, proyección y auditoría.
   - Home de la política = HOME3.
   - Pendiente: medir la extrínseca cámara-TCP y HOME3 real, y validar en el brazo real la inclinación combinada con giro (roll ≠ π).
+  - Volumen = caja (z_max 0.75) ∩ alcance hombro–muñeca (95% del codo recto, mínimo de 0.12 m), validado por FK.
 
 **Roadmap Experimental Inmediato:**
 1. **Recolección Masiva de Demostraciones Expertas Reales:** Capturar dataset consolidado de alta calidad (`demonstrations_real_v3.zarr` o aumento en `demonstrations_real_v5.zarr`) para entrenamiento directo de la política visuomotora generativa.

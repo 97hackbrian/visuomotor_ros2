@@ -156,6 +156,20 @@ En dry-run, `ros2 topic echo /xarm5_bridge/command_preview` muestra la pose que 
 `jetson_policy_params.yaml` (la fase RESET de la política envía esa pose y el puente rechaza objetivos a más de
 `max_target_distance_m` del TCP). En la primera conexión, verificar también `ros2 topic hz /xarm/robot_states`.
 
+### Volumen de trabajo: caja + alcance del brazo
+La caja (`workspace_*`, z hasta 0.75 m) no basta: la altura alcanzable baja con el radio. El puente además limita la
+distancia hombro (J2) – muñeca (J4) a `workspace_max_reach_m` (95% del codo recto, singularidad/C24) y a
+`workspace_min_reach_m` (brazo plegado junto a la base). La muñeca se calcula desde la pose de la brida y la
+inclinación, así que vale también con la garra inclinada. Un objetivo fuera de alcance se recorta hacia el hombro
+(mismo acimut). Altura máxima de la brida con la garra vertical (FK URDF):
+
+| x (m) | 0.15 | 0.25 | 0.35 | 0.45 | 0.50 | 0.55 | 0.60 | 0.65 |
+|---|---|---|---|---|---|---|---|---|
+| z máx (m) | 0.75 | 0.75 | 0.71 | 0.65 | 0.61 | 0.55 | 0.48 | 0.37 |
+
+Validado por FK: todo el volumen es alcanzable con la garra vertical y con inclinación ±0.5 rad. Con |pitch| ≈ 1 rad
+quedan bordes (muy alto cerca de la base, o muy bajo junto a ella) que detiene el guard de límites articulares.
+
 ### Teleoperación desde RViz2 en otro equipo
 En la Jetson, `xarm5_real.launch.py` lanza además `robot_state_publisher` (URDF del xArm5 desde `xarm_description`)
 y `xarm5_teleop_marker` (marcador interactivo `/xarm5_teleop`). En el otro equipo (mismo `ROS_DOMAIN_ID=42`, RMW
@@ -223,9 +237,9 @@ Aviso del fabricante (V2.3.0 §3.1.3): con gripper montado, en cero la herramien
 ```bash
 python3 tools/xarm5/fake_xarm_driver.py &
 ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false &
-python3 tools/xarm5/check_xarm5_bridge.py      # 34 comprobaciones; código de salida 0 = OK
+python3 tools/xarm5/check_xarm5_bridge.py      # 35 comprobaciones; código de salida 0 = OK
 python3 tools/xarm5/check_xarm5_teleop.py      # 16 comprobaciones (incluye anillo verde 10b-10d)
-python3 -m pytest tests/test_xarm5_interface.py tests/test_convert_vio_dataset.py -q   # lógica pura (43)
+python3 -m pytest tests/test_xarm5_interface.py tests/test_convert_vio_dataset.py -q   # lógica pura (50)
 ```
 
 ### Demostraciones reales → dataset entrenable para el xArm5

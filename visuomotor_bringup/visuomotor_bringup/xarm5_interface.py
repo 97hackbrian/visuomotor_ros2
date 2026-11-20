@@ -288,6 +288,77 @@ class WorkspaceLimits:
         return p, bool(np.any(np.abs(p - orig) > 1e-9))
 
 
+@dataclass
+class ReachLimit:
+    """Alcance del brazo: distancia hombro (J2) - muñeca (J4) acotada, lejos del codo recto (singularidad, C24).
+
+    La caja de trabajo no basta: la altura alcanzable baja con el radio (p. ej. ~0.75 m cerca de la base y ~0.38 m
+    a 0.65 m con la garra vertical). La muñeca se calcula desde la pose de la brida y la inclinación en el plano del
+    brazo: ``wrist = p + Rz(phi)·Ry(pitch)·Rx(pi) · wrist_offset`` (``wrist_offset`` constante en ese marco; xArm5:
+    (-0.076, 0, -0.097) m según la URDF), por eso el límite también es válido con la garra inclinada.
+    ``min_reach`` excluye el brazo muy plegado junto a la base (inalcanzable por los límites de J3/J4).
+    """
+
+    shoulder_xyz: Sequence[float]
+    wrist_offset: Sequence[float]
+    max_reach: float
+    min_reach: float = 0.0
+
+    def __post_init__(self):
+        self.shoulder_xyz = np.asarray(self.shoulder_xyz, dtype=np.float64)
+        self.wrist_offset = np.asarray(self.wrist_offset, dtype=np.float64)
+        if self.shoulder_xyz.shape != (3,) or self.wrist_offset.shape != (3,) or not 0.0 <= self.min_reach < self.max_reach:
+            raise ValueError("ReachLimit: shoulder_xyz y wrist_offset de 3 elementos y 0 <= min_reach < max_reach")
+        if abs(float(self.shoulder_xyz[0])) > 1e-9 or abs(float(self.shoulder_xyz[1])) > 1e-9:
+            raise ValueError("ReachLimit: el hombro debe estar sobre el eje de J1 (x = y = 0)")
+
+    def _offset(self, xyz, pitch: float) -> np.ndarray:
+        return (_rz(arm_azimuth(xyz)) @ _ry(pitch) @ _RX_PI) @ self.wrist_offset
+
+    def wrist_center(self, xyz: Sequence[float], pitch: float = 0.0) -> np.ndarray:
+        xyz = np.asarray(xyz, dtype=np.float64)
+        return xyz + self._offset(xyz, pitch)
+
+    def reach(self, xyz: Sequence[float], pitch: float = 0.0) -> float:
+        return float(np.linalg.norm(self.wrist_center(xyz, pitch) - self.shoulder_xyz))
+
+    def clamp(self, xyz: Sequence[float], pitch: float = 0.0) -> Tuple[np.ndarray, bool]:
+        """Lleva la muñeca a ``[min_reach, max_reach]`` del hombro en línea recta (mismo acimut) y recalcula la brida."""
+        xyz = np.asarray(xyz, dtype=np.float64)
+        offset = self._offset(xyz, pitch)
+        v = xyz + offset - self.shoulder_xyz
+        d = float(np.linalg.norm(v))
+        if self.min_reach <= d <= self.max_reach:
+            return xyz, False
+        if d < 1e-9:  # muñeca sobre el hombro: alejarla en horizontal según el acimut del objetivo
+            az = arm_azimuth(xyz)
+            v, d = np.array([math.cos(az), math.sin(az), 0.0]), 1.0
+        target = self.max_reach if d > self.max_reach else self.min_reach
+        # el hombro está sobre el eje de J1: escalar v conserva el acimut, y con él el desplazamiento de la muñeca
+        return self.shoulder_xyz + v * (target / d) - offset, True
+
+
+def clamp_to_workspace(xyz: Sequence[float], pitch: float, box: "WorkspaceLimits",
+                       reach: Optional[ReachLimit]) -> Tuple[np.ndarray, bool, bool]:
+    """Caja + alcance (alternando hasta 4 veces). Devuelve ``(xyz, recortado, válido)``.
+
+    ``válido`` es ``False`` si no existe un punto que cumpla ambos a la vez cerca del pedido (p. ej. esquina de la caja
+    fuera de alcance): el llamador debe mantener la posición en vez de enviarlo.
+    """
+    out, clamped = box.clamp(xyz)
+    if reach is None:
+        return out, clamped, True
+    for _ in range(4):
+        out, c_reach = reach.clamp(out, pitch)
+        out, c_box = box.clamp(out)
+        clamped = clamped or c_reach or c_box
+        if not c_box:
+            break
+    d = reach.reach(out, pitch)
+    valid = reach.min_reach - 1e-6 <= d <= reach.max_reach + 1e-6 and not box.clamp(out)[1]
+    return out, clamped, valid
+
+
 def limit_step(prev_xyz: Sequence[float], target_xyz: Sequence[float], max_step: float) -> np.ndarray:
     """Avanza desde ``prev_xyz`` hacia ``target_xyz`` como máximo ``max_step`` metros (norma euclídea)."""
     prev = np.asarray(prev_xyz, dtype=np.float64)

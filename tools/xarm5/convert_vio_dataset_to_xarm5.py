@@ -40,9 +40,12 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "visuomotor_bringup"))
 
 from visuomotor_bringup.xarm5_interface import (  # noqa: E402
+    ReachLimit,
     WorkspaceLimits,
     arm_azimuth,
+    arm_plane_params,
     arm_plane_quat,
+    clamp_to_workspace,
     clamp_yaw,
     matrix_to_quat,
     project_arm_plane,
@@ -84,6 +87,8 @@ class Converter:
             bridge["workspace_x_min"], bridge["workspace_x_max"], bridge["workspace_y_min"], bridge["workspace_y_max"],
             bridge["workspace_z_min"], bridge["workspace_z_max"], bridge["workspace_min_radius_xy"],
             bridge["workspace_max_radius_xy"])
+        self.reach = ReachLimit(bridge["workspace_shoulder_xyz_m"], bridge["workspace_wrist_offset_m"],
+                                bridge["workspace_max_reach_m"], bridge["workspace_min_reach_m"])
         self.max_lin = float(bridge["max_linear_speed_m_s"])
         self.max_ang = float(bridge["max_angular_speed_rad_s"])
 
@@ -140,7 +145,8 @@ class Converter:
             new[:, 3:7] = q_proj
             out[name] = new.astype(np.float32)
             if name == "action":
-                ws = sum(1 for p in xyz if self.workspace.clamp(p)[1])
+                ws = sum(1 for p, qp in zip(xyz, q_proj)
+                         if clamp_to_workspace(p, arm_plane_params(qp, arm_azimuth(p))[0], self.workspace, self.reach)[1])
                 lin, ang = self.speeds(xyz, q_proj, rate_hz)
                 stats = {
                     "frames": int(len(xyz)),
@@ -158,7 +164,7 @@ class Converter:
                 if stats["max_orientation_deviation_rad"] > self.max_dev:
                     reasons.append("orientación fuera de lo alcanzable por el xArm5")
                 if ws > self.max_ws_frames:
-                    reasons.append("TCP fuera del volumen de trabajo")
+                    reasons.append("TCP fuera del volumen de trabajo o del alcance del brazo")
                 if lin > self.speed_ratio * self.max_lin:
                     reasons.append(f"velocidad lineal {lin:.3f} > {self.speed_ratio * self.max_lin:.3f} m/s")
                 if ang > self.speed_ratio * self.max_ang:

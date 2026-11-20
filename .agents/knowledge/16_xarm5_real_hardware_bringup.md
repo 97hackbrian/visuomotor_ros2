@@ -215,6 +215,20 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   - Si el controlador rechaza yaw≠phi inclinado: restringir el giro al inclinar.
   - Velocidad del puente (5 cm/s) muy baja para demostraciones a mano: subir el límite o grabar despacio.
 
+## 5n. Alcance hombro-muñeca y z_max 0.75 (2026-11-20, sin hardware)
+* Caja insuficiente: la esquina (0.65, z 0.50) de la caja anterior ya era inalcanzable (máx. 0.464 m aun con el codo
+  recto). La altura alcanzable baja con el radio: con la garra vertical, x 0.15 → 0.77 m, x 0.50 → 0.61 m, x 0.65 →
+  0.38 m (FK URDF, 95% del codo recto).
+* Geometría (URDF xarm5): hombro (J2) en (0, 0, 0.267); muñeca J4 = brida + Rz(phi)·Ry(pitch)·Rx(pi)·(-0.076, 0,
+  -0.097), constante en ese marco (verificado en 200 configuraciones aleatorias); codo recto 0.6406 m.
+* `ReachLimit` + `clamp_to_workspace` (caja ↔ alcance, hasta 4 alternancias; si no hay punto válido, el puente
+  mantiene la posición). Parámetros: `workspace_shoulder_xyz_m`, `workspace_wrist_offset_m`,
+  `workspace_max_reach_m` 0.6086, `workspace_min_reach_m` 0.12 (HOME3 = 0.156), `workspace_z_max` 0.75.
+* Validación por FK con margen articular de 0.10 rad: 0 puntos inalcanzables con pitch 0 y ±0.5. Con pitch +1.0 quedan
+  bordes altos cerca de la base (z 0.66–0.72) y con -1.0 bordes bajos junto a la base; los corta el guard articular.
+* El conversor VIO también marca los frames fuera de alcance. Checks: puente 35/35 (5d alcance, 7 techo de la caja),
+  teleop 16/16, pytest 50.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

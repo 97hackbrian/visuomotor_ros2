@@ -48,11 +48,13 @@ from visuomotor_bringup.xarm5_interface import (
     GRIPPER_TYPES,
     ORIENTATION_MODES,
     GripperBinarizer,
+    ReachLimit,
     WorkspaceLimits,
     arm_azimuth,
     arm_plane_params,
     arm_plane_quat,
     brake_report,
+    clamp_to_workspace,
     clamp_yaw,
     continuous_rpy,
     joints_near_limits,
@@ -224,6 +226,11 @@ class XArm5Bridge(Node):
         d("workspace_z_max", 0.50)
         d("workspace_min_radius_xy", 0.15)
         d("workspace_max_radius_xy", 0.60)
+        # Alcance hombro-muñeca (geometría del xArm5 en la URDF; ver xarm5_real_params.yaml)
+        d("workspace_shoulder_xyz_m", [0.0, 0.0, 0.267])
+        d("workspace_wrist_offset_m", [-0.076, 0.0, -0.097])
+        d("workspace_max_reach_m", 0.6086)
+        d("workspace_min_reach_m", 0.12)
         d("max_linear_speed_m_s", 0.05)
         d("max_angular_speed_rad_s", 0.5)
         d("max_target_distance_m", 0.25)
@@ -302,6 +309,9 @@ class XArm5Bridge(Node):
         self.workspace = WorkspaceLimits(
             g("workspace_x_min"), g("workspace_x_max"), g("workspace_y_min"), g("workspace_y_max"),
             g("workspace_z_min"), g("workspace_z_max"), g("workspace_min_radius_xy"), g("workspace_max_radius_xy"))
+        self.reach = ReachLimit([float(v) for v in g("workspace_shoulder_xyz_m")],
+                                [float(v) for v in g("workspace_wrist_offset_m")], float(g("workspace_max_reach_m")),
+                                float(g("workspace_min_reach_m")))
         self.max_linear_speed = float(g("max_linear_speed_m_s"))
         self.max_angular_speed = float(g("max_angular_speed_rad_s"))
         self.max_target_distance = float(g("max_target_distance_m"))
@@ -938,10 +948,18 @@ class XArm5Bridge(Node):
 
         p, o = target.pose.position, target.pose.orientation
         q = [o.x, o.y, o.z, o.w]
-        goal_xyz, clamped = self.workspace.clamp([p.x, p.y, p.z])
+        box_xyz, _ = self.workspace.clamp([p.x, p.y, p.z])
+        goal_xyz, clamped, valid = clamp_to_workspace(
+            [p.x, p.y, p.z], self._goal_pitch(q, box_xyz, cmd_rpy), self.workspace, self.reach)
+        if not valid:
+            self.get_logger().warn(
+                f"Target [{p.x:.3f}, {p.y:.3f}, {p.z:.3f}]: no point inside both the workspace box and the arm reach "
+                f"({self.reach.min_reach:.3f}..{self.reach.max_reach:.3f} m shoulder-wrist) near it: holding position.",
+                throttle_duration_sec=2.0)
+            return
         if clamped:
             self.get_logger().warn(
-                f"Target [{p.x:.3f}, {p.y:.3f}, {p.z:.3f}] outside the workspace: clamped to "
+                f"Target [{p.x:.3f}, {p.y:.3f}, {p.z:.3f}] outside the workspace/reach: clamped to "
                 f"[{goal_xyz[0]:.3f}, {goal_xyz[1]:.3f}, {goal_xyz[2]:.3f}].", throttle_duration_sec=2.0)
         dist = float(np.linalg.norm(goal_xyz - measured))
         if dist > self.max_target_distance:
@@ -987,6 +1005,14 @@ class XArm5Bridge(Node):
         self._servo_sent_time = time.time()
         future = self._cli_servo_cartesian.call_async(req)
         future.add_done_callback(lambda f, x=new_xyz, r=new_rpy, s=seq: self._servo_done(f, x, r, s))
+
+    def _goal_pitch(self, q, xyz, cmd_rpy):
+        """Inclinación (en el plano del brazo) de la orientación que se ejecutará: define dónde queda la muñeca."""
+        az = arm_azimuth(xyz)
+        if self.orientation_mode == "arm_plane":
+            return project_arm_plane(q, az, self.pitch_limits[0], self.pitch_limits[1])[0]
+        rpy = project_orientation(q, self.orientation_mode, self.fixed_rpy, self.yaw_offset, fallback_yaw=cmd_rpy[2])
+        return arm_plane_params(rpy_to_quat(*rpy), az)[0]
 
     def _arm_plane_step(self, q, goal_xyz, cmd_xyz, cmd_rpy, new_xyz, ang_step):
         """Paso de orientación en el espacio alcanzable del xArm5 (inclinación en el plano del brazo + giro).

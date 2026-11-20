@@ -25,7 +25,9 @@ BRIDGE = {
     "orientation_mode": "arm_plane", "top_down_roll": math.pi, "top_down_pitch": 0.0, "fixed_yaw": 0.0,
     "arm_plane_pitch_min": -0.5, "arm_plane_pitch_max": 0.5, "yaw_min": -2.6, "yaw_max": 2.6,
     "workspace_x_min": 0.15, "workspace_x_max": 0.65, "workspace_y_min": -0.30, "workspace_y_max": 0.30,
-    "workspace_z_min": 0.10, "workspace_z_max": 0.50, "workspace_min_radius_xy": 0.15, "workspace_max_radius_xy": 0.65,
+    "workspace_z_min": 0.10, "workspace_z_max": 0.75, "workspace_min_radius_xy": 0.15, "workspace_max_radius_xy": 0.65,
+    "workspace_shoulder_xyz_m": [0.0, 0.0, 0.267], "workspace_wrist_offset_m": [-0.076, 0.0, -0.097],
+    "workspace_max_reach_m": 0.6086, "workspace_min_reach_m": 0.12,
     "max_linear_speed_m_s": 0.05, "max_angular_speed_rad_s": 0.5,
 }
 POLICY = {"home_x": 0.2221, "home_y": -0.004, "home_z": 0.116, "home_roll": math.pi, "home_pitch": 0.0,
@@ -107,6 +109,16 @@ class TestConvertVioDataset(unittest.TestCase):
         state, action = record_like_vo_collector(tcp, self.t_tcp_cam, self.t_odom_base)
         _, stats = self.conv.convert_episode(state, action, 20.0)
         self.assertTrue(any("velocidad lineal" in f for f in stats["flags"]))
+
+    def test_out_of_reach_is_flagged(self):
+        # sube a z = 0.70 con x = 0.55: dentro de la caja pero fuera del alcance hombro-muñeca
+        home = np.array([POLICY["home_x"], POLICY["home_y"], POLICY["home_z"]])
+        tcp = [pose_matrix(home + s * (np.array([0.55, 0.0, 0.70]) - home), arm_plane_quat(0.0, 0.0, 0.0))
+               for s in np.linspace(0, 1, 400)]
+        state, action = record_like_vo_collector(tcp, self.t_tcp_cam, self.t_odom_base)
+        _, stats = self.conv.convert_episode(state, action, 20.0)
+        self.assertGreater(stats["workspace_violation_frames"], 0)
+        self.assertTrue(any("alcance" in f for f in stats["flags"]))
 
     def test_inverse(self):
         t = pose_matrix([0.1, 0.2, 0.3], rpy_to_quat(0.3, 0.2, 0.1))
