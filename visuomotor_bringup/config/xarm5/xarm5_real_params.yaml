@@ -77,8 +77,11 @@ xarm5_bridge:
     # (tools/xarm5/convert_vio_dataset_to_xarm5.py lee esta sección).
     orientation_mode: "arm_plane"
     # Inclinación permitida en el plano del brazo (rad; +pitch inclina la punta de la herramienta hacia la base).
-    arm_plane_pitch_min: -0.5
-    arm_plane_pitch_max: 0.5
+    # ±1.48 rad (~85°). Tope del puente: |pitch| < pi/2 - 0.05 (en ±90° el rpy del controlador queda en bloqueo de
+    # cardán). Con -85° (punta hacia fuera) J4 se acerca a su límite (-97°): el guard de joint_limit_margin_rad detiene.
+    # Con herramienta/cámara montada, inclinar cerca de la mesa (z bajo, p. ej. HOME3) puede colisionar.
+    arm_plane_pitch_min: -1.48
+    arm_plane_pitch_max: 1.48
     arm_plane_warn_deviation_rad: 0.15  # aviso si la orientación pedida queda a > esto de la alcanzable
     top_down_roll: 3.14159265
     top_down_pitch: 0.0

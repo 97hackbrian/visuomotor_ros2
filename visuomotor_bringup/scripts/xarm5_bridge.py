@@ -293,8 +293,12 @@ class XArm5Bridge(Node):
         self.yaw_max = float(g("yaw_max"))
         self.pitch_limits = (float(g("arm_plane_pitch_min")), float(g("arm_plane_pitch_max")))
         self.arm_plane_warn_deviation = float(g("arm_plane_warn_deviation_rad"))
-        if not -1.2 <= self.pitch_limits[0] <= self.pitch_limits[1] <= 1.2:
-            raise ValueError(f"invalid arm_plane pitch limits {self.pitch_limits}: need -1.2 <= min <= max <= 1.2 rad")
+        # |pitch| < pi/2 - 0.05: en pitch = ±pi/2 el roll/pitch/yaw del controlador queda en bloqueo de cardán
+        # (roll y yaw indeterminados); el margen evita enviar esa pose degenerada a set_servo_cartesian.
+        pitch_cap = math.pi / 2.0 - 0.05
+        if not -pitch_cap <= self.pitch_limits[0] <= self.pitch_limits[1] <= pitch_cap:
+            raise ValueError(f"invalid arm_plane pitch limits {self.pitch_limits}: need "
+                             f"-{pitch_cap:.3f} <= min <= max <= {pitch_cap:.3f} rad (gimbal lock at ±pi/2)")
         self.workspace = WorkspaceLimits(
             g("workspace_x_min"), g("workspace_x_max"), g("workspace_y_min"), g("workspace_y_max"),
             g("workspace_z_min"), g("workspace_z_max"), g("workspace_min_radius_xy"), g("workspace_max_radius_xy"))

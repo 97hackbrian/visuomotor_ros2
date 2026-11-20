@@ -171,7 +171,7 @@ sigue aplicando caja, velocidad, distancia máxima y frenos.
 **Anillo verde (inclinación, `orientation_mode: arm_plane`).** El xArm5 (5 GDL) solo puede inclinar la garra dentro del
 plano vertical que contiene al brazo (acimut `atan2(y, x)`). El anillo verde gira alrededor del eje perpendicular a ese
 plano y se re-orienta al soltar el ratón tras mover el marcador. Al soltar, la orientación del marcador se ajusta a la
-alcanzable (inclinación acotada a `arm_plane_pitch_min/max`, ±0.5 rad), que es exactamente lo que ejecutará el puente;
+alcanzable (inclinación acotada a `arm_plane_pitch_min/max`, ±1.48 rad ≈ ±85°; en ±90° el rpy del controlador queda en bloqueo de cardán), que es exactamente lo que ejecutará el puente;
 la descripción del marcador muestra `tilt` en grados. Con `orientation_mode: top_down_yaw` no hay anillo verde y la
 garra se mantiene vertical (el primer seguimiento la endereza si no lo está).
 No usar el marcador y la política a la vez (ambos publican en `/target_frame`).

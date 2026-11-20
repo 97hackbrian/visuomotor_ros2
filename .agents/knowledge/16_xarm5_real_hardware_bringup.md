@@ -193,7 +193,7 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * **Hallazgo:** con la garra inclinada Y girada (yaw ≠ phi), el roll del controlador deja de ser ±pi (check 5b:
   rpy (-3.034, 0.28, 0.515)). El manual pide roll ±180° y pitch 0 en movimiento lineal para el xArm5; solo se ha
   ejecutado en real la inclinación con yaw ≈ phi (antiguo home2, pitch 0.25). Validar en la prueba real por etapas.
-* **Puente:** `orientation_mode: arm_plane` (YAML), `arm_plane_pitch_min/max` ±0.5 rad, `arm_plane_warn_deviation_rad`
+* **Puente:** `orientation_mode: arm_plane` (YAML), `arm_plane_pitch_min/max` ±0.5 rad (ampliado a ±1.48 rad ≈ 85° tras la prueba real del 2026-11-20; tope del puente |pitch| < π/2 − 0.05 por bloqueo de cardán del rpy del controlador; con −85° J4 se acerca a su límite de −97°), `arm_plane_warn_deviation_rad`
   0.15. Interpola en (pitch, yaw), no por componente rpy (se acoplan al inclinar); cada pose enviada es alcanzable para
   su posición. `status` publica `orientation_mode`, `pitch_limits_rad`, `yaw_limits_rad`.
 * **Marcador:** lee modo y límites del `status` del puente (sin parámetros duplicados). Anillo verde `girar_pitch`
