@@ -9,7 +9,10 @@ Seguridad:
 * El marcador nace sobre el TCP medido (TF ``base_frame -> tcp_frame``): no hay salto inicial.
 * Solo publica objetivos con "Seguir marcador" ACTIVADO y el puente ARMADO. Si el puente se desarma por cualquier
   causa, el seguimiento se desactiva solo.
-* Controles limitados a lo que el xArm5 (5 GDL, garra vertical) puede ejecutar: X, Y, Z y giro (yaw).
+* Controles limitados a lo que el xArm5 (5 GDL) puede ejecutar: X, Y, Z, giro de la herramienta (anillo azul) y,
+  si el puente está en ``orientation_mode: arm_plane``, inclinación en el plano vertical del brazo (anillo verde, eje
+  perpendicular a ese plano según el acimut del marcador). Al soltar el ratón la orientación del marcador se ajusta a
+  la alcanzable (misma proyección y límites que aplica el puente, leídos de su ``status``).
 
 Menú en inglés (clic derecho): Follow / Stop / Sync / Arm / Disarm / Check brakes / Release brakes / Engage brakes / HOME1 / HOME2 / HOME3 (doble clic).
 Parámetros en ``visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`` (sección
@@ -20,6 +23,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 import time
 
 import rclpy
@@ -33,8 +37,20 @@ from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformException, TransformListener
 from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl, InteractiveMarkerFeedback, Marker
 
+from visuomotor_bringup.xarm5_interface import arm_azimuth, arm_plane_quat, clamp_yaw, project_arm_plane
+
 MARKER_NAME = "xarm5_tcp_target"
 _H = math.sqrt(0.5)  # cuaterniones unitarios de los ejes de control (convención de interactive_markers)
+_NUM = r"(-?[0-9.]+)"
+_RE_MODE = re.compile(r"orientation_mode=(\w+)")
+_RE_PITCH = re.compile(rf"pitch_limits_rad=\[{_NUM},{_NUM}\]")
+_RE_YAW = re.compile(rf"yaw_limits_rad=\[{_NUM},{_NUM}\]")
+
+
+def tilt_axis_quat(azimuth: float):
+    """Orientación (w, x, y, z) de un control cuyo eje X es (-sin phi, cos phi, 0): perpendicular al plano del brazo."""
+    a = azimuth + math.pi / 2.0
+    return math.cos(a / 2.0), 0.0, 0.0, math.sin(a / 2.0)
 
 
 class XArm5TeleopMarker(Node):
@@ -66,6 +82,11 @@ class XArm5TeleopMarker(Node):
         self.confirm_window = float(g("confirm_window_s"))
         self._pending_confirm = None
         self._confirm_until = 0.0
+        # Modo de orientación y límites del puente (de su status): el anillo verde solo existe con 'arm_plane'.
+        self.orientation_mode = None
+        self.pitch_limits = (0.0, 0.0)
+        self.yaw_limits = (-math.pi, math.pi)
+        self.tilt_pitch = 0.0
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -122,6 +143,8 @@ class XArm5TeleopMarker(Node):
             return
         self._init_timer.cancel()
         self.marker_pose = pose
+        if self.orientation_mode == "arm_plane":
+            self._snap_to_reachable()
         self._rebuild_marker()
         self.get_logger().info(
             f"Marker created on the TCP ({pose.position.x:.3f}, {pose.position.y:.3f}, {pose.position.z:.3f}).")
@@ -136,7 +159,11 @@ class XArm5TeleopMarker(Node):
         mode = "" if self.dry_run is False else (
             "\n*** DRY-RUN: the arm will NOT move (relaunch with dry_run:=false) ***" if self.dry_run
             else "\n(waiting for bridge status)")
-        im.description = f"xArm5 [{state} | {'ARMED' if self.armed else 'DISARMED'}]{mode}\n{self.last_msg}"
+        tilt = ""
+        if self.orientation_mode == "arm_plane":
+            tilt = (f"\ntilt {math.degrees(self.tilt_pitch):+.1f} deg (limits {math.degrees(self.pitch_limits[0]):+.0f}"
+                    f"..{math.degrees(self.pitch_limits[1]):+.0f})")
+        im.description = f"xArm5 [{state} | {'ARMED' if self.armed else 'DISARMED'}]{mode}{tilt}\n{self.last_msg}"
 
         body = InteractiveMarkerControl()
         body.always_visible = True
@@ -154,17 +181,26 @@ class XArm5TeleopMarker(Node):
         body.markers.append(sphere)
         im.controls.append(body)
 
-        # Ejes en el marco fijo (base): traslación X/Y/Z y giro alrededor de Z (yaw). Sin anillos de pitch/roll: según el
-        # manual (xArm User Manual V2.3.0, movimiento lineal) el xArm5 exige roll = ±180° y pitch = 0° en cartesiano.
-        for name, (w, x, y, z), mode in (
-                ("mover_x", (_H, _H, 0.0, 0.0), InteractiveMarkerControl.MOVE_AXIS),
-                ("mover_y", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.MOVE_AXIS),
-                ("mover_z", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.MOVE_AXIS),
-                ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS)):
+        # Traslación X/Y/Z en el marco fijo (base). Orientación solo en los GDL del xArm5 (5 GDL, sin roll lateral):
+        # * top_down_yaw: anillo azul = giro alrededor de la vertical (garra siempre vertical).
+        # * arm_plane: anillo azul = giro sobre el eje de la herramienta (J5, sigue a la inclinación) y anillo verde =
+        #   inclinación en el plano vertical del brazo (eje perpendicular a ese plano, recalculado al soltar).
+        arm_plane = self.orientation_mode == "arm_plane"
+        controls = [
+            ("mover_x", (_H, _H, 0.0, 0.0), InteractiveMarkerControl.MOVE_AXIS, InteractiveMarkerControl.FIXED),
+            ("mover_y", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.MOVE_AXIS, InteractiveMarkerControl.FIXED),
+            ("mover_z", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.MOVE_AXIS, InteractiveMarkerControl.FIXED),
+            ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS,
+             InteractiveMarkerControl.INHERIT if arm_plane else InteractiveMarkerControl.FIXED)]
+        if arm_plane:
+            p = self.marker_pose.position
+            controls.append(("girar_pitch", tilt_axis_quat(arm_azimuth([p.x, p.y, p.z])),
+                             InteractiveMarkerControl.ROTATE_AXIS, InteractiveMarkerControl.FIXED))
+        for name, (w, x, y, z), mode, frame_mode in controls:
             c = InteractiveMarkerControl()
             c.name = name
             c.orientation.w, c.orientation.x, c.orientation.y, c.orientation.z = w, x, y, z
-            c.orientation_mode = InteractiveMarkerControl.FIXED
+            c.orientation_mode = frame_mode
             c.interaction_mode = mode
             im.controls.append(c)
 
@@ -179,6 +215,22 @@ class XArm5TeleopMarker(Node):
                                        throttle_duration_sec=2.0)
                 return
             self.marker_pose = copy.deepcopy(fb.pose)
+        elif fb.event_type == InteractiveMarkerFeedback.MOUSE_UP and self.orientation_mode == "arm_plane":
+            if fb.header.frame_id and fb.header.frame_id.strip("/") != self.base_frame:
+                return
+            self.marker_pose = copy.deepcopy(fb.pose)
+            self._snap_to_reachable()
+            self._rebuild_marker()  # eje del anillo verde según el nuevo acimut
+
+    def _snap_to_reachable(self):
+        """Ajusta la orientación del marcador a la alcanzable (misma proyección y límites que el puente)."""
+        p, o = self.marker_pose.position, self.marker_pose.orientation
+        az = arm_azimuth([p.x, p.y, p.z])
+        pitch, yaw, _ = project_arm_plane([o.x, o.y, o.z, o.w], az, self.pitch_limits[0], self.pitch_limits[1])
+        yaw = clamp_yaw(yaw, self.yaw_limits[0], self.yaw_limits[1])
+        q = arm_plane_quat(az, pitch, yaw)
+        o.x, o.y, o.z, o.w = (float(v) for v in q)
+        self.tilt_pitch = pitch
 
     # --- menú ------------------------------------------------------------------------------------
     def _set_msg(self, text: str, error: bool = False):
@@ -215,7 +267,9 @@ class XArm5TeleopMarker(Node):
             self._set_msg("Cannot sync: no TCP transform.", error=True)
             return False
         self.marker_pose = pose
-        self.server.setPose(MARKER_NAME, pose)
+        if self.orientation_mode == "arm_plane":
+            self._snap_to_reachable()
+        self.server.setPose(MARKER_NAME, self.marker_pose)
         self.server.applyChanges()
         self._set_msg("Marker synced to the TCP.")
         return True
@@ -256,6 +310,21 @@ class XArm5TeleopMarker(Node):
     def _status_cb(self, msg: String):
         armed = "armed=True" in msg.data
         dry_run = "dry_run=True" in msg.data
+        m_mode, m_pitch, m_yaw = _RE_MODE.search(msg.data), _RE_PITCH.search(msg.data), _RE_YAW.search(msg.data)
+        if m_mode and m_pitch and m_yaw:
+            mode = m_mode.group(1)
+            pitch_limits = (float(m_pitch.group(1)), float(m_pitch.group(2)))
+            yaw_limits = (float(m_yaw.group(1)), float(m_yaw.group(2)))
+            if (mode, pitch_limits, yaw_limits) != (self.orientation_mode, self.pitch_limits, self.yaw_limits):
+                self.orientation_mode, self.pitch_limits, self.yaw_limits = mode, pitch_limits, yaw_limits
+                self.get_logger().info(
+                    f"Bridge orientation_mode={mode}: "
+                    + (f"green ring = tilt in the arm plane, limits [{pitch_limits[0]:.2f}, {pitch_limits[1]:.2f}] rad."
+                       if mode == "arm_plane" else "no tilt ring (end effector kept vertical)."))
+                if self.marker_pose is not None:
+                    if mode == "arm_plane":
+                        self._snap_to_reachable()
+                    self._rebuild_marker()
         if dry_run != self.dry_run:
             self.dry_run = dry_run
             if dry_run:

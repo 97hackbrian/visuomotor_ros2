@@ -15,8 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "visuomotor_bringup
 from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     GripperBinarizer,
     WorkspaceLimits,
+    arm_azimuth,
+    arm_plane_params,
+    arm_plane_quat,
     brake_report,
     clamp_yaw,
+    continuous_rpy,
     joints_near_limits,
     joints_with_bit_cleared,
     from_robot_pose,
@@ -25,9 +29,11 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     limit_step,
     linear_map,
     normalize_quat,
+    project_arm_plane,
     project_orientation,
     quat_to_matrix,
     quat_to_rpy,
+    rotation_angle,
     rpy_to_quat,
     to_servo_pose,
     tool_yaw,
@@ -269,3 +275,64 @@ class TestUnitsAndGripper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestArmPlane(unittest.TestCase):
+    """Orientaciones alcanzables del xArm5: inclinación solo en el plano vertical del brazo + giro (J5)."""
+
+    def test_controller_convention(self):
+        # Con roll = pi, el pitch del controlador inclina en el plano del brazo solo si yaw = acimut (J1).
+        for phi in (0.0, 0.4, -1.0):
+            for pitch in (0.0, 0.25, -0.4):
+                self.assertLess(rotation_angle(rpy_to_quat(math.pi, pitch, phi), arm_plane_quat(phi, pitch, phi)), 1e-9)
+
+    def test_zero_pitch_equals_top_down_yaw(self):
+        for phi, yaw in ((0.0, 0.0), (0.3, -1.2), (-0.8, 2.0)):
+            r, p, y = quat_to_rpy(arm_plane_quat(phi, 0.0, yaw))
+            self.assertAlmostEqual(abs(r), math.pi, places=9)
+            self.assertAlmostEqual(p, 0.0, places=9)
+            self.assertAlmostEqual(wrap_angle(y - yaw), 0.0, places=9)
+
+    def test_round_trip_is_exact(self):
+        for phi in (0.0, 0.7, -1.2):
+            for pitch in (0.0, 0.3, -0.45):
+                for yaw in (0.0, 1.0, -2.0):
+                    p, y = arm_plane_params(arm_plane_quat(phi, pitch, yaw), phi)
+                    self.assertAlmostEqual(p, pitch, places=9)
+                    self.assertAlmostEqual(wrap_angle(y - yaw), 0.0, places=9)
+
+    def test_tool_axis_stays_in_arm_plane(self):
+        phi = 0.6
+        r = quat_to_matrix(arm_plane_quat(phi, 0.4, -0.9))
+        normal = np.array([-math.sin(phi), math.cos(phi), 0.0])
+        self.assertAlmostEqual(float(np.dot(r[:, 2], normal)), 0.0, places=9)
+
+    def test_off_plane_roll_is_removed_and_reported(self):
+        q = rpy_to_quat(math.pi - 0.3, 0.0, 0.0)  # inclinación lateral (fuera del plano con acimut 0)
+        pitch, yaw, dev = project_arm_plane(q, 0.0, -0.5, 0.5)
+        self.assertAlmostEqual(pitch, 0.0, places=9)
+        self.assertAlmostEqual(yaw, 0.0, places=9)
+        self.assertAlmostEqual(dev, 0.3, places=6)
+
+    def test_pitch_saturation(self):
+        pitch, _, dev = project_arm_plane(arm_plane_quat(0.2, 0.9, 0.1), 0.2, -0.5, 0.5)
+        self.assertEqual(pitch, 0.5)
+        self.assertAlmostEqual(dev, 0.4, places=6)
+        with self.assertRaises(ValueError):
+            project_arm_plane([0, 0, 0, 1], 0.0, 0.5, -0.5)
+
+    def test_project_orientation_arm_plane_mode(self):
+        phi = arm_azimuth([0.35, 0.05])
+        rpy = project_orientation(arm_plane_quat(phi, 0.3, 0.5), "arm_plane", (math.pi, 0.0, 0.0),
+                                  azimuth=phi, pitch_limits=(-0.5, 0.5))
+        self.assertLess(rotation_angle(rpy_to_quat(*rpy), arm_plane_quat(phi, 0.3, 0.5)), 1e-9)
+        with self.assertRaises(ValueError):
+            project_orientation([0, 0, 0, 1], "arm_plane", (math.pi, 0.0, 0.0))
+
+    def test_continuous_rpy_keeps_roll_sign_within_range(self):
+        r, p, y = continuous_rpy((-3.1415, 0.1, 0.2), (3.1415, 0.0, 0.0))
+        self.assertAlmostEqual(r, -3.1415, places=6)  # el equivalente cercano (3.14168) supera pi -> se normaliza
+        r, _, _ = continuous_rpy((-math.pi + 1e-4, 0.0, 0.0), (math.pi - 1e-3, 0.0, 0.0))
+        self.assertLessEqual(abs(r), math.pi)
+        r, _, _ = continuous_rpy((3.1, 0.0, 0.0), (-3.1, 0.0, 0.0))
+        self.assertAlmostEqual(r, 3.1, places=9)

@@ -67,10 +67,19 @@ xarm5_bridge:
     publish_tcp_tf: true
 
     # --- Orientación con 5 GDL -------------------------------------------------
-    # top_down_yaw: garra vertical (roll/pitch fijos) + yaw de la política  [recomendado]
+    # arm_plane   : orientación alcanzable por el xArm5: inclinación SOLO en el plano vertical del brazo
+    #               (acimut atan2(y, x), J2+J3+J4) acotada a [arm_plane_pitch_min, max] + giro de la herramienta (J5).
+    #               Con pitch 0 equivale a top_down_yaw. Habilita el anillo verde de RViz2.  [recomendado]
+    # top_down_yaw: garra vertical (roll/pitch fijos) + yaw de la política
     # fixed       : orientación constante (top_down_roll, top_down_pitch, fixed_yaw)
     # passthrough : RPY de la política sin cambios (solo depuración; el controlador puede rechazarla)
-    orientation_mode: "top_down_yaw"
+    # El dataset de entrenamiento debe proyectarse con el MISMO modo y límites
+    # (tools/xarm5/convert_vio_dataset_to_xarm5.py lee esta sección).
+    orientation_mode: "arm_plane"
+    # Inclinación permitida en el plano del brazo (rad; +pitch inclina la punta de la herramienta hacia la base).
+    arm_plane_pitch_min: -0.5
+    arm_plane_pitch_max: 0.5
+    arm_plane_warn_deviation_rad: 0.15  # aviso si la orientación pedida queda a > esto de la alcanzable
     top_down_roll: 3.14159265
     top_down_pitch: 0.0
     fixed_yaw: 0.0

@@ -163,10 +163,17 @@ CycloneDDS y `xarm_description` instalado para las mallas):
 ```bash
 ros2 launch visuomotor_bringup xarm5_rviz.launch.py
 ```
-Clic derecho sobre la esfera del marcador: *Armar brazo* (sincroniza antes) → *Seguir marcador* → arrastrar flechas
-(X/Y/Z) o el anillo (giro). *Detener seguimiento* / *Desarmar brazo* en cualquier momento. El marcador no publica nada
-si no está en *Seguir* con el puente ARMADO, y el puente sigue aplicando caja, velocidad, distancia máxima y frenos.
-Con `orientation_mode: top_down_yaw`, el primer seguimiento endereza la garra si no está vertical.
+Clic derecho sobre la esfera del marcador: *Arm* (sincroniza antes) → *Follow marker* → arrastrar flechas
+(X/Y/Z), el anillo **azul** (giro de la herramienta, J5) o el anillo **verde** (inclinación). *Stop following* /
+*Disarm* en cualquier momento. El marcador no publica nada si no está en *Follow* con el puente ARMADO, y el puente
+sigue aplicando caja, velocidad, distancia máxima y frenos.
+
+**Anillo verde (inclinación, `orientation_mode: arm_plane`).** El xArm5 (5 GDL) solo puede inclinar la garra dentro del
+plano vertical que contiene al brazo (acimut `atan2(y, x)`). El anillo verde gira alrededor del eje perpendicular a ese
+plano y se re-orienta al soltar el ratón tras mover el marcador. Al soltar, la orientación del marcador se ajusta a la
+alcanzable (inclinación acotada a `arm_plane_pitch_min/max`, ±0.5 rad), que es exactamente lo que ejecutará el puente;
+la descripción del marcador muestra `tilt` en grados. Con `orientation_mode: top_down_yaw` no hay anillo verde y la
+garra se mantiene vertical (el primer seguimiento la endereza si no lo está).
 No usar el marcador y la política a la vez (ambos publican en `/target_frame`).
 
 ### Frenos
@@ -216,8 +223,27 @@ Aviso del fabricante (V2.3.0 §3.1.3): con gripper montado, en cero la herramien
 ```bash
 python3 tools/xarm5/fake_xarm_driver.py &
 ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false &
-python3 tools/xarm5/check_xarm5_bridge.py      # 22 comprobaciones; código de salida 0 = OK
+python3 tools/xarm5/check_xarm5_bridge.py      # 34 comprobaciones; código de salida 0 = OK
+python3 tools/xarm5/check_xarm5_teleop.py      # 16 comprobaciones (incluye anillo verde 10b-10d)
+python3 -m pytest tests/test_xarm5_interface.py tests/test_convert_vio_dataset.py -q   # lógica pura (43)
 ```
+
+### Demostraciones reales → dataset entrenable para el xArm5
+Las demostraciones a mano (`vo_collector`, RTAB-Map VIO) guardan la pose de la **cámara** en el marco `odom`; la
+política en el robot observa el **TCP** en `link_base` menos `home_x/y/z`. Antes de entrenar, convertir (copia nueva,
+el origen no se toca):
+```bash
+python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_vN.zarr --report-only   # auditoría
+python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_vN.zarr [--drop-flagged]
+# -> datasets/demonstrations_real_vN_xarm5.zarr + _conversion_report.json   (entrenar con ESTE dataset)
+```
+Fuentes (sin duplicar valores): home = `config/jetson_policy_params.yaml` (HOME3), modo/límites/volumen/velocidades =
+`xarm5_real_params.yaml`, extrínseca cámara→TCP = `xarm5_dataset_alignment.yaml` (**medirla**; con
+`extrinsic_calibrated: false` la herramienta se niega a convertir). Marca episodios con orientación inalcanzable
+(> 0.15 rad), TCP fuera del volumen o más rápidos que el puente (5 cm/s, 0.5 rad/s).
+Reglas para grabar: empezar cada episodio con la cámara en la pose equivalente a HOME3 (misma disposición de la escena),
+garra vertical o inclinada solo en el plano del brazo, moverse despacio (≤ 5 cm/s, o subir el límite del puente y
+reconvertir), y usar el MISMO soporte de cámara en la mano y en la muñeca del robot.
 
 ---
 

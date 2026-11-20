@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import sys
 import time
 
@@ -27,8 +28,12 @@ from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import InteractiveMarkerFeedback, InteractiveMarkerUpdate
 from visualization_msgs.srv import GetInteractiveMarkers
 
+from visuomotor_bringup.xarm5_interface import (arm_azimuth, arm_plane_quat, clamp_yaw, project_arm_plane,
+                                                 rotation_angle, rpy_to_quat)
+
 P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/config/xarm5/xarm5_real_params.yaml"))
 TM = P["xarm5_teleop_marker"]["ros__parameters"]
+BR = P["xarm5_bridge"]["ros__parameters"]
 MARKER = "xarm5_tcp_target"
 # Orden de inserción del menú en xarm5_teleop_marker.py (MenuHandler numera desde 1)
 FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, BRAKES, BRAKES_OFF, BRAKES_ON, HOME1, HOME2 = range(1, 11)
@@ -177,8 +182,41 @@ class TeleopChecker(Node):
         im = self.fetch_marker()
         titles = [e.title for e in im.menu_entries]
         controls = sorted(c.name for c in im.controls if c.name)
-        self.check("10b. Controls only for the xArm5 Cartesian DOF: X/Y/Z arrows + yaw ring (no pitch/roll rings)",
-                   controls == ["girar_yaw", "mover_x", "mover_y", "mover_z"], f"controls={controls}")
+        arm_plane = BR["orientation_mode"] == "arm_plane"
+        expected = ["girar_yaw", "mover_x", "mover_y", "mover_z"] + (["girar_pitch"] if arm_plane else [])
+        self.check(f"10b. Controls only for the xArm5 DOF ({BR['orientation_mode']}): X/Y/Z + tool spin"
+                   + (" + green tilt ring" if arm_plane else "") + " (never a roll ring)",
+                   controls == sorted(expected), f"controls={controls}")
+        if arm_plane:
+            # Simula un arrastre de RViz2 que termina con el marcador desplazado en Y (otro acimut) y una orientación
+            # inalcanzable (roll lateral 0.3 + inclinación 0.9 > límite): al soltar debe ajustarse a la alcanzable.
+            lim = (BR["arm_plane_pitch_min"], BR["arm_plane_pitch_max"])
+            dropped = copy.deepcopy(self.marker_pose)
+            dropped.position.y += 0.10
+            q_req = rpy_to_quat(math.pi - 0.3, lim[1] + 0.4, 0.2)
+            (dropped.orientation.x, dropped.orientation.y, dropped.orientation.z,
+             dropped.orientation.w) = (float(v) for v in q_req)
+            self.feedback(InteractiveMarkerFeedback.POSE_UPDATE, pose=dropped)
+            self.spin_for(0.3)
+            self.feedback(InteractiveMarkerFeedback.MOUSE_UP, pose=dropped)
+            self.spin_for(1.5)
+            im = self.fetch_marker()
+            az = arm_azimuth([dropped.position.x, dropped.position.y])
+            ring = next((c for c in im.controls if c.name == "girar_pitch"), None)
+            ax = ring.orientation if ring else None
+            # eje X del control = (1 - 2(y^2+z^2), 2(xy+wz), 2(xz-wy)) debe ser (-sin az, cos az, 0)
+            axis = ((1 - 2 * (ax.y ** 2 + ax.z ** 2)), 2 * (ax.x * ax.y + ax.w * ax.z), 2 * (ax.x * ax.z - ax.w * ax.y)) \
+                if ax else (0, 0, 0)
+            self.check("10c. Green ring axis perpendicular to the arm plane at the new azimuth (recomputed on release)",
+                       math.dist(axis, (-math.sin(az), math.cos(az), 0.0)) < 1e-3,
+                       f"az={az:.3f} axis={[round(v, 3) for v in axis]}")
+            pitch, yaw, _ = project_arm_plane(q_req, az, lim[0], lim[1])
+            q_exp = arm_plane_quat(az, pitch, clamp_yaw(yaw, BR["yaw_min"], BR["yaw_max"]))
+            o = im.pose.orientation
+            err = rotation_angle([o.x, o.y, o.z, o.w], q_exp)
+            self.check("10d. On release the marker snaps to the reachable orientation (tilt clamped to the limit)",
+                       err < 1e-3 and abs(pitch - lim[1]) < 1e-9 and "tilt" in im.description,
+                       f"err={err:.5f} rad, pitch={pitch:.3f}")
         n_angle = len(self.stats()["set_servo_angle"])
         self.menu(HOME1, wait=1.5)
         first_only = len(self.stats()["set_servo_angle"]) == n_angle

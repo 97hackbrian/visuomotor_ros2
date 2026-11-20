@@ -26,7 +26,8 @@ from std_msgs.msg import Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 from xarm_msgs.srv import SetFloat32List, SetInt16
 
-from visuomotor_bringup.xarm5_interface import rpy_to_quat
+from visuomotor_bringup.xarm5_interface import (arm_azimuth, arm_plane_quat, project_orientation, rotation_angle,
+                                                 rpy_to_quat)
 
 P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/config/xarm5/xarm5_real_params.yaml"))
 BR = P["xarm5_bridge"]["ros__parameters"]
@@ -81,12 +82,12 @@ class Checker(Node):
         self.spin_for(1.2)  # status a 1 Hz
         return "armed=True" in self.status
 
-    def target(self, x, y, z, yaw=0.0, frame=None, tilt=0.0, nan=False):
+    def target(self, x, y, z, yaw=0.0, frame=None, tilt=0.0, nan=False, quat=None):
         m = PoseStamped()
         m.header.stamp = self.get_clock().now().to_msg()
         m.header.frame_id = BR["base_frame"] if frame is None else frame
         m.pose.position.x, m.pose.position.y, m.pose.position.z = (float("nan") if nan else x), y, z
-        q = rpy_to_quat(math.pi - tilt, 0.0, yaw)
+        q = rpy_to_quat(math.pi - tilt, 0.0, yaw) if quat is None else quat
         m.pose.orientation.x, m.pose.orientation.y, m.pose.orientation.z, m.pose.orientation.w = (float(v) for v in q)
         self.pub_target.publish(m)
 
@@ -122,9 +123,30 @@ class Checker(Node):
                    f"pose_mm={[round(v, 1) for v in pose[:3]]}")
         self.check("4. Límite de velocidad por comando", s["max_step_mm"] <= v_max_mm_step + 1e-3,
                    f"paso_max={s['max_step_mm']:.3f} mm (límite {v_max_mm_step:.3f})")
-        self.check("5. Orientación 5 GDL: garra vertical + yaw de la política",
-                   abs(abs(pose[3]) - math.pi) < 1e-3 and abs(pose[4]) < 1e-3 and abs(pose[5] - 0.5) < 1e-3,
-                   f"rpy={[round(v, 3) for v in pose[3:]]}")
+        mode = BR["orientation_mode"]
+        limits = (BR.get("arm_plane_pitch_min", 0.0), BR.get("arm_plane_pitch_max", 0.0))
+        phi = arm_azimuth([0.35, 0.05])
+        expected = project_orientation(rpy_to_quat(math.pi - 0.3, 0.0, 0.5), mode,
+                                       (BR["top_down_roll"], BR["top_down_pitch"], BR["fixed_yaw"]), BR["yaw_offset"],
+                                       azimuth=phi, pitch_limits=limits)
+        err5 = rotation_angle(rpy_to_quat(*pose[3:]), rpy_to_quat(*expected))
+        self.check(f"5. Orientación 5 GDL ({mode}): roll lateral pedido (inalcanzable) proyectado + yaw de la política",
+                   err5 < 2e-3 and abs(abs(pose[3]) - math.pi) < 0.1,
+                   f"rpy={[round(v, 3) for v in pose[3:]]} esperado={[round(v, 3) for v in expected]} err={err5:.4f}")
+        if mode == "arm_plane":
+            q_in = arm_plane_quat(phi, 0.3, 0.5)
+            self.spin_for(2.5, every=lambda: self.target(0.35, 0.05, 0.35, quat=q_in))
+            pose = self.stats()["pose"]
+            err = rotation_angle(rpy_to_quat(*pose[3:]), q_in)
+            self.check("5b. arm_plane: inclinación de 0.3 rad en el plano del brazo (acimut 0.142) ejecutada exacta",
+                       err < 2e-3, f"rpy={[round(v, 3) for v in pose[3:]]} err={err:.4f} rad")
+            q_far = arm_plane_quat(phi, limits[1] + 0.4, 0.5)
+            self.spin_for(2.5, every=lambda: self.target(0.35, 0.05, 0.35, quat=q_far))
+            pose = self.stats()["pose"]
+            err = rotation_angle(rpy_to_quat(*pose[3:]), arm_plane_quat(phi, limits[1], 0.5))
+            self.check(f"5c. arm_plane: inclinación fuera de límites saturada a arm_plane_pitch_max={limits[1]}",
+                       err < 2e-3, f"rpy={[round(v, 3) for v in pose[3:]]} err={err:.4f} rad")
+            self.spin_for(2.5, every=lambda: self.target(0.35, 0.05, 0.35, yaw=0.5))  # vuelve a garra vertical
 
         before = self.stats()["pose"]
         self.spin_for(1.0, every=lambda: self.target(0.30, 0.0, 0.30, frame="world"))

@@ -42,18 +42,22 @@ policy_node:
     image_size: 256
     
     # Posición Home segura de inicio / reposo (metros y radianes)
-    # = home2 del xArm5 real (TCP = brida, offset del controlador 0; medido el 2026-11-18, ver xarm5_real_params.yaml). La fase RESET envía esta pose
-    # y el puente rechaza objetivos a más de max_target_distance_m del TCP: debe coincidir con la pose de inicio.
-    # Nota: con orientation_mode top_down_yaw el puente fuerza pitch = 0 (la garra se endereza ~14 grados).
-    home_x: 0.2516
-    home_y: 0.0035
-    home_z: 0.2370
-    home_roll: 3.1246
-    home_pitch: 0.2508
-    home_yaw: 0.0171
+    # = HOME3 del xArm5 real (pose de trabajo con el efector alineado, home3_joints_rad en xarm5_real_params.yaml;
+    # TCP = brida, offset del controlador 0). Es también el ORIGEN de las demostraciones: tools/xarm5/
+    # convert_vio_dataset_to_xarm5.py lee estos valores para llevar el dataset VIO a link_base, así que el checkpoint
+    # entrenado con ese dataset y esta inferencia usan el mismo home. Si se cambia, reconvertir el dataset.
+    # PROVISIONAL (2026-11-20): FK de la URDF nominal; la calibración del controlador difiere ~4 mm (medido en el
+    # antiguo home2). Re-medir con el brazo en HOME3 (tcp_xyz_m de /xarm5_bridge/status) y actualizar.
+    # La fase RESET envía esta pose y el puente rechaza objetivos a más de max_target_distance_m del TCP.
+    home_x: 0.2221
+    home_y: -0.0040
+    home_z: 0.1160
+    home_roll: 3.14159265
+    home_pitch: 0.0
+    home_yaw: 0.0
 
     # --- Coordenadas Relativas (Modo UMI / Delta-Home) ---
-    # Debe coincidir con cómo se entrenó el checkpoint: true resta home (home_x/y/z, = home2) a la observación y lo
+    # Debe coincidir con cómo se entrenó el checkpoint: true resta home (home_x/y/z, = HOME3) a la observación y lo
     # suma a la acción predicha. Valor explícito (mismo que visuomotor_ros2/config/policy_params.yaml).
     relative_coordinates: true
 

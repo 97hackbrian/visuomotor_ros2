@@ -13,7 +13,16 @@ Restricción cinemática del xArm5 (5 GDL)
 J1 gira sobre el eje vertical, J2-J4 son ejes paralelos horizontales y J5 gira sobre el eje de la
 herramienta. Por eso no se puede alcanzar una orientación arbitraria (3 GDL) junto con una posición
 arbitraria (3 GDL). La configuración "garra vertical hacia abajo con giro libre" sí es alcanzable en
-todo el volumen de trabajo y es el modo por defecto (``top_down_yaw``).
+todo el volumen de trabajo (``top_down_yaw``).
+
+Orientaciones alcanzables (modo ``arm_plane``): el eje de la herramienta solo puede inclinarse dentro del plano
+vertical del brazo, de acimut ``phi = atan2(y, x)`` (J1), y J5 gira la herramienta sobre su propio eje. Con la
+garra hacia abajo como referencia::
+
+    R(phi, pitch, yaw) = Rz(phi) · Ry(pitch) · Rz(yaw - phi) · Rx(pi)
+
+``pitch`` = inclinación en el plano del brazo (= J2 + J3 + J4 en el controlador) y ``yaw`` = giro de la
+herramienta (con ``pitch = 0`` coincide con el yaw de ``top_down_yaw``: rpy = (pi, 0, yaw)).
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ from typing import Optional, Sequence, Tuple
 
 import numpy as np
 
-ORIENTATION_MODES = ("top_down_yaw", "fixed", "passthrough")
+ORIENTATION_MODES = ("top_down_yaw", "arm_plane", "fixed", "passthrough")
 GRIPPER_TYPES = ("xarm_gripper", "vacuum", "none")
 
 _MM_PER_M = 1000.0
@@ -100,19 +109,128 @@ def tool_yaw(q: Sequence[float]) -> Optional[float]:
     return math.atan2(hy, hx)
 
 
+def matrix_to_quat(r: np.ndarray) -> np.ndarray:
+    """Matriz de rotación 3x3 a cuaternión ``[qx, qy, qz, qw]`` con ``qw >= 0``."""
+    r = np.asarray(r, dtype=np.float64)
+    tr = float(np.trace(r))
+    if tr > 0.0:
+        s = math.sqrt(tr + 1.0) * 2.0
+        q = [(r[2, 1] - r[1, 2]) / s, (r[0, 2] - r[2, 0]) / s, (r[1, 0] - r[0, 1]) / s, 0.25 * s]
+    elif r[0, 0] > r[1, 1] and r[0, 0] > r[2, 2]:
+        s = math.sqrt(1.0 + r[0, 0] - r[1, 1] - r[2, 2]) * 2.0
+        q = [0.25 * s, (r[0, 1] + r[1, 0]) / s, (r[0, 2] + r[2, 0]) / s, (r[2, 1] - r[1, 2]) / s]
+    elif r[1, 1] > r[2, 2]:
+        s = math.sqrt(1.0 + r[1, 1] - r[0, 0] - r[2, 2]) * 2.0
+        q = [(r[0, 1] + r[1, 0]) / s, 0.25 * s, (r[1, 2] + r[2, 1]) / s, (r[0, 2] - r[2, 0]) / s]
+    else:
+        s = math.sqrt(1.0 + r[2, 2] - r[0, 0] - r[1, 1]) * 2.0
+        q = [(r[0, 2] + r[2, 0]) / s, (r[1, 2] + r[2, 1]) / s, 0.25 * s, (r[1, 0] - r[0, 1]) / s]
+    return normalize_quat(q)
+
+
+def _rz(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+def _ry(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+_RX_PI = np.diag([1.0, -1.0, -1.0])  # Rx(pi): garra hacia abajo
+
+
+def rotation_angle(q_a: Sequence[float], q_b: Sequence[float]) -> float:
+    """Ángulo (rad, en [0, pi]) de la rotación que lleva ``q_a`` a ``q_b``."""
+    d = abs(float(np.dot(normalize_quat(q_a), normalize_quat(q_b))))
+    return 2.0 * math.acos(min(1.0, d))
+
+
+def arm_azimuth(xyz: Sequence[float]) -> float:
+    """Acimut del plano vertical del brazo que contiene el punto ``xyz`` (``link_base``)."""
+    return math.atan2(float(xyz[1]), float(xyz[0]))
+
+
+def arm_plane_matrix(azimuth: float, pitch: float, yaw: float) -> np.ndarray:
+    """``R = Rz(phi) · Ry(pitch) · Rz(yaw - phi) · Rx(pi)`` (ver docstring del módulo)."""
+    return _rz(azimuth) @ _ry(pitch) @ _rz(yaw - azimuth) @ _RX_PI
+
+
+def arm_plane_quat(azimuth: float, pitch: float, yaw: float) -> np.ndarray:
+    """Cuaternión alcanzable por el xArm5 para (acimut del brazo, inclinación en su plano, giro)."""
+    return matrix_to_quat(arm_plane_matrix(azimuth, pitch, yaw))
+
+
+def arm_plane_params(q: Sequence[float], azimuth: float, fallback_pitch: float = 0.0) -> Tuple[float, float]:
+    """Descompone una orientación cualquiera en ``(pitch, yaw)`` alcanzables con el brazo en ``azimuth``.
+
+    Proyecta el eje de la herramienta al plano vertical del brazo (``pitch``) y toma el giro alrededor del eje
+    proyectado (``yaw``, en [-pi, pi)). Si la orientación ya es alcanzable, la descomposición es exacta. Si el eje
+    de la herramienta es perpendicular al plano (inclinación indefinida) usa ``fallback_pitch``.
+    """
+    n = _rz(-azimuth) @ quat_to_matrix(q) @ _RX_PI      # = Ry(pitch) · Rz(yaw - phi) si es alcanzable
+    sx, cz = float(n[0, 2]), float(n[2, 2])
+    pitch = math.atan2(sx, cz) if math.hypot(sx, cz) > 1e-6 else float(fallback_pitch)
+    k = _ry(-pitch) @ n                                 # ~ Rz(yaw - phi)
+    return pitch, wrap_angle(azimuth + math.atan2(float(k[1, 0]), float(k[0, 0])))
+
+
+def project_arm_plane(
+    q: Sequence[float],
+    azimuth: float,
+    pitch_min: float,
+    pitch_max: float,
+    yaw_offset: float = 0.0,
+    fallback_pitch: float = 0.0,
+) -> Tuple[float, float, float]:
+    """Orientación alcanzable más cercana a ``q``: ``(pitch, yaw, desviación_rad)``.
+
+    ``pitch`` se satura a ``[pitch_min, pitch_max]``; ``desviación_rad`` es el ángulo entre la orientación pedida
+    y la ejecutable (fuera del plano + saturación), útil para auditar datasets y vigilar la política.
+    """
+    if not pitch_min <= pitch_max:
+        raise ValueError(f"Rango de pitch inválido: [{pitch_min}, {pitch_max}]")
+    pitch, yaw = arm_plane_params(q, azimuth, fallback_pitch)
+    pitch = min(max(pitch, float(pitch_min)), float(pitch_max))
+    deviation = rotation_angle(q, arm_plane_quat(azimuth, pitch, yaw))
+    return pitch, wrap_angle(yaw + yaw_offset), deviation
+
+
+def continuous_rpy(rpy: Sequence[float], ref_rpy: Sequence[float]) -> Tuple[float, float, float]:
+    """Expresa roll y yaw con el valor equivalente (±2*pi) más cercano a ``ref_rpy``, sin salir de [-pi, pi].
+
+    Evita alternar entre +pi y -pi en el roll (garra hacia abajo) mientras el valor siga dentro del rango que
+    acepta el controlador; si el equivalente más cercano saldría de [-pi, pi] se usa el ángulo normalizado.
+    """
+    def near(a: float, ref: float) -> float:
+        v = float(ref) + wrap_angle(float(a) - float(ref))
+        return v if abs(v) <= math.pi else wrap_angle(v)
+
+    return near(rpy[0], ref_rpy[0]), float(rpy[1]), near(rpy[2], ref_rpy[2])
+
+
 def project_orientation(
     q: Sequence[float],
     mode: str,
     fixed_rpy: Sequence[float],
     yaw_offset: float = 0.0,
     fallback_yaw: float = 0.0,
+    azimuth: Optional[float] = None,
+    pitch_limits: Tuple[float, float] = (0.0, 0.0),
 ) -> Tuple[float, float, float]:
     """Proyecta la orientación que pide la política a una orientación ejecutable por el xArm5.
 
     * ``top_down_yaw``: roll/pitch fijos (``fixed_rpy[0:2]``, garra vertical) y yaw tomado de la política.
+    * ``arm_plane``: inclinación en el plano del brazo (acotada a ``pitch_limits``) + giro; requiere ``azimuth``.
     * ``fixed``: orientación constante ``fixed_rpy`` (ignora la orientación de la política).
     * ``passthrough``: RPY de la política sin modificar (solo depuración: el controlador puede rechazarla).
     """
+    if mode == "arm_plane":
+        if azimuth is None:
+            raise ValueError("orientation_mode 'arm_plane' requiere el acimut del brazo")
+        pitch, yaw, _ = project_arm_plane(q, azimuth, pitch_limits[0], pitch_limits[1], yaw_offset)
+        return quat_to_rpy(arm_plane_quat(azimuth, pitch, yaw))
     if mode == "top_down_yaw":
         yaw = tool_yaw(q)
         if yaw is None:

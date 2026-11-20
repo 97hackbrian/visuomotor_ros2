@@ -49,15 +49,21 @@ from visuomotor_bringup.xarm5_interface import (
     ORIENTATION_MODES,
     GripperBinarizer,
     WorkspaceLimits,
+    arm_azimuth,
+    arm_plane_params,
+    arm_plane_quat,
     brake_report,
     clamp_yaw,
+    continuous_rpy,
     joints_near_limits,
     from_robot_pose,
     is_finite_pose,
     limit_angle_step,
     limit_step,
     linear_map,
+    project_arm_plane,
     project_orientation,
+    quat_to_rpy,
     rpy_to_quat,
     to_servo_pose,
 )
@@ -207,6 +213,9 @@ class XArm5Bridge(Node):
         d("yaw_offset", 0.0)
         d("yaw_min", -2.6)
         d("yaw_max", 2.6)
+        d("arm_plane_pitch_min", -0.5)
+        d("arm_plane_pitch_max", 0.5)
+        d("arm_plane_warn_deviation_rad", 0.15)
         d("workspace_x_min", 0.15)
         d("workspace_x_max", 0.55)
         d("workspace_y_min", -0.30)
@@ -282,6 +291,10 @@ class XArm5Bridge(Node):
         self.yaw_offset = float(g("yaw_offset"))
         self.yaw_min = float(g("yaw_min"))
         self.yaw_max = float(g("yaw_max"))
+        self.pitch_limits = (float(g("arm_plane_pitch_min")), float(g("arm_plane_pitch_max")))
+        self.arm_plane_warn_deviation = float(g("arm_plane_warn_deviation_rad"))
+        if not -1.2 <= self.pitch_limits[0] <= self.pitch_limits[1] <= 1.2:
+            raise ValueError(f"invalid arm_plane pitch limits {self.pitch_limits}: need -1.2 <= min <= max <= 1.2 rad")
         self.workspace = WorkspaceLimits(
             g("workspace_x_min"), g("workspace_x_max"), g("workspace_y_min"), g("workspace_y_max"),
             g("workspace_z_min"), g("workspace_z_max"), g("workspace_min_radius_xy"), g("workspace_max_radius_xy"))
@@ -932,10 +945,6 @@ class XArm5Bridge(Node):
                 f"Target {dist:.3f} m away from the TCP (> {self.max_target_distance:.3f} m): rejected for safety.",
                 throttle_duration_sec=2.0)
             return
-        goal_rpy = list(project_orientation(q, self.orientation_mode, self.fixed_rpy, self.yaw_offset,
-                                            fallback_yaw=cmd_rpy[2]))
-        goal_rpy[2] = clamp_yaw(goal_rpy[2], self.yaw_min, self.yaw_max)
-
         # Paso según el tiempo REAL desde el último comando (acotado al período nominal): si el ejecutor retrasa
         # un ciclo y luego dispara dos seguidos, el segundo paso es más corto y la velocidad nunca supera el límite.
         now = time.time()
@@ -944,9 +953,15 @@ class XArm5Bridge(Node):
         self._last_cmd_time = now
         ang_step = self.max_angular_speed * dt
         new_xyz = limit_step(cmd_xyz, goal_xyz, self.max_linear_speed * dt)
-        new_rpy = [limit_angle_step(cmd_rpy[0], goal_rpy[0], ang_step),
-                   limit_angle_step(cmd_rpy[1], goal_rpy[1], ang_step),
-                   limit_angle_step(cmd_rpy[2], goal_rpy[2], ang_step, wrap=False)]
+        if self.orientation_mode == "arm_plane":
+            new_rpy = self._arm_plane_step(q, goal_xyz, cmd_xyz, cmd_rpy, new_xyz, ang_step)
+        else:
+            goal_rpy = list(project_orientation(q, self.orientation_mode, self.fixed_rpy, self.yaw_offset,
+                                                fallback_yaw=cmd_rpy[2]))
+            goal_rpy[2] = clamp_yaw(goal_rpy[2], self.yaw_min, self.yaw_max)
+            new_rpy = [limit_angle_step(cmd_rpy[0], goal_rpy[0], ang_step),
+                       limit_angle_step(cmd_rpy[1], goal_rpy[1], ang_step),
+                       limit_angle_step(cmd_rpy[2], goal_rpy[2], ang_step, wrap=False)]
         # Sin recorte adicional: goal_xyz ya está dentro del volumen y el paso avanza en línea recta hacia él
         # (recortar aquí produciría un salto si el brazo se armó fuera de la caja).
 
@@ -968,6 +983,26 @@ class XArm5Bridge(Node):
         self._servo_sent_time = time.time()
         future = self._cli_servo_cartesian.call_async(req)
         future.add_done_callback(lambda f, x=new_xyz, r=new_rpy, s=seq: self._servo_done(f, x, r, s))
+
+    def _arm_plane_step(self, q, goal_xyz, cmd_xyz, cmd_rpy, new_xyz, ang_step):
+        """Paso de orientación en el espacio alcanzable del xArm5 (inclinación en el plano del brazo + giro).
+
+        Se interpola en (pitch, yaw) y no en roll/pitch/yaw del controlador: con la garra inclinada esas tres
+        componentes se acoplan y una interpolación por componente saldría del conjunto alcanzable. Cada pose enviada
+        es exactamente alcanzable para la posición ``new_xyz`` (su acimut define el plano del brazo).
+        """
+        goal_pitch, goal_yaw, deviation = project_arm_plane(
+            q, arm_azimuth(goal_xyz), self.pitch_limits[0], self.pitch_limits[1], self.yaw_offset)
+        if deviation > self.arm_plane_warn_deviation:
+            self.get_logger().warn(
+                f"Target orientation {deviation:.3f} rad away from what the xArm5 can reach (tilt only in the arm "
+                f"plane, |pitch| limits {self.pitch_limits}): projected.", throttle_duration_sec=2.0)
+        goal_yaw = clamp_yaw(goal_yaw, self.yaw_min, self.yaw_max)
+        cmd_pitch, cmd_yaw = arm_plane_params(rpy_to_quat(*cmd_rpy), arm_azimuth(cmd_xyz))
+        pitch = limit_angle_step(cmd_pitch, goal_pitch, ang_step, wrap=False)
+        yaw = limit_angle_step(cmd_yaw, goal_yaw, ang_step, wrap=False)
+        rpy = quat_to_rpy(arm_plane_quat(arm_azimuth(new_xyz), pitch, yaw))
+        return list(continuous_rpy(rpy, cmd_rpy))
 
     def _servo_done(self, future, xyz, rpy, seq):
         if seq != self._servo_seq or not self._servo_pending:
@@ -1041,7 +1076,10 @@ class XArm5Bridge(Node):
                 f"mode={self._robot_mode} state={self._robot_state} gripper_closed={self._gripper_closed_cmd} "
                 f"gripper_joint={self._gripper_real_pos} {pose} "
                 f"mt_brake=0b{self._mt_brake:0{self.dof}b} mt_able=0b{self._mt_able:0{self.dof}b} "
-                f"joints_rad={[round(v, 4) for v in self._joints] if self._joints else None}")
+                f"joints_rad={[round(v, 4) for v in self._joints] if self._joints else None} "
+                f"orientation_mode={self.orientation_mode} "
+                f"pitch_limits_rad=[{self.pitch_limits[0]:.4f},{self.pitch_limits[1]:.4f}] "
+                f"yaw_limits_rad=[{self.yaw_min:.4f},{self.yaw_max:.4f}] yaw_offset_rad={self.yaw_offset:.4f}")
         self._pub_status.publish(String(data=text))
 
 

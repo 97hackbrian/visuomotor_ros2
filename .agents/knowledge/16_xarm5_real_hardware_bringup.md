@@ -184,6 +184,37 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   - Gripper en 0.0 si no se registra.
 * Pendiente: diagnóstico del freno de J3 por esfuerzo (~76 frente a ~5 de J2).
 
+## 5m. Modo `arm_plane`, anillo verde y conversión del dataset VIO (2026-11-20, sin hardware)
+* **Modelo de orientación alcanzable** (`xarm5_interface.py`): `R = Rz(phi)·Ry(pitch)·Rz(yaw-phi)·Rx(pi)`, con
+  phi = acimut del TCP (J1), pitch = inclinación en el plano del brazo (J2+J3+J4) y yaw = giro de la herramienta (J5).
+  Con pitch 0 equivale a `top_down_yaw`; con yaw = phi coincide con rpy (pi, pitch, phi) del controlador.
+  `arm_plane_params` (descomposición exacta), `project_arm_plane` (satura pitch y devuelve la desviación),
+  `continuous_rpy` (evita alternar +pi/-pi sin salir de [-pi, pi]).
+* **Hallazgo:** con la garra inclinada Y girada (yaw ≠ phi), el roll del controlador deja de ser ±pi (check 5b:
+  rpy (-3.034, 0.28, 0.515)). El manual pide roll ±180° y pitch 0 en movimiento lineal para el xArm5; solo se ha
+  ejecutado en real la inclinación con yaw ≈ phi (antiguo home2, pitch 0.25). Validar en la prueba real por etapas.
+* **Puente:** `orientation_mode: arm_plane` (YAML), `arm_plane_pitch_min/max` ±0.5 rad, `arm_plane_warn_deviation_rad`
+  0.15. Interpola en (pitch, yaw), no por componente rpy (se acoplan al inclinar); cada pose enviada es alcanzable para
+  su posición. `status` publica `orientation_mode`, `pitch_limits_rad`, `yaw_limits_rad`.
+* **Marcador:** lee modo y límites del `status` del puente (sin parámetros duplicados). Anillo verde `girar_pitch`
+  (FIXED, eje (-sin phi, cos phi, 0)); anillo azul en INHERIT = eje de la herramienta. Al soltar (MOUSE_UP) ajusta la
+  orientación a la alcanzable y recalcula el eje. Checks: puente 34/34 (5, 5b, 5c), teleop 16/16 (10b-10d),
+  pytest 43 (interfaz + conversión).
+* **Compatibilidad DP:** `vo_collector` guarda la cámara en `odom` (posición relativa al inicio, cuaternión absoluto
+  de odom); `policy_node` observa el TCP en `link_base` menos home. `tools/xarm5/convert_vio_dataset_to_xarm5.py`:
+  `T_base_tcp(t) = T_base_home · T_tcp_cam · T_odom_cam(0)^-1 · T_odom_cam(t) · T_tcp_cam^-1`, proyecta con el modo
+  del puente, resta home, copia imágenes, gripper y done, y audita (desviación > 0.15 rad, volumen, velocidad > límites
+  del puente). Lee home de `jetson_policy_params.yaml`, el modo y los límites de `xarm5_real_params.yaml`, y la
+  extrínseca de `xarm5_dataset_alignment.yaml` (`extrinsic_calibrated: false`, por lo que se niega a convertir). No
+  sobrescribe nunca un destino existente.
+* **Home de la política = HOME3**, provisional por FK URDF (0.2221, -0.0040, 0.1160) m, rpy (pi, 0, 0). En el antiguo
+  home2, la FK URDF difiere unos 4 mm del controlador: re-medir `tcp_xyz_m` en HOME3 con el brazo encendido.
+* **Pendiente:**
+  - Medir la extrínseca cámara→TCP y HOME3 real.
+  - Prueba real por etapas: dry-run; luego tilt 0.1 con phi≈0; tilt con phi≠0; tilt+giro (yaw≠phi).
+  - Si el controlador rechaza yaw≠phi inclinado: restringir el giro al inclinar.
+  - Velocidad del puente (5 cm/s) muy baja para demostraciones a mano: subir el límite o grabar despacio.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
