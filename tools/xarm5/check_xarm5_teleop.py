@@ -31,7 +31,7 @@ P = yaml.safe_load(open(f"{get_package_share_directory('visuomotor_bringup')}/co
 TM = P["xarm5_teleop_marker"]["ros__parameters"]
 MARKER = "xarm5_tcp_target"
 # Orden de inserción del menú en xarm5_teleop_marker.py (MenuHandler numera desde 1)
-FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, HOME2, BRAKES, UNWIND, BRAKES_OFF, BRAKES_ON = range(1, 11)
+FOLLOW_ON, FOLLOW_OFF, SYNC, ARM, DISARM, BRAKES, BRAKES_OFF, BRAKES_ON, HOME1, HOME2 = range(1, 11)
 
 
 class TeleopChecker(Node):
@@ -164,28 +164,28 @@ class TeleopChecker(Node):
         self.check("9. Menú 'Desarmar' -> desarma y el marcador deja de publicar",
                    "armed=False" in self.status and len(self.targets) == n1)
 
+        n_angle = len(self.stats()["set_servo_angle"])
+        self.menu(HOME2, wait=1.5)
+        first_only = len(self.stats()["set_servo_angle"]) == n_angle
         self.menu(HOME2, wait=3.0)
         s = self.stats()
-        self.check("10. Menú 'Ir a home2' (desarmado) -> set_servo_angle con home2_joints_rad",
-                   s["set_servo_angle"][-1:] == [[round(v, 3) for v in
-                                                  P["xarm5_bridge"]["ros__parameters"]["home2_joints_rad"]]])
+        self.check("10. Menu 'Go to HOME2' (UFACTORY initial pose): 1st click only warns; 2nd moves (J4 -90)",
+                   first_only and s["set_servo_angle"][-1:] == [[round(v, 3) for v in
+                                                                 P["xarm5_bridge"]["ros__parameters"]["home2_joints_rad"]]],
+                   f"sent={s['set_servo_angle'][-1:]}")
 
-        from xarm_msgs.srv import SetFloat32List
-        cli = self.create_client(SetFloat32List, "/fake_xarm/set_joints")
-        cli.wait_for_service(timeout_sec=5.0)
-        fut = cli.call_async(SetFloat32List.Request(datas=[6.2833, -0.5504, -0.127, 0.6855, 0.4098]))
-        while not fut.done():
-            rclpy.spin_once(self, timeout_sec=0.05)
-        self.spin_for(0.5)
+        im = self.fetch_marker()
+        titles = [e.title for e in im.menu_entries]
         n_angle = len(self.stats()["set_servo_angle"])
-        self.menu(UNWIND, wait=2.0)
+        self.menu(HOME1, wait=1.5)
         first_only = len(self.stats()["set_servo_angle"]) == n_angle
-        self.menu(UNWIND, wait=4.0)
+        self.menu(HOME1, wait=3.0)
         s = self.stats()
-        sent = s["set_servo_angle"][-1] if len(s["set_servo_angle"]) > n_angle else None
-        self.check("11. Menú 'Desenrollar J1': 1er clic solo avisa; 2º clic gira solo J1 6.2833 -> ~0",
-                   first_only and sent is not None and abs(sent[0] - (6.2833 - 2 * 3.141592653589793)) < 1e-3
-                   and sent[1:] == [-0.55, -0.127, 0.686, 0.41], f"enviado={sent}")
+        self.check("11. Menu in English, without 'home2 working pose'/'unwind'; 'Go to HOME1' (zero) needs 2 clicks",
+                   first_only and s["set_servo_angle"][-1:] == [[0.0, 0.0, 0.0, 0.0, 0.0]]
+                   and not any("nwind" in x or "esenroll" in x or "solo desarmado" in x for x in titles)
+                   and "Go to HOME1: zero / transport pose (double click)" in titles
+                   and all(x.isascii() for x in titles), f"menu={titles}")
 
         self.menu(BRAKES_OFF, wait=3.0)
         s = self.stats()

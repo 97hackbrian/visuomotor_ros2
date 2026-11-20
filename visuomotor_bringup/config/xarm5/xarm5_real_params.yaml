@@ -116,26 +116,27 @@ xarm5_bridge:
     xarm_gripper_joint_open: 0.0        # objetivo/estado abierto (drive_joint)
     xarm_gripper_joint_closed: 0.85     # objetivo/estado cerrado; bajar (p. ej. 0.7) si aprieta demasiado
 
-    # --- Home articular (servicio ~/go_home, solo desarmado) ---------------------
-    # "Home adaptado al gripper" usado previamente en la Jetson (xarm_examples/Nodo_home.py).
-    # ATENCIÓN: J1 del brazo está en ~+2*pi (6.28 rad). Este home con J1 = 0 giraría la base 360 grados.
-    home_joints_rad: [0.0, -0.82, -0.28, 1.11, 0.0]
-    # home2 (servicio ~/go_home2): pose de trabajo actual, leída del brazo real el 2026-11-18 sin moverlo.
-    #   TCP = brida (offset del controlador = 0, guardado con save_conf el 2026-11-18; sin herramienta montada):
-    #   xyz = (0.2516, 0.0035, 0.2370) m, rpy = (3.1246, 0.2508, 0.0171)
-    #   J1 se representa en -0.0010 (= 6.2822 - 2*pi, misma postura física): el brazo estaba en J1 = +6.2822, a 0.001 rad
-    #   de su límite +2*pi, lo que provocó C23 al teleoperar. Hasta ejecutar ~/unwind_j1, go_home2 queda rechazado.
-    home2_joints_rad: [-0.0010, -0.5001, -0.2717, 1.0231, -0.0022]
+    # --- Posiciones de reposo del fabricante (servicios ~/go_home1 y ~/go_home2, solo desarmado) -------------
+    # Modelo: UFACTORY xArm 5, código XF1305 ("XF13" en la caja), 5 GDL, 3 kg, 700 mm (controlador: DETAIL 5,5,XF1305).
+    # HOME1 = "Zero Position" (todas las juntas a 0). xArm User Manual V2.3.0, 1.5 Transport, Storage and Handling:
+    #   "Move the robot to the zero position by UFactory studio, then put the xArm robot and Control Box in the
+    #   original packaging". Brida en (0.207, 0, 0.112) m mirando hacia abajo (FK de la URDF). AVISO del manual
+    #   (3.1.3): con gripper montado, en cero la herramienta sobrepasa la superficie de montaje -> evaluar antes.
+    home1_joints_rad: [0.0, 0.0, 0.0, 0.0, 0.0]
+    # HOME2 = "Initial Position" por defecto de UFACTORY para xArm 5 (xArm Studio User Manual V1.0.0, "Zero Point,
+    #   Initial point": "xArm 5: J1:0 J2:0 J3:0 J4:-90 J5:0"); el manual V2.3.0 la describe como "a relatively safe
+    #   position" y la indica para recuperarse de C23. Brida en (0.228, 0, 0.285) m, herramienta horizontal.
+    home2_joints_rad: [0.0, 0.0, 0.0, -1.5707963, 0.0]
     home_speed_rad_s: 0.35
     home_acc_rad_s2: 10.0
     home_timeout_s: 30.0
 
     # --- Estado inicial cuando simulate_robot_state: true -------------------------
-    sim_initial_xyz: [0.2516, 0.0035, 0.2370]     # = home2 (TCP = brida)
+    sim_initial_xyz: [0.2516, 0.0035, 0.2370]     # pose de trabajo medida el 2026-11-18 (TCP = brida)
     sim_initial_rpy: [3.1246, 0.2508, 0.0171]
 
     # --- Comprobación de frenos -------------------------------------------------------------
-    # Tras habilitar motores (al armar o antes de ~/go_home*), TODOS los ejes deben reportar freno liberado
+    # Tras habilitar motores (al armar o antes de ~/go_home1 / ~/go_home2), TODOS los ejes deben reportar freno liberado
     # (bit 1 en mt_brake) y motor habilitado (bit 1 en mt_able); si no, no se envía movimiento. Mientras está
     # armado, si un eje pierde cualquiera de los dos bits, el puente se desarma. ~/check_brakes informa sin actuar.
     dof: 5
@@ -157,8 +158,9 @@ xarm5_bridge:
     joint_lower_limits_rad: [-6.283185, -2.059, -3.927, -1.69297, -6.283185]
     joint_upper_limits_rad: [6.283185, 2.0944, 0.19198, 3.141593, 6.283185]
     joint_limit_margin_rad: 0.10
-    # go_home / go_home2 se rechazan si alguna junta debe moverse más que esto (evita giros de base inesperados).
-    max_home_joint_delta_rad: 1.0
+    # go_home1 / go_home2 se rechazan si alguna junta debe moverse más que esto (por junta, J1..J5). J1 muy acotado:
+    # evita que un HOME haga girar la base 360 grados (si J1 está desfasada 2*pi, usar ~/unwind_j1 desde la terminal).
+    max_home_joint_delta_rad: [0.5, 3.2, 3.2, 3.2, 3.2]
     # ~/unwind_j1 (solo a mano, desarmado): gira SOLO J1 +/-2*pi para devolverla a [-pi, pi].
     unwind_speed_rad_s: 0.3
     # ~/brakes_on (poner frenos = deshabilitar motores): solo desarmado y con el brazo en reposo al menos este tiempo
@@ -179,7 +181,7 @@ xarm5_teleop_marker:
     marker_scale: 0.25
     tf_timeout_s: 0.2
     init_retry_s: 1.0
-    unwind_confirm_window_s: 15.0          # 'Desenrollar J1' exige un 2º clic dentro de esta ventana
+    confirm_window_s: 15.0                 # HOME1/HOME2 y 'Engage brakes' exigen un 2º clic dentro de esta ventana
 
 xarm5_robot_description:
   ros__parameters:

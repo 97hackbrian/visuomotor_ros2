@@ -203,15 +203,15 @@ class Checker(Node):
 
         self.arm()
         modes_before = len(self.stats()["set_mode"])
-        refused = self.call(Trigger, "/xarm5_bridge/go_home")
+        refused = self.call(Trigger, "/xarm5_bridge/go_home1")
         self.disarm()
         s = self.stats()
-        self.check("16. go_home rechazado estando armado; disarm vuelve a modo posición (0)",
+        self.check("16. go_home1 rechazado estando armado; disarm vuelve a modo posición (0)",
                    not refused.success and s["set_mode"][modes_before:][-1:] == [0], refused.message)
-        r = self.call(Trigger, "/xarm5_bridge/go_home", timeout=BR["home_timeout_s"] + 10)
+        r = self.call(Trigger, "/xarm5_bridge/go_home1", timeout=BR["home_timeout_s"] + 10)
         s = self.stats()
-        self.check("17. go_home desarmado: set_servo_angle con home_joints_rad",
-                   r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home_joints_rad"]],
+        self.check("17. go_home1 (HOME1 = cero UFACTORY) desarmado: set_servo_angle con home1_joints_rad",
+                   r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home1_joints_rad"]],
                    r.message)
 
         # --- Frenos (semántica SDK: bit 1 = freno liberado / motor habilitado) -------------------------
@@ -245,7 +245,7 @@ class Checker(Node):
 
         r = self.call(Trigger, "/xarm5_bridge/go_home2", timeout=BR["home_timeout_s"] + 10)
         s = self.stats()
-        self.check("22. go_home2: set_servo_angle con home2_joints_rad",
+        self.check("22. go_home2 (HOME2 = posición inicial UFACTORY, J4 -90): set_servo_angle con home2_joints_rad",
                    r.success and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home2_joints_rad"]],
                    r.message)
 
@@ -288,14 +288,14 @@ class Checker(Node):
         r = self.call(Trigger, "/xarm5_bridge/arm", timeout=30)
         calls = self.stats()["motion_enable_calls"][n_calls:]
         self.check("27. Freno de J3 que se libera al 2º intento -> reintento solo sobre J3 y armado OK",
-                   r.success and "reintento" in r.message and [3, 1] in calls and [3, 0] not in calls
+                   r.success and "retry" in r.message and [3, 1] in calls and [3, 0] not in calls
                    and all(c[0] in (3, 8) for c in calls), f"{r.message[-60:]} | llamadas={calls}")
         self.disarm()
 
         self.call(SetInt16, "/fake_xarm/set_stuck_release_after", SetInt16.Request(data=-1))
         r = self.call(Trigger, "/xarm5_bridge/arm", timeout=30)
         self.check(f"28. Freno de J3 que nunca se libera -> rechazado tras {BR['brake_release_retries']} reintentos",
-                   not r.success and f"{BR['brake_release_retries']} reintento" in r.message and "J3" in r.message,
+                   not r.success and f"{BR['brake_release_retries']} retry" in r.message and "J3" in r.message,
                    r.message[:110])
         self.fault("stuck_brake", False)
 
@@ -308,7 +308,7 @@ class Checker(Node):
                    and not self.armed(), r.message[:90])
         self.arm()
         r = self.call(Trigger, "/xarm5_bridge/brakes_on")
-        self.check("30. Poner frenos estando ARMADO -> rechazado", not r.success and "Desarma" in r.message, r.message)
+        self.check("30. Poner frenos estando ARMADO -> rechazado", not r.success and "Disarm" in r.message, r.message)
         self.disarm()
         self.spin_for(1.2)
         r = self.call(Trigger, "/xarm5_bridge/brakes_on", timeout=20)

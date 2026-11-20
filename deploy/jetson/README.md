@@ -140,7 +140,7 @@ ros2 topic echo /xarm5_bridge/status          # err=0, robot_state_age_s pequeñ
 ros2 run tf2_ros tf2_echo link_base xarm_tcp  # debe coincidir con la pose del panel UFACTORY
 
 # 2) Home articular (desarmado, modo posición)
-ros2 service call /xarm5_bridge/go_home std_srvs/srv/Trigger
+ros2 service call /xarm5_bridge/go_home1 std_srvs/srv/Trigger   # HOME1 = cero UFACTORY
 
 # 3) Movimiento real: relanzar con dry_run:=false, armar y luego lanzar la política
 ros2 launch visuomotor_bringup xarm5_real.launch.py dry_run:=false
@@ -152,7 +152,7 @@ ros2 service call /xarm5_bridge/disarm std_srvs/srv/Trigger
 ```
 
 En dry-run, `ros2 topic echo /xarm5_bridge/command_preview` muestra la pose que se enviaría al brazo.
-`/xarm5_bridge/status` incluye la pose medida del TCP: tras `go_home`, úsala para ajustar `home_x/y/z` de
+`/xarm5_bridge/status` incluye la pose medida del TCP: tras `go_home1`/`go_home2`, úsala para ajustar `home_x/y/z` de
 `jetson_policy_params.yaml` (la fase RESET de la política envía esa pose y el puente rechaza objetivos a más de
 `max_target_distance_m` del TCP). En la primera conexión, verificar también `ros2 topic hz /xarm/robot_states`.
 
@@ -166,11 +166,11 @@ ros2 launch visuomotor_bringup xarm5_rviz.launch.py
 Clic derecho sobre la esfera del marcador: *Armar brazo* (sincroniza antes) → *Seguir marcador* → arrastrar flechas
 (X/Y/Z) o el anillo (giro). *Detener seguimiento* / *Desarmar brazo* en cualquier momento. El marcador no publica nada
 si no está en *Seguir* con el puente ARMADO, y el puente sigue aplicando caja, velocidad, distancia máxima y frenos.
-Con `orientation_mode: top_down_yaw`, el primer seguimiento endereza la garra (desde home2, ~14° de pitch).
+Con `orientation_mode: top_down_yaw`, el primer seguimiento endereza la garra si no está vertical.
 No usar el marcador y la política a la vez (ambos publican en `/target_frame`).
 
 ### Frenos
-Al armar y antes de `~/go_home`/`~/go_home2`, el puente habilita motores y exige que **todos** los ejes reporten freno
+Al armar y antes de `~/go_home1`/`~/go_home2`, el puente habilita motores y exige que **todos** los ejes reporten freno
 liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) en `brake_check_timeout_s`; si no, no envía
 movimiento e indica la articulación (p. ej. `freno APLICADO en J3`). Armado, si un eje pierde un bit, se desarma.
 `ros2 service call /xarm5_bridge/check_brakes std_srvs/srv/Trigger` informa sin actuar.
@@ -183,7 +183,7 @@ desactivado hasta validarlo. Solo cuentan reportes de estado posteriores a la ha
 J1 y J5 del xArm5 tienen rango ±2π (±360°). El 2026-11-18 J1 estaba en +6.2822/+6.2832 rad (en el tope): al teleoperar,
 el controlador cortó con **C23 (Joint Angle Exceed Limit)**. Ahora el puente **no arma** si una junta está a menos de
 `joint_limit_margin_rad` de su límite, **se detiene antes del C23** si una junta se acerca durante el movimiento, y
-`go_home`/`go_home2` se rechazan si alguna junta debe moverse más de `max_home_joint_delta_rad` (evita giros de base
+`go_home1`/`go_home2` se rechazan si alguna junta debe moverse más de `max_home_joint_delta_rad` (por junta; J1 0.5 rad: evita giros de base
 inesperados). Para devolver J1 a [-π, π] (misma postura física) con el puente lanzado con `dry_run:=false`:
 ```bash
 ros2 service call /xarm5_bridge/unwind_j1 std_srvs/srv/Trigger   # gira SOLO la base -360° a 0.3 rad/s (~21 s)
@@ -197,11 +197,16 @@ de emergencia. Con C2 activo (seta pulsada) se cancela: liberar la seta y reinte
 * **Poner frenos** (`~/brakes_on`, doble clic en RViz2): deshabilita motores. Solo desarmado y con el brazo quieto
   `brakes_on_min_idle_s` (1 s): la caída de ~5 cm ocurrió al deshabilitar justo tras un movimiento; en reposo se midió
   0 mm. Informa el desplazamiento del TCP al frenar.
-* **Desenrollar J1** también está en el menú (doble clic).
+* `unwind_j1` solo por terminal (se retiró del menú de RViz2).
 
-### home2
-`home2_joints_rad` = pose de trabajo actual (leída del brazo el 2026-11-18). `~/go_home2` la recupera (desarmado).
-El home de la política (`jetson_policy_params.yaml`) apunta a su TCP.
+### Posiciones de reposo HOME1 / HOME2 (fabricante)
+Modelo: **UFACTORY xArm 5, código XF1305** ("XF13" en la caja; el controlador reporta `DETAIL: 5,5,XF1305`), 5 GDL,
+3 kg, 700 mm. Menú de RViz2 (doble clic, solo desarmado) o servicios `~/go_home1` y `~/go_home2`:
+| | Articulaciones (°) | Fuente | Brida (FK URDF) |
+|---|---|---|---|
+| **HOME1** | [0, 0, 0, 0, 0] | "Zero Position"; manual V2.3.0 §1.5: mover a cero antes de embalar/transportar | (0.207, 0, 0.112) m, hacia abajo |
+| **HOME2** | [0, 0, 0, -90, 0] | "Initial Position" por defecto del xArm 5 (xArm Studio V1.0.0); "a relatively safe position" (V2.3.0) | (0.228, 0, 0.285) m, horizontal |
+Aviso del fabricante (V2.3.0 §3.1.3): con gripper montado, en cero la herramienta sobrepasa la superficie de montaje.
 
 ### Comprobaciones sin hardware (driver falso)
 ```bash

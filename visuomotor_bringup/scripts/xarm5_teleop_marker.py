@@ -11,8 +11,8 @@ Seguridad:
   causa, el seguimiento se desactiva solo.
 * Controles limitados a lo que el xArm5 (5 GDL, garra vertical) puede ejecutar: X, Y, Z y giro (yaw).
 
-Menú (clic derecho sobre el marcador): Seguir / Detener / Sincronizar con TCP / Armar / Desarmar / Ir a home2 /
-Comprobar frenos. Parámetros en ``visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`` (sección
+Menú en inglés (clic derecho): Follow / Stop / Sync / Arm / Disarm / Check brakes / Release brakes / Engage brakes / HOME1 / HOME2 (doble clic).
+Parámetros en ``visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`` (sección
 ``xarm5_teleop_marker``).
 """
 
@@ -50,7 +50,7 @@ class XArm5TeleopMarker(Node):
         d("marker_scale", 0.25)
         d("tf_timeout_s", 0.2)
         d("init_retry_s", 1.0)
-        d("unwind_confirm_window_s", 15.0)
+        d("confirm_window_s", 15.0)
         g = lambda n: self.get_parameter(n).value
         self.base_frame = g("base_frame")
         self.tcp_frame = g("tcp_frame")
@@ -61,37 +61,43 @@ class XArm5TeleopMarker(Node):
         self.following = False
         self.armed = False
         self.dry_run = None  # desconocido hasta recibir el estado del puente
-        self.last_msg = "Listo. Clic derecho para el menú."
+        self.last_msg = "Ready. Right-click the sphere for the menu."
         self.marker_pose: Pose | None = None
-        self.unwind_confirm_window = float(g("unwind_confirm_window_s"))
-        self._unwind_armed_until = 0.0
-        self._brakes_on_armed_until = 0.0
+        self.confirm_window = float(g("confirm_window_s"))
+        self._pending_confirm = None
+        self._confirm_until = 0.0
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pub_target = self.create_publisher(PoseStamped, g("target_topic"), 10)
         self.create_subscription(String, f"{bridge}/status", self._status_cb, 10)
         self.cli = {name: self.create_client(Trigger, f"{bridge}/{name}")
-                    for name in ("arm", "disarm", "go_home2", "check_brakes", "unwind_j1", "brakes_off", "brakes_on")}
+                    for name in ("arm", "disarm", "check_brakes", "brakes_off", "brakes_on", "go_home1", "go_home2")}
 
         self.server = InteractiveMarkerServer(self, g("marker_server_name"))
         self.menu = MenuHandler()
-        self.menu.insert("Seguir marcador (activar)", callback=self._menu_follow_on)
-        self.menu.insert("Detener seguimiento", callback=self._menu_follow_off)
-        self.menu.insert("Sincronizar marcador con TCP", callback=self._menu_sync)
-        self.menu.insert("Armar brazo (sincroniza antes)", callback=lambda f: self._call_bridge("arm", sync=True))
-        self.menu.insert("Desarmar brazo", callback=lambda f: self._call_bridge("disarm"))
-        self.menu.insert("Ir a home2 (solo desarmado)", callback=lambda f: self._call_bridge("go_home2"))
-        self.menu.insert("Comprobar frenos", callback=lambda f: self._call_bridge("check_brakes"))
-        self.menu.insert("Desenrollar J1 (GIRO DE BASE 360 grados, doble clic)", callback=self._menu_unwind)
-        self.menu.insert("Quitar frenos (motores sostienen el brazo)", callback=lambda f: self._call_bridge("brakes_off"))
-        self.menu.insert("Poner frenos (deshabilita motores, doble clic)", callback=self._menu_brakes_on)
+        self.menu.insert("Follow marker (enable)", callback=self._menu_follow_on)
+        self.menu.insert("Stop following", callback=self._menu_follow_off)
+        self.menu.insert("Sync marker to TCP", callback=self._menu_sync)
+        self.menu.insert("Arm (syncs marker first)", callback=lambda f: self._call_bridge("arm", sync=True))
+        self.menu.insert("Disarm", callback=lambda f: self._call_bridge("disarm"))
+        self.menu.insert("Check brakes", callback=lambda f: self._call_bridge("check_brakes"))
+        self.menu.insert("Release brakes (motors hold the arm)", callback=lambda f: self._call_bridge("brakes_off"))
+        self.menu.insert("Engage brakes (disables motors, double click)",
+                         callback=lambda f: self._confirm_then_call(
+                             "brakes_on", "motors will be DISABLED (brakes engaged); arm must be DISARMED and still"))
+        self.menu.insert("Go to HOME1: zero / transport pose (double click)",
+                         callback=lambda f: self._confirm_then_call(
+                             "go_home1", "the arm will move to HOME1 (all joints 0 deg, UFACTORY transport pose)"))
+        self.menu.insert("Go to HOME2: UFACTORY initial pose (double click)",
+                         callback=lambda f: self._confirm_then_call(
+                             "go_home2", "the arm will move to HOME2 (J4 -90 deg, UFACTORY default initial position)"))
 
         self.create_timer(1.0 / float(g("publish_rate_hz")), self._publish_target)
         self._init_timer = self.create_timer(float(g("init_retry_s")), self._try_init)
         self.get_logger().info(
-            f"Teleop RViz2 en espera del TF {self.base_frame}->{self.tcp_frame}. Marcador: "
-            f"'{g('marker_server_name')}'. No publica nada hasta 'Seguir marcador' con el puente ARMADO.")
+            f"RViz2 teleop waiting for TF {self.base_frame}->{self.tcp_frame}. Marker server: "
+            f"'{g('marker_server_name')}'. Publishes nothing until 'Follow marker' with the bridge ARMED.")
 
     # --- TF / marcador ---------------------------------------------------------------------------
     def _tcp_pose(self) -> Pose | None:
@@ -109,13 +115,13 @@ class XArm5TeleopMarker(Node):
     def _try_init(self):
         pose = self._tcp_pose()
         if pose is None:
-            self.get_logger().info(f"Esperando TF {self.base_frame}->{self.tcp_frame}...", throttle_duration_sec=5.0)
+            self.get_logger().info(f"Waiting for TF {self.base_frame}->{self.tcp_frame}...", throttle_duration_sec=5.0)
             return
         self._init_timer.cancel()
         self.marker_pose = pose
         self._rebuild_marker()
         self.get_logger().info(
-            f"Marcador creado sobre el TCP ({pose.position.x:.3f}, {pose.position.y:.3f}, {pose.position.z:.3f}).")
+            f"Marker created on the TCP ({pose.position.x:.3f}, {pose.position.y:.3f}, {pose.position.z:.3f}).")
 
     def _rebuild_marker(self):
         im = InteractiveMarker()
@@ -123,11 +129,11 @@ class XArm5TeleopMarker(Node):
         im.name = MARKER_NAME
         im.scale = self.marker_scale
         im.pose = copy.deepcopy(self.marker_pose)
-        state = "SIGUIENDO" if self.following else "EN ESPERA"
+        state = "FOLLOWING" if self.following else "IDLE"
         mode = "" if self.dry_run is False else (
-            "\n*** DRY-RUN: el brazo NO se moverá (relanzar con dry_run:=false) ***" if self.dry_run
-            else "\n(esperando estado del puente)")
-        im.description = f"xArm5 [{state} | {'ARMADO' if self.armed else 'DESARMADO'}]{mode}\n{self.last_msg}"
+            "\n*** DRY-RUN: the arm will NOT move (relaunch with dry_run:=false) ***" if self.dry_run
+            else "\n(waiting for bridge status)")
+        im.description = f"xArm5 [{state} | {'ARMED' if self.armed else 'DISARMED'}]{mode}\n{self.last_msg}"
 
         body = InteractiveMarkerControl()
         body.always_visible = True
@@ -167,7 +173,7 @@ class XArm5TeleopMarker(Node):
     def _feedback(self, fb: InteractiveMarkerFeedback):
         if fb.event_type == InteractiveMarkerFeedback.POSE_UPDATE:
             if fb.header.frame_id and fb.header.frame_id.strip("/") != self.base_frame:
-                self.get_logger().warn(f"Feedback en frame '{fb.header.frame_id}': ignorado.",
+                self.get_logger().warn(f"Feedback in frame '{fb.header.frame_id}': ignored.",
                                        throttle_duration_sec=2.0)
                 return
             self.marker_pose = copy.deepcopy(fb.pose)
@@ -185,18 +191,18 @@ class XArm5TeleopMarker(Node):
 
     def _menu_follow_on(self, _fb):
         if not self.armed:
-            self._set_msg("No se activa: el puente está DESARMADO (usa 'Armar brazo').", error=True)
+            self._set_msg("Not enabled: the bridge is DISARMED (use 'Arm' first).", error=True)
             return
         self.following = True
         if self.dry_run:
-            self._set_msg("Seguimiento ACTIVO en DRY-RUN: el brazo NO se moverá (relanzar con dry_run:=false).",
+            self._set_msg("Following ON in DRY-RUN: the arm will NOT move (relaunch with dry_run:=false).",
                           error=True)
         else:
-            self._set_msg("Seguimiento ACTIVO: el brazo sigue al marcador (con límites del puente).")
+            self._set_msg("Following ON: the arm follows the marker (bridge limits apply).")
 
     def _menu_follow_off(self, _fb):
         self.following = False
-        self._set_msg("Seguimiento detenido: el brazo mantiene su posición.")
+        self._set_msg("Following stopped: the arm holds its position.")
 
     def _menu_sync(self, _fb):
         self._sync_to_tcp()
@@ -204,37 +210,25 @@ class XArm5TeleopMarker(Node):
     def _sync_to_tcp(self) -> bool:
         pose = self._tcp_pose()
         if pose is None:
-            self._set_msg("No se pudo sincronizar: sin TF del TCP.", error=True)
+            self._set_msg("Cannot sync: no TCP transform.", error=True)
             return False
         self.marker_pose = pose
         self.server.setPose(MARKER_NAME, pose)
         self.server.applyChanges()
-        self._set_msg("Marcador sincronizado con el TCP.")
+        self._set_msg("Marker synced to the TCP.")
         return True
 
-    def _menu_unwind(self, _fb):
-        """Doble confirmación: el primer clic solo avisa; el segundo dentro de la ventana ejecuta ~/unwind_j1."""
+    def _confirm_then_call(self, service: str, warning: str):
+        """Double confirmation: the first click only warns; a second click within the window calls the service."""
         now = time.time()
-        if now > self._unwind_armed_until:
-            self._unwind_armed_until = now + self.unwind_confirm_window
-            self._set_msg(f"ATENCIÓN: la BASE girará 360 grados. Despeja la zona y vuelve a elegir 'Desenrollar J1' "
-                          f"antes de {self.unwind_confirm_window:.0f} s para confirmar.", error=True)
+        if self._pending_confirm != service or now > self._confirm_until:
+            self._pending_confirm, self._confirm_until = service, now + self.confirm_window
+            self._set_msg(f"WARNING: {warning}. Select the same option again within "
+                          f"{self.confirm_window:.0f} s to confirm.", error=True)
             return
-        self._unwind_armed_until = 0.0
+        self._pending_confirm, self._confirm_until = None, 0.0
         self.following = False
-        self._call_bridge("unwind_j1")
-
-    def _menu_brakes_on(self, _fb):
-        """Doble confirmación: deshabilitar motores puede dejar caer el brazo si no está en reposo."""
-        now = time.time()
-        if now > self._brakes_on_armed_until:
-            self._brakes_on_armed_until = now + self.unwind_confirm_window
-            self._set_msg(f"ATENCIÓN: se deshabilitarán los motores (frenos). Brazo DESARMADO y quieto; vuelve a elegir "
-                          f"'Poner frenos' antes de {self.unwind_confirm_window:.0f} s para confirmar.", error=True)
-            return
-        self._brakes_on_armed_until = 0.0
-        self.following = False
-        self._call_bridge("brakes_on")
+        self._call_bridge(service)
 
     def _call_bridge(self, name: str, sync: bool = False):
         if sync:
@@ -243,18 +237,18 @@ class XArm5TeleopMarker(Node):
                 return
         cli = self.cli[name]
         if not cli.service_is_ready():
-            self._set_msg(f"Servicio {cli.srv_name} no disponible.", error=True)
+            self._set_msg(f"Service {cli.srv_name} not available.", error=True)
             return
         fut = cli.call_async(Trigger.Request())
         fut.add_done_callback(lambda f, n=name: self._bridge_done(n, f))
-        self._set_msg(f"Llamando a {name}...")
+        self._set_msg(f"Calling {name}...")
 
     def _bridge_done(self, name, fut):
         try:
             res = fut.result()
             self._set_msg(f"{name}: {res.message}", error=not res.success)
         except Exception as exc:  # noqa: BLE001
-            self._set_msg(f"{name} falló: {exc}", error=True)
+            self._set_msg(f"{name} failed: {exc}", error=True)
 
     # --- estado del puente y publicación -----------------------------------------------------------
     def _status_cb(self, msg: String):
@@ -263,14 +257,14 @@ class XArm5TeleopMarker(Node):
         if dry_run != self.dry_run:
             self.dry_run = dry_run
             if dry_run:
-                self.get_logger().warn("Puente en DRY-RUN: los comandos se calculan pero NO se envían al brazo.")
+                self.get_logger().warn("Bridge in DRY-RUN: commands are computed but NOT sent to the arm.")
             if self.marker_pose is not None:
                 self._rebuild_marker()
         if armed != self.armed:
             self.armed = armed
             if not armed and self.following:
                 self.following = False
-                self._set_msg("Puente DESARMADO: seguimiento desactivado automáticamente.", error=True)
+                self._set_msg("Bridge DISARMED: following disabled automatically.", error=True)
             elif self.marker_pose is not None:
                 self._rebuild_marker()
 

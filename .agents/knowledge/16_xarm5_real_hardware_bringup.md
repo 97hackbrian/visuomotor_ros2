@@ -132,6 +132,19 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * Menú RViz2 nuevo: Desenrollar J1 (doble clic), Quitar frenos (`~/brakes_off`), Poner frenos (`~/brakes_on`, doble
   clic, solo desarmado y quieto >= `brakes_on_min_idle_s`). Checks: puente 31/31, teleop 13/13.
 
+## 5i. HOME del fabricante e interfaz RViz2 en inglés (2026-11-20)
+* Modelo confirmado: UFACTORY xArm 5 = XF1305 ("XF13" en la caja; controlador `DETAIL: 5,5,XF1305,DC1305,v2.5.1`),
+  3 kg, 700 mm. Rangos (manual V2.3.0, tabla 1.1): J1 ±360°, J2 -118°~120°, J3 -225°~11°, J4 -97°~180°, J5 ±360°.
+* HOME1 = Zero Position (todas a 0): manual V2.3.0 §1.5 "Move the robot to the zero position ... then put the xArm
+  robot and Control Box in the original packaging"; §3.1.3: con gripper, en cero la herramienta sobrepasa la superficie.
+* HOME2 = Initial Position por defecto del xArm 5 (xArm Studio V1.0.0: "xArm 5: J1:0 J2:0 J3:0 J4:-90 J5:0");
+  V2.3.0: "a relatively safe position", indicada para recuperarse de C23. (Studio V2.6.0 la lista como todo ceros.)
+* FK (URDF xarm5): HOME1 brida (0.207, 0, 0.112) m hacia abajo; HOME2 (0.228, 0, 0.285) m horizontal.
+* Manual V2.3.0 p. "If it is xArm5, roll and pitch must be set to roll = ±180° and pitch = 0°" confirma `top_down_yaw`.
+* Interfaz: menú y mensajes de RViz2/servicios en inglés; retirados "Ir a home2" (pose de trabajo) y "Desenrollar J1"
+  del menú; HOME1/HOME2/Engage brakes con doble clic (`confirm_window_s`). `max_home_joint_delta_rad` por junta
+  ([0.5, 3.2, 3.2, 3.2, 3.2]). Log de error C* deduplicado (transición atómica). Checks: puente 31/31, teleop 13/13.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
