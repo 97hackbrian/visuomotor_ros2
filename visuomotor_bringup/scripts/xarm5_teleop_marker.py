@@ -154,14 +154,13 @@ class XArm5TeleopMarker(Node):
         body.markers.append(sphere)
         im.controls.append(body)
 
-        # Ejes en el marco fijo (base): traslación X/Y/Z y giros (yaw/Z paralelo a la base; pitch/Y y roll/X perpendiculares)
+        # Ejes en el marco fijo (base): traslación X/Y/Z y giro alrededor de Z (yaw). Sin anillos de pitch/roll: según el
+        # manual (xArm User Manual V2.3.0, movimiento lineal) el xArm5 exige roll = ±180° y pitch = 0° en cartesiano.
         for name, (w, x, y, z), mode in (
                 ("mover_x", (_H, _H, 0.0, 0.0), InteractiveMarkerControl.MOVE_AXIS),
                 ("mover_y", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.MOVE_AXIS),
                 ("mover_z", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.MOVE_AXIS),
-                ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS),
-                ("girar_pitch", (_H, 0.0, 0.0, _H), InteractiveMarkerControl.ROTATE_AXIS),
-                ("girar_roll", (1.0, 0.0, 0.0, 0.0), InteractiveMarkerControl.ROTATE_AXIS)):
+                ("girar_yaw", (_H, 0.0, _H, 0.0), InteractiveMarkerControl.ROTATE_AXIS)):
             c = InteractiveMarkerControl()
             c.name = name
             c.orientation.w, c.orientation.x, c.orientation.y, c.orientation.z = w, x, y, z

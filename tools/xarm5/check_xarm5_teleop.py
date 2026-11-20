@@ -176,6 +176,9 @@ class TeleopChecker(Node):
 
         im = self.fetch_marker()
         titles = [e.title for e in im.menu_entries]
+        controls = sorted(c.name for c in im.controls if c.name)
+        self.check("10b. Controls only for the xArm5 Cartesian DOF: X/Y/Z arrows + yaw ring (no pitch/roll rings)",
+                   controls == ["girar_yaw", "mover_x", "mover_y", "mover_z"], f"controls={controls}")
         n_angle = len(self.stats()["set_servo_angle"])
         self.menu(HOME1, wait=1.5)
         first_only = len(self.stats()["set_servo_angle"]) == n_angle

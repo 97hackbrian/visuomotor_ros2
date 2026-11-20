@@ -153,6 +153,12 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * La alineación física no se aplicó: el usuario tenía la seta pulsada (C2). "Go to HOME3" la realiza.
 * `go_home1/2/3` ahora ejecutan `clean_error` si hay error pendiente (antes solo arm/brakes_off/unwind). Check 32.
 
+## 5k. Marcador RViz2 solo con los GDL cartesianos del xArm5 (2026-11-20)
+* xArm User Manual V2.3.0 (movimiento lineal): "If it is xArm5, roll and pitch must be set to roll = ±180° and
+  pitch = 0°". Los anillos de pitch (verde, Y) y roll (rojo, X) que se habían añadido al marcador nunca podían
+  funcionar en cartesiano (el puente los ignoraba con `top_down_yaw`); se eliminaron. Quedan flechas X/Y/Z y el
+  anillo de yaw (azul, Z). Check teleop 10b (14/14). Inclinar la garra solo sería posible por movimiento articular (J4).
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
