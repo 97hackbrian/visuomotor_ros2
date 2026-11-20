@@ -82,13 +82,13 @@ xarm5_bridge:
     # --- Volumen de trabajo en link_base (metros) -------------------------------
     # Conservador para las primeras pruebas; ampliar tras medir la celda real.
     workspace_x_min: 0.15
-    workspace_x_max: 0.55
+    workspace_x_max: 0.65                # alcance físico ~0.716 m (FK, garra vertical); 6 cm de margen a la singularidad
     workspace_y_min: -0.30
     workspace_y_max: 0.30
     workspace_z_min: 0.10
     workspace_z_max: 0.50
     workspace_min_radius_xy: 0.15       # evita la singularidad sobre el eje de J1
-    workspace_max_radius_xy: 0.60       # alcance nominal del xArm5: 0.70 m
+    workspace_max_radius_xy: 0.65       # alcance nominal del xArm5: 0.70 m (codo recto = singularidad)
 
     # --- Límites de velocidad -------------------------------------------------
     max_linear_speed_m_s: 0.05          # 5 cm/s para la primera puesta en marcha
