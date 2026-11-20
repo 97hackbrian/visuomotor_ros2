@@ -158,6 +158,31 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   pitch = 0°". Los anillos de pitch (verde, Y) y roll (rojo, X) que se habían añadido al marcador nunca podían
   funcionar en cartesiano (el puente los ignoraba con `top_down_yaw`); se eliminaron. Quedan flechas X/Y/Z y el
   anillo de yaw (azul, Z). Check teleop 10b (14/14). Inclinar la garra solo sería posible por movimiento articular (J4).
+* Corrección posterior: el anillo verde no lo rechazaba el driver, lo ignoraba el puente (`top_down_yaw`). En la
+  primera prueba real `servo_cartesian` aceptó pitch 0.10 rad en el plano vertical del brazo. Tras recompilar el
+  marcador hay que recrear el contenedor (`docker compose up -d --force-recreate`) y reabrir RViz2.
+* Calibración del controlador frente a la URDF nominal: pitch = J2+J3+J4 - 0.00052, yaw = J1 - J5 + 0.00135. HOME3
+  final: [-0.01816, -0.00199, -0.04436, 0.04688, -0.01681] (rpy del controlador ≈ (3.14069, 0.00001, 0.00001)).
+
+## 5l. Alcance máximo, límite 0.65 m y propuesta `arm_plane` para DP (2026-11-20)
+* Alcance con garra vertical ≈ 0.716 m (codo recto = singularidad, riesgo de C24). El recorte previo a 0.55 m era de
+  software. Nuevo límite: `workspace_x_max: 0.65`, `workspace_max_radius_xy: 0.65` (margen ~6.6 cm a la singularidad).
+* Con 5 GDL, la orientación alcanzable es yaw libre y una inclinación solo dentro del plano vertical que contiene al
+  brazo (acimut = atan2(y, x)); roll fuera del plano es inalcanzable.
+* Propuesta (no implementada, espera la decisión del usuario según la tarea):
+  - `orientation_mode: arm_plane` en el puente: proyectar el cuaternión de la política a (pitch en el plano del brazo,
+    yaw) y saturar el pitch con un parámetro.
+  - Anillo verde con eje variable = perpendicular al plano del brazo según el acimut del TCP.
+  - `tools/project_dataset_to_xarm5.py`: proyectar las acciones de un dataset (copia nueva, nunca in situ) a la
+    orientación alcanzable, para que entrenamiento y ejecución coincidan.
+* Restricciones para las demostraciones reales (desde cero):
+  - Garra vertical; o inclinada solo en el plano del brazo.
+  - Inicio equivalente a HOME3, con la misma disposición de los objetos.
+  - Volumen: radio 0.15–0.65 m, z 0.10–0.50 m, |y| ≤ 0.30 m.
+  - Velocidad ≤ 5 cm/s y ≤ 0.5 rad/s (límites del puente).
+  - Montaje de la cámara de muñeca idéntico al del robot.
+  - Gripper en 0.0 si no se registra.
+* Pendiente: diagnóstico del freno de J3 por esfuerzo (~76 frente a ~5 de J2).
 
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
