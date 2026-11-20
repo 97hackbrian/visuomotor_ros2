@@ -145,6 +145,14 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   del menú; HOME1/HOME2/Engage brakes con doble clic (`confirm_window_s`). `max_home_joint_delta_rad` por junta
   ([0.5, 3.2, 3.2, 3.2, 3.2]). Log de error C* deduplicado (transición atómica). Checks: puente 31/31, teleop 13/13.
 
+## 5j. HOME3 (pose de trabajo alineada) y clean_error en los HOME (2026-11-20)
+* Medida real cerca de cero: [-0.01816, -0.00199, -0.04436, 0.04688, -0.01357], efector no del todo recto
+  (pitch 0.00053 rad, yaw -0.0046 rad). Para el xArm5 con garra hacia abajo: pitch = J2 + J3 + J4 (verificado con
+  datos previos: home de trabajo 0.2513 vs pitch medido 0.2508) y yaw = J1 - J5. HOME3 = J4 -> -(J2+J3), J5 -> J1:
+  [-0.01816, -0.00199, -0.04436, 0.04635, -0.01816] (FK: rpy = (pi, 0, 0)).
+* La alineación física no se aplicó: el usuario tenía la seta pulsada (C2). "Go to HOME3" la realiza.
+* `go_home1/2/3` ahora ejecutan `clean_error` si hay error pendiente (antes solo arm/brakes_off/unwind). Check 32.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

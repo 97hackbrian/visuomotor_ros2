@@ -127,6 +127,11 @@ xarm5_bridge:
     #   Initial point": "xArm 5: J1:0 J2:0 J3:0 J4:-90 J5:0"); el manual V2.3.0 la describe como "a relatively safe
     #   position" y la indica para recuperarse de C23. Brida en (0.228, 0, 0.285) m, herramienta horizontal.
     home2_joints_rad: [0.0, 0.0, 0.0, -1.5707963, 0.0]
+    # HOME3 = pose de trabajo del usuario, leída del brazo real el 2026-11-20 (cerca de la posición cero):
+    #   medida [-0.01816, -0.00199, -0.04436, 0.04688, -0.01357] con el efector algo desalineado (pitch 0.00053 rad,
+    #   yaw -0.0046 rad). Alineada por FK de la URDF: J4 = -(J2 + J3) -> garra vertical (pitch 0) y J5 = J1 -> yaw 0.
+    #   Brida (FK) en (0.222, -0.004, 0.116) m, herramienta hacia abajo.
+    home3_joints_rad: [-0.01816, -0.00199, -0.04436, 0.04635, -0.01816]
     home_speed_rad_s: 0.35
     home_acc_rad_s2: 10.0
     home_timeout_s: 30.0

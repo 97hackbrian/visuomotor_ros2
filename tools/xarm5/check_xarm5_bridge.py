@@ -5,7 +5,7 @@ Requiere, en el mismo ROS_DOMAIN_ID:
   1) python3 tools/xarm5/fake_xarm_driver.py
   2) ros2 launch visuomotor_bringup xarm5_real.launch.py start_driver:=false start_smoother:=false dry_run:=false
 
-Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (31 comprobaciones; código de salida 0 = todas OK)
+Luego:  python3 tools/xarm5/check_xarm5_bridge.py      (32 comprobaciones; código de salida 0 = todas OK)
 Los objetivos se publican directamente en /target_frame (entrada del puente).
 """
 
@@ -316,6 +316,16 @@ class Checker(Node):
         self.check("31. Poner frenos desarmado y en reposo: motion_enable(8, 0), frenos aplicados, informa desplazamiento",
                    r.success and s["mt_able"] == 0 and s["mt_brake"] == 0 and s["motion_enable_calls"][-1] == [8, 0]
                    and "mm" in r.message, r.message[:110])
+
+        # --- HOME3 y HOME con C2 activo (seta recién liberada) ------------------------------------------
+        self.fault("inject_error", True)
+        self.spin_for(0.5)
+        n_clean = self.stats()["clean_error"]
+        r = self.call(Trigger, "/xarm5_bridge/go_home3", timeout=BR["home_timeout_s"] + 10)
+        s = self.stats()
+        self.check("32. go_home3 con error del controlador activo: clean_error y luego HOME3 (pose alineada)",
+                   r.success and s["clean_error"] > n_clean
+                   and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home3_joints_rad"]], r.message[:90])
 
         n_fail = sum(1 for _, ok in self.results if not ok)
         print(f"\nRESUMEN: {len(self.results) - n_fail}/{len(self.results)} comprobaciones OK", flush=True)

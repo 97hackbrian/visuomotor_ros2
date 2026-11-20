@@ -206,6 +206,10 @@ Modelo: **UFACTORY xArm 5, código XF1305** ("XF13" en la caja; el controlador r
 |---|---|---|---|
 | **HOME1** | [0, 0, 0, 0, 0] | "Zero Position"; manual V2.3.0 §1.5: mover a cero antes de embalar/transportar | (0.207, 0, 0.112) m, hacia abajo |
 | **HOME2** | [0, 0, 0, -90, 0] | "Initial Position" por defecto del xArm 5 (xArm Studio V1.0.0); "a relatively safe position" (V2.3.0) | (0.228, 0, 0.285) m, horizontal |
+| **HOME3** | [-1.04, -0.11, -2.54, 2.66, -1.04] (°) | Pose de trabajo del usuario (2026-11-20), efector alineado por FK: vertical (J4 = -(J2+J3)) y yaw 0 (J5 = J1) | (0.222, -0.004, 0.116) m, hacia abajo |
+
+Todos los HOME limpian un error C2 pendiente (seta recién liberada) antes de moverse.
+
 Aviso del fabricante (V2.3.0 §3.1.3): con gripper montado, en cero la herramienta sobrepasa la superficie de montaje.
 
 ### Comprobaciones sin hardware (driver falso)

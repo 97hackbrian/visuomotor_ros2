@@ -156,6 +156,7 @@ class XArm5Bridge(Node):
         self.create_service(Trigger, "~/disarm", self._srv_disarm, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/go_home1", self._srv_go_home1, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/go_home2", self._srv_go_home2, callback_group=self._cb_srv)
+        self.create_service(Trigger, "~/go_home3", self._srv_go_home3, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/check_brakes", self._srv_check_brakes, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/unwind_j1", self._srv_unwind_j1, callback_group=self._cb_srv)
         self.create_service(Trigger, "~/brakes_off", self._srv_brakes_off, callback_group=self._cb_srv)
@@ -239,6 +240,7 @@ class XArm5Bridge(Node):
         d("home_acc_rad_s2", 10.0)
         d("home_timeout_s", 30.0)
         d("home2_joints_rad", [0.0, 0.0, 0.0, -math.pi / 2.0, 0.0])
+        d("home3_joints_rad", [0.0, 0.0, 0.0, 0.0, 0.0])
         d("dof", 5)
         d("brake_check_enabled", True)
         d("brake_check_timeout_s", 2.0)
@@ -308,6 +310,7 @@ class XArm5Bridge(Node):
         self.home_acc = float(g("home_acc_rad_s2"))
         self.home_timeout = float(g("home_timeout_s"))
         self.home2_joints = [float(v) for v in g("home2_joints_rad")]
+        self.home3_joints = [float(v) for v in g("home3_joints_rad")]
         self.dof = int(g("dof"))
         self.brake_check_enabled = bool(g("brake_check_enabled"))
         self.brake_check_timeout_s = float(g("brake_check_timeout_s"))
@@ -338,7 +341,8 @@ class XArm5Bridge(Node):
         joints_near_limits([0.0] * self.dof, self.joint_lower, self.joint_upper, self.joint_margin)  # valida
         if len(self.max_home_joint_delta) < self.dof:
             raise ValueError(f"max_home_joint_delta_rad must have {self.dof} values")
-        for name, js in (("home1_joints_rad", self.home1_joints), ("home2_joints_rad", self.home2_joints)):
+        for name, js in (("home1_joints_rad", self.home1_joints), ("home2_joints_rad", self.home2_joints),
+                         ("home3_joints_rad", self.home3_joints)):
             if joints_near_limits(js[:self.dof], self.joint_lower, self.joint_upper, 0.0):
                 raise ValueError(f"{name}={js} is outside the joint limits")
         for name, val in (("control_rate_hz", self.control_rate_hz), ("max_linear_speed_m_s", self.max_linear_speed),
@@ -477,6 +481,10 @@ class XArm5Bridge(Node):
         """HOME2: UFACTORY Studio default Initial Position for xArm 5 (J4 = -90 deg)."""
         return self._go_joints(self.home2_joints, "HOME2", res)
 
+    def _srv_go_home3(self, _req, res):
+        """HOME3: user work pose (measured on the real arm, end effector aligned vertical with yaw 0)."""
+        return self._go_joints(self.home3_joints, "HOME3", res)
+
     def _go_joints(self, joints, label: str, res):
         if self._armed:
             res.success, res.message = False, "Disarm first (~/disarm)."
@@ -502,6 +510,14 @@ class XArm5Bridge(Node):
                     self._measured_rpy = tuple(self.sim_initial_rpy)
             res.success, res.message = True, f"dry-run: would move to {label} joints {joints}"
             return res
+        if self._robot_err != 0:
+            self.get_logger().warn(f"Controller error C{self._robot_err}: trying clean_error...")
+            if not self._call_ok(self._cli_clean_error, Call.Request(), "clean_error") or self._wait_err_cleared() != 0:
+                res.success = False
+                res.message = (f"{label} CANCELLED: the controller still reports error C{self._robot_err} "
+                               "(emergency stop pressed? release it and retry).")
+                self.get_logger().error(res.message)
+                return res
         if not self._set_mode_state(XARM_MODE_POSITION):
             res.success, res.message = False, "Could not switch to position mode."
             return res

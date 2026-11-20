@@ -11,7 +11,7 @@ Seguridad:
   causa, el seguimiento se desactiva solo.
 * Controles limitados a lo que el xArm5 (5 GDL, garra vertical) puede ejecutar: X, Y, Z y giro (yaw).
 
-Menú en inglés (clic derecho): Follow / Stop / Sync / Arm / Disarm / Check brakes / Release brakes / Engage brakes / HOME1 / HOME2 (doble clic).
+Menú en inglés (clic derecho): Follow / Stop / Sync / Arm / Disarm / Check brakes / Release brakes / Engage brakes / HOME1 / HOME2 / HOME3 (doble clic).
 Parámetros en ``visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`` (sección
 ``xarm5_teleop_marker``).
 """
@@ -72,7 +72,7 @@ class XArm5TeleopMarker(Node):
         self.pub_target = self.create_publisher(PoseStamped, g("target_topic"), 10)
         self.create_subscription(String, f"{bridge}/status", self._status_cb, 10)
         self.cli = {name: self.create_client(Trigger, f"{bridge}/{name}")
-                    for name in ("arm", "disarm", "check_brakes", "brakes_off", "brakes_on", "go_home1", "go_home2")}
+                    for name in ("arm", "disarm", "check_brakes", "brakes_off", "brakes_on", "go_home1", "go_home2", "go_home3")}
 
         self.server = InteractiveMarkerServer(self, g("marker_server_name"))
         self.menu = MenuHandler()
@@ -92,6 +92,9 @@ class XArm5TeleopMarker(Node):
         self.menu.insert("Go to HOME2: UFACTORY initial pose (double click)",
                          callback=lambda f: self._confirm_then_call(
                              "go_home2", "the arm will move to HOME2 (J4 -90 deg, UFACTORY default initial position)"))
+        self.menu.insert("Go to HOME3: work pose, end effector aligned (double click)",
+                         callback=lambda f: self._confirm_then_call(
+                             "go_home3", "the arm will move to HOME3 (work pose, end effector vertical and aligned)"))
 
         self.create_timer(1.0 / float(g("publish_rate_hz")), self._publish_target)
         self._init_timer = self.create_timer(float(g("init_retry_s")), self._try_init)
