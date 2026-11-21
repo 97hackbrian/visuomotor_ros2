@@ -229,6 +229,20 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * El conversor VIO también marca los frames fuera de alcance. Checks: puente 35/35 (5d alcance, 7 techo de la caja),
   teleop 16/16, pytest 50.
 
+## 5o. Prueba real del anillo verde y del volumen ampliado (2026-11-20)
+* El usuario probó en el brazo real (desde RViz2 en el host) el anillo verde `arm_plane`: funciona. A pedido suyo, la
+  inclinación pasó de ±0.5 a ±1.48 rad (~85°). El tope del puente es |pitch| < π/2 − 0.05 por el bloqueo de cardán del
+  rpy del controlador.
+* Tras el límite de alcance (z_max 0.75) el usuario confirmó "hasta aquí todo bien".
+* Sigue sin validarse en hardware de forma explícita (sin log del caso):
+  - Inclinación grande combinada con giro (roll lejos de ±π; en el check 5c rpy = (−1.825, 1.202, 1.475)).
+  - −85° con J4 cerca de −97°.
+* Pendientes vigentes:
+  - Medir la extrínseca cámara→TCP (`xarm5_dataset_alignment.yaml`, `extrinsic_calibrated: false`).
+  - Re-medir HOME3 real (`tcp_xyz_m`; hoy FK URDF (0.2221, −0.0040, 0.1160)) y actualizar `jetson_policy_params.yaml`.
+  - Límite de 5 cm/s frente a la velocidad de las demostraciones a mano.
+  - Freno de J3.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

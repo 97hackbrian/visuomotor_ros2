@@ -370,6 +370,14 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
 
 ---
 
+40. **xArm5 real: orientación alcanzable (`arm_plane`), alcance hombro–muñeca y dataset VIO compatible con DP:**
+    - Con 5 GDL la garra solo se inclina en el plano vertical del brazo; el puente interpola en (pitch, yaw) y cada pose enviada es alcanzable.
+    - RViz2: el anillo verde orienta su eje según el acimut y ajusta el marcador al soltar.
+    - Inclinación ±1.48 rad; el tope está bajo ±π/2 por el bloqueo de cardán del rpy del controlador.
+    - La caja de trabajo no basta: la altura alcanzable baja con el radio. Se añadió el límite hombro–muñeca, con muñeca = brida + Rz·Ry·Rx(π)·(−0.076, 0, −0.097).
+    - Las demostraciones a mano registran la cámara en `odom`; hay que convertirlas con `tools/xarm5/convert_vio_dataset_to_xarm5.py` antes de entrenar (home = HOME3, extrínseca medida, misma proyección que el puente).
+    - Módulo 16, §5m–5o.
+
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 1. **Eje 1 (Demostrador Experto para Datasets):** Comparación empírica de datasets generados por PID cartesiano vs. SOTA MPC vs. SOTA Impedancia Cartesiana.
