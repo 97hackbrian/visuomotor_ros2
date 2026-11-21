@@ -227,7 +227,7 @@ Modelo: **UFACTORY xArm 5, código XF1305** ("XF13" en la caja; el controlador r
 |---|---|---|---|
 | **HOME1** | [0, 0, 0, 0, 0] | "Zero Position"; manual V2.3.0 §1.5: mover a cero antes de embalar/transportar | (0.207, 0, 0.112) m, hacia abajo |
 | **HOME2** | [0, 0, 0, -90, 0] | "Initial Position" por defecto del xArm 5 (xArm Studio V1.0.0); "a relatively safe position" (V2.3.0) | (0.228, 0, 0.285) m, horizontal |
-| **HOME3** | [-1.04, -0.11, -2.54, 2.66, -1.04] (°) | Pose de trabajo del usuario (2026-11-20), efector alineado por FK: vertical (J4 = -(J2+J3)) y yaw 0 (J5 = J1) | (0.222, -0.004, 0.116) m, hacia abajo |
+| **HOME3** | [0.05, -41.99, -92.46, 109.92, 1.53] | Pose de trabajo del usuario (redefinida 2026-11-20), leída del brazo real; home de la política | TCP (0.150, 0.005, 0.750) m, garra inclinada ~-24.6° (rpy 3.102, -0.430, -0.011) |
 
 Todos los HOME limpian un error C2 pendiente (seta recién liberada) antes de moverse.
 

@@ -1,9 +1,9 @@
 ---
 name: realsense-vio-data-collection
-description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y RTAB-Map VIO (Grado UMI), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr y desacoplamiento de gripper.
+description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y RTAB-Map VIO (Grado UMI), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
 ---
 
-# Skill: RealSense VIO & UMI Handheld Data Collection (v1.0)
+# Skill: RealSense VIO & UMI Handheld Data Collection (v1.1)
 
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
@@ -27,6 +27,7 @@ Esta habilidad proporciona el procedimiento estandarizado para capturar demostra
 | **Pérdida de Tracking** | $0.0\%$ (cero fotogramas perdidos) | **$0.0\%$** ($258.8$ inliers promedio sostenidos) | **PASA** |
 | **Frecuencia de Muestreo** | $20.0\text{ Hz}$ canónicos sincrónicos | $20.0\text{ Hz}$ sincrónicos con timer de ROS 2 | **PASA** |
 | **Piso de Auto-Stop** | $\ge 2.0\text{ s}$ con `done=1.0` en destino | Garantizado mediante inyección forzada de 40 frames | **PASA** |
+| **Compatibilidad xArm5** (si el dataset se entrenará para el robot real) | 0 episodios marcados en `_conversion_report.json` (o excluidos con `--drop-flagged`) | `tools/xarm5/convert_vio_dataset_to_xarm5.py` | Obligatorio |
 
 ---
 
@@ -71,6 +72,34 @@ El script [`tools/hardware/run_data_collection.sh`](file:///home/hackbrian/Docum
 
 ---
 
+## 3b. Restricciones para Demostraciones Destinadas al xArm5 (5 GDL)
+
+La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable por él (ver
+`.agents/knowledge/16_xarm5_real_hardware_bringup.md`, §5m–5p).
+
+1. **Inicio = HOME3 (pose de trabajo, redefinida el 2026-11-20).** Cada episodio empieza con la cámara en la pose que
+   tendría montada en la muñeca del brazo en HOME3, con la misma disposición de la escena.
+   - TCP (brida) en `link_base`, según el controlador: (0.150, 0.005, 0.750) m, rpy (3.102, −0.430, −0.011). Es decir,
+     muy alto sobre la base (75 cm) y con la garra inclinada ~−24.6° en el plano del brazo (punta hacia fuera).
+   - Juntas: [0.05, −41.99, −92.46, 109.92, 1.53]°; menú RViz2 *Go to HOME3*.
+   - El primer frame se mapea a `home_x/y/z/roll/pitch/yaw` de `deploy/jetson/config/jetson_policy_params.yaml`. Si se
+     redefine HOME3, actualizar allí y reconvertir.
+2. **Orientación:** la garra debe estar vertical o inclinada solo en el plano vertical que contiene a la base del brazo
+   (hacia la base o alejándose), hasta ±85°. Nunca debe inclinarse lateralmente (roll): el xArm5 no puede ejecutarlo;
+   se proyecta y el episodio se marca si la desviación supera 0.15 rad.
+3. **Volumen alcanzable:**
+   - Radio 0.15–0.65 m y |y| ≤ 0.30 m.
+   - La altura máxima baja con la distancia: 0.75 m cerca de la base, 0.71 m a 0.35 m, 0.61 m a 0.50 m y 0.37 m a 0.65 m.
+   - HOME3 ya está en el techo (z = 0.75) y en el radio mínimo (x = 0.15): desde ahí la demostración solo puede bajar o
+     alejarse.
+4. **Velocidad:** ≤ 5 cm/s y ≤ 0.5 rad/s (límites actuales de `xarm5_bridge`). Si se demuestra más rápido, el robot
+   ejecuta más lento que lo aprendido; subir antes los límites del puente y reconvertir.
+5. **Montaje:** el mismo soporte de cámara en la mano y en la muñeca del robot (extrínseca cámara→TCP en
+   `visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml`, medir y poner `extrinsic_calibrated: true`).
+6. **Gripper:** `0.0` si no se registra (`[G]` para alternar).
+
+---
+
 ## 4. Controles Durante la Recolección Interactiva
 
 * **`[ESPACIO]` (START):** Fija el origen relativo del episodio en $(0.0, 0.0, 0.0)$. Mover la cámara hacia el objeto/destino.
@@ -95,6 +124,17 @@ docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py \
     --dataset datasets/demonstrations_real_v5.zarr \
     --out-dir datasets/visualizations_real_v5
 ```
+
+**Conversión obligatoria antes de entrenar para el xArm5.** `vo_collector` guarda la pose de la cámara en el marco
+`odom` de RTAB-Map. En el robot, `policy_node` observa el TCP en `link_base` menos el home (HOME3). La conversión
+escribe una copia nueva y nunca modifica el original:
+```bash
+python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v5.zarr --report-only   # auditoría
+python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v5.zarr --drop-flagged
+# -> entrenar con datasets/demonstrations_real_v5_xarm5.zarr; revisar demonstrations_real_v5_xarm5_conversion_report.json
+```
+La herramienta se niega a convertir con `extrinsic_calibrated: false`. Marca los episodios con orientación inalcanzable,
+fuera del volumen o del alcance, o más rápidos que el puente.
 
 ---
 

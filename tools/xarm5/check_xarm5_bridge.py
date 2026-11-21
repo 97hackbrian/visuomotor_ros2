@@ -371,7 +371,7 @@ class Checker(Node):
         n_clean = self.stats()["clean_error"]
         r = self.call(Trigger, "/xarm5_bridge/go_home3", timeout=BR["home_timeout_s"] + 10)
         s = self.stats()
-        self.check("32. go_home3 con error del controlador activo: clean_error y luego HOME3 (pose alineada)",
+        self.check("32. go_home3 con error del controlador activo: clean_error y luego HOME3 (pose de trabajo)",
                    r.success and s["clean_error"] > n_clean
                    and s["set_servo_angle"][-1] == [round(v, 3) for v in BR["home3_joints_rad"]], r.message[:90])
 

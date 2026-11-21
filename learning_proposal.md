@@ -2,7 +2,7 @@
 RequestFeedback: true
 date: 2026-11-20
 protocol: UPDATE_KNOWLEDGE.md v2.2.0 (Paso 6)
-status: pendiente de aprobación (no aplicado)
+status: aprobada y aplicada (2026-11-20)
 ---
 
 # Propuesta de aprendizaje: demostraciones reales para el xArm5
@@ -37,3 +37,7 @@ python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstration
 
 ## Para aplicar
 Responder **Proceed** (o indicar cambios). Sin aprobación la skill no se modifica.
+
+---
+**Estado (2026-11-20): APROBADA por el usuario y APLICADA** en `.agents/skills/realsense-vio-data-collection/SKILL.md`
+(v1.1), con el HOME3 redefinido (TCP (0.150, 0.005, 0.750) m, garra inclinada ~−24.6°).

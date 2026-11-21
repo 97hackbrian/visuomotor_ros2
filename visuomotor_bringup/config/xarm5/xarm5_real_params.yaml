@@ -149,12 +149,19 @@ xarm5_bridge:
     #   Initial point": "xArm 5: J1:0 J2:0 J3:0 J4:-90 J5:0"); el manual V2.3.0 la describe como "a relatively safe
     #   position" y la indica para recuperarse de C23. Brida en (0.228, 0, 0.285) m, herramienta horizontal.
     home2_joints_rad: [0.0, 0.0, 0.0, -1.5707963, 0.0]
-    # HOME3 = pose de trabajo del usuario, leída del brazo real el 2026-11-20 (cerca de la posición cero):
+    # HOME3 = pose de TRABAJO del usuario, redefinida el 2026-11-20 (tarde): leída del brazo real colocado por el
+    #   usuario con el marcador de RViz2 (y llevada a 0; objetivo (0.149, 0.0001, 0.753) recortado por la caja a
+    #   x_min 0.15 y z_max 0.75). Controlador: TCP (0.1500, 0.0053, 0.7500) m, rpy (3.1018, -0.4296, -0.0114):
+    #   garra inclinada ~-24.6° en el plano del brazo (punta hacia fuera), alcance hombro-muñeca 0.541 m.
+    #   Juntas medidas (sin alinear, tal cual): [0.00089, -0.73289, -1.61376, 1.91852, 0.02678] rad
+    #   = [0.05, -41.99, -92.46, 109.92, 1.53] grados. Es también el home de la política (jetson_policy_params.yaml).
+    home3_joints_rad: [0.00089, -0.73289, -1.61376, 1.91852, 0.02678]
+    # HOME3 anterior (histórico, ya no se usa): pose de trabajo leída del brazo real el 2026-11-20 (cerca de cero):
     #   medida [-0.01816, -0.00199, -0.04436, 0.04688, -0.01357] con el efector algo desalineado (pitch 0.00053 rad,
     #   yaw -0.0046 rad). Alineada con la cinemática CALIBRADA del controlador (no la URDF nominal): el controlador
     #   reporta pitch = J2+J3+J4 - 0.00052 y yaw = J1 - J5 + 0.00135 (desfases medidos el 2026-11-20 con go_home3).
     #   -> J4 = 0.04688 (pitch 0) y J5 = -0.01681 (yaw 0). Brida ~(0.219, 0.000, 0.117) m, herramienta hacia abajo.
-    home3_joints_rad: [-0.01816, -0.00199, -0.04436, 0.04688, -0.01681]
+    #   home3_joints_rad (anterior): [-0.01816, -0.00199, -0.04436, 0.04688, -0.01681]
     home_speed_rad_s: 0.35
     home_acc_rad_s2: 10.0
     home_timeout_s: 30.0

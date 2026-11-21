@@ -113,9 +113,9 @@ class XArm5TeleopMarker(Node):
         self.menu.insert("Go to HOME2: UFACTORY initial pose (double click)",
                          callback=lambda f: self._confirm_then_call(
                              "go_home2", "the arm will move to HOME2 (J4 -90 deg, UFACTORY default initial position)"))
-        self.menu.insert("Go to HOME3: work pose, end effector aligned (double click)",
+        self.menu.insert("Go to HOME3: work pose (double click)",
                          callback=lambda f: self._confirm_then_call(
-                             "go_home3", "the arm will move to HOME3 (work pose, end effector vertical and aligned)"))
+                             "go_home3", "the arm will move to HOME3 (work pose high above the base, end effector tilted ~25 deg)"))
 
         self.create_timer(1.0 / float(g("publish_rate_hz")), self._publish_target)
         self._init_timer = self.create_timer(float(g("init_retry_s")), self._try_init)

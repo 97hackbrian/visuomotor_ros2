@@ -46,15 +46,15 @@ policy_node:
     # TCP = brida, offset del controlador 0). Es también el ORIGEN de las demostraciones: tools/xarm5/
     # convert_vio_dataset_to_xarm5.py lee estos valores para llevar el dataset VIO a link_base, así que el checkpoint
     # entrenado con ese dataset y esta inferencia usan el mismo home. Si se cambia, reconvertir el dataset.
-    # PROVISIONAL (2026-11-20): FK de la URDF nominal; la calibración del controlador difiere ~4 mm (medido en el
-    # antiguo home2). Re-medir con el brazo en HOME3 (tcp_xyz_m de /xarm5_bridge/status) y actualizar.
+    # Medido en el brazo real en HOME3 (2026-11-20, pose reportada por el controlador; TCP = brida):
+    # garra inclinada ~-24.6° en el plano del brazo. Si se redefine HOME3, actualizar aquí y reconvertir el dataset.
     # La fase RESET envía esta pose y el puente rechaza objetivos a más de max_target_distance_m del TCP.
-    home_x: 0.2221
-    home_y: -0.0040
-    home_z: 0.1160
-    home_roll: 3.14159265
-    home_pitch: 0.0
-    home_yaw: 0.0
+    home_x: 0.15000
+    home_y: 0.00526
+    home_z: 0.75000
+    home_roll: 3.10176
+    home_pitch: -0.42961
+    home_yaw: -0.01136
 
     # --- Coordenadas Relativas (Modo UMI / Delta-Home) ---
     # Debe coincidir con cómo se entrenó el checkpoint: true resta home (home_x/y/z, = HOME3) a la observación y lo

@@ -412,8 +412,9 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 - **Fase 20 (xArm5 `arm_plane` + compatibilidad DP del dataset real):**
   - Inclinación alcanzable en el plano del brazo en el puente (interpolación en pitch/yaw) y anillo verde en RViz2.
   - `convert_vio_dataset_to_xarm5.py`: cámara en odom → TCP en link_base, proyección y auditoría.
-  - Home de la política = HOME3.
-  - Pendiente: medir la extrínseca cámara-TCP y HOME3 real, y validar en el brazo real la inclinación combinada con giro (roll ≠ π).
+  - Home de la política = HOME3, redefinido el 2026-11-20 como pose alta e inclinada: TCP (0.150, 0.005, 0.750), pitch −0.43.
+  - Skill `realsense-vio-data-collection` v1.1 aplicada.
+  - Pendiente: medir la extrínseca cámara-TCP y validar en el brazo real la inclinación combinada con giro (roll ≠ π).
   - Volumen = caja (z_max 0.75) ∩ alcance hombro–muñeca (95% del codo recto, mínimo de 0.12 m), validado por FK.
 
 **Roadmap Experimental Inmediato:**

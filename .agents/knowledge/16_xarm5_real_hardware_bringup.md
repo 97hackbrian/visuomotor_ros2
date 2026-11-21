@@ -243,6 +243,22 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   - Límite de 5 cm/s frente a la velocidad de las demostraciones a mano.
   - Freno de J3.
 
+## 5p. HOME3 redefinido como pose de trabajo alta e inclinada (2026-11-20)
+* El usuario colocó el brazo con el marcador de RViz2 y pidió guardar la pose como HOME3. Lectura (solo lectura,
+  `/xarm/robot_states`, brazo armado y quieto en dos lecturas):
+  - Juntas: [0.00089, −0.73289, −1.61376, 1.91852, 0.02678] rad = [0.05, −41.99, −92.46, 109.92, 1.53]°.
+  - Controlador: TCP (0.1500, 0.0053, 0.7500) m, rpy (3.1018, −0.4296, −0.0114). Garra inclinada ~−24.6° en el plano
+    del brazo (proyección: pitch −0.4275); alcance hombro–muñeca 0.541 m.
+* El objetivo del usuario (0.149, 0.0001, 0.7527) quedó recortado por la caja (x_min 0.15, z_max 0.75). La FK URDF de
+  esas juntas da exactamente (0.149, 0.0001, 0.7527), lo que RViz muestra con el modelo nominal. El controlador reporta
+  (0.150, 0.0053, 0.750): una diferencia de calibración de ~5 mm (ya vista en el antiguo home2, ~4 mm).
+* `home3_joints_rad` guardado tal cual (sin alinear). Home de la política = pose del controlador (la TF `xarm_tcp` que
+  observa `policy_node`). El HOME3 anterior (cerca de cero) queda comentado en el YAML como histórico.
+* Menú: "Go to HOME3: work pose (double click)". Skill `realsense-vio-data-collection` v1.1 aprobada y aplicada
+  (restricciones xArm5 + conversión obligatoria).
+* Implicación: HOME3 está en el techo (z_max) y en el radio mínimo, así que desde HOME3 las demostraciones solo pueden
+  bajar o alejarse.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
