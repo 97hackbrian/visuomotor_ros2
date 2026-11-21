@@ -154,8 +154,11 @@ xarm5_bridge:
     #   x_min 0.15 y z_max 0.75). Controlador: TCP (0.1500, 0.0053, 0.7500) m, rpy (3.1018, -0.4296, -0.0114):
     #   garra inclinada ~-24.6° en el plano del brazo (punta hacia fuera), alcance hombro-muñeca 0.541 m.
     #   Juntas medidas (sin alinear, tal cual): [0.00089, -0.73289, -1.61376, 1.91852, 0.02678] rad
-    #   = [0.05, -41.99, -92.46, 109.92, 1.53] grados. Es también el home de la política (jetson_policy_params.yaml).
-    home3_joints_rad: [0.00089, -0.73289, -1.61376, 1.91852, 0.02678]
+    #   = [0.05, -41.99, -92.46, 109.92, 1.53] grados.
+    #   Centrado en y = 0 a pedido del usuario: J1 y J5 giran -0.03503 rad (= -atan2(0.00526, 0.150)) -> el brazo rota
+    #   rígido sobre la base (TCP previsto (0.1501, 0.0000, 0.7500)) y J5 compensa para conservar el giro de la garra.
+    #   Es también el home de la política (jetson_policy_params.yaml). Re-medir tras el primer go_home3.
+    home3_joints_rad: [-0.03414, -0.73289, -1.61376, 1.91852, -0.00825]
     # HOME3 anterior (histórico, ya no se usa): pose de trabajo leída del brazo real el 2026-11-20 (cerca de cero):
     #   medida [-0.01816, -0.00199, -0.04436, 0.04688, -0.01357] con el efector algo desalineado (pitch 0.00053 rad,
     #   yaw -0.0046 rad). Alineada con la cinemática CALIBRADA del controlador (no la URDF nominal): el controlador

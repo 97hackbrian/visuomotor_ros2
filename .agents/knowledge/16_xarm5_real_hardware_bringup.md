@@ -259,6 +259,10 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * Implicación: HOME3 está en el techo (z_max) y en el radio mínimo, así que desde HOME3 las demostraciones solo pueden
   bajar o alejarse.
 
+* Ajuste posterior (a pedido del usuario): centrar el controlador en y = 0. J1 y J5 giran -0.03503 rad. El brazo rota
+  rígido sobre la base y J5 compensa (yaw ≈ J1 − J5 + c) para conservar el giro de la garra. `home3_joints_rad` = [-0.03414, -0.73289, -1.61376, 1.91852, -0.00825].
+  TCP previsto (0.1501, 0.0000, 0.7500): valor previsto, a re-medir tras el primer go_home3.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para

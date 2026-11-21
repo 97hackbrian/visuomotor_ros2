@@ -49,8 +49,9 @@ policy_node:
     # Medido en el brazo real en HOME3 (2026-11-20, pose reportada por el controlador; TCP = brida):
     # garra inclinada ~-24.6° en el plano del brazo. Si se redefine HOME3, actualizar aquí y reconvertir el dataset.
     # La fase RESET envía esta pose y el puente rechaza objetivos a más de max_target_distance_m del TCP.
-    home_x: 0.15000
-    home_y: 0.00526
+    # Centrado en y = 0 (J1/J5 -0.03503 rad): valor PREVISTO hasta re-medir tras go_home3.
+    home_x: 0.15009
+    home_y: 0.00000
     home_z: 0.75000
     home_roll: 3.10176
     home_pitch: -0.42961
