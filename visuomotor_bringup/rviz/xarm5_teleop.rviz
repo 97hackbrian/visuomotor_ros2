@@ -1,17 +1,18 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /TF1/Frames1
+        - /TF1/Frames1/link31
       Splitter Ratio: 0.5
-    Tree Height: 549
+    Tree Height: 415
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
-    Expanded:
-      - /2D Goal Pose1
+    Expanded: ~
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
   - Class: rviz_common/Views
@@ -22,8 +23,8 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.5
-      Cell Size: 0.1
+    - Alpha: 0.25
+      Cell Size: 0.10000000149011612
       Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -37,12 +38,12 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 20
+      Plane Cell Count: 15
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 0.5
       Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
+      Collision Enabled: true
       Description File: ""
       Description Source: Topic
       Description Topic:
@@ -58,11 +59,44 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        link5:
-          Alpha: 0.4
-          Show Axes: true
+        link1:
+          Alpha: 1
+          Show Axes: false
           Show Trail: false
           Value: true
+        link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link_eef:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        world:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
       Mass Properties:
         Inertia: false
         Mass: false
@@ -73,12 +107,26 @@ Visualization Manager:
       Visual Enabled: true
     - Class: rviz_default_plugins/TF
       Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        link_base:
+        link1:
+          Value: true
+        link2:
+          Value: true
+        link3:
+          Value: true
+        link4:
           Value: true
         link5:
+          Value: true
+        link_base:
+          Value: true
+        link_eef:
+          Value: true
+        world:
           Value: true
         xarm_tcp:
           Value: true
@@ -87,6 +135,18 @@ Visualization Manager:
       Show Arrows: false
       Show Axes: true
       Show Names: true
+      Tree:
+        world:
+          link_base:
+            link1:
+              link2:
+                link3:
+                  link4:
+                    link5:
+                      link_eef:
+                        {}
+            xarm_tcp:
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/InteractiveMarkers
@@ -99,39 +159,41 @@ Visualization Manager:
       Show Visual Aids: true
       Value: true
     - Alpha: 1
-      Axes Length: 0.12
-      Axes Radius: 0.008
+      Axes Length: 0.11999999731779099
+      Axes Radius: 0.00800000037997961
       Class: rviz_default_plugins/Pose
       Color: 255; 170; 0
       Enabled: true
-      Head Length: 0.03
-      Head Radius: 0.015
+      Head Length: 0.029999999329447746
+      Head Radius: 0.014999999664723873
       Name: Objetivo (/target_frame)
-      Shaft Length: 0.12
-      Shaft Radius: 0.008
+      Shaft Length: 0.11999999731779099
+      Shaft Radius: 0.00800000037997961
       Shape: Axes
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /target_frame
       Value: true
     - Alpha: 1
-      Axes Length: 0.10
-      Axes Radius: 0.008
+      Axes Length: 0.10000000149011612
+      Axes Radius: 0.00800000037997961
       Class: rviz_default_plugins/Pose
       Color: 0; 255; 255
       Enabled: true
-      Head Length: 0.025
-      Head Radius: 0.012
+      Head Length: 0.02500000037252903
+      Head Radius: 0.012000000104308128
       Name: Comando enviado (command_preview)
-      Shaft Length: 0.10
-      Shaft Radius: 0.008
+      Shaft Length: 0.10000000149011612
+      Shaft Radius: 0.00800000037997961
       Shape: Axes
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /xarm5_bridge/command_preview
@@ -157,30 +219,39 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.2
+      Distance: 1.5268104076385498
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.2
-        Y: 0
-        Z: 0.15
-      Focal Shape Fixed Size: true
+        X: 0.12754391133785248
+        Y: 0.15733173489570618
+        Z: 0.16640084981918335
+      Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5
-      Target Frame: <Fixed Frame>
+      Pitch: 0.33539849519729614
+      Target Frame: link_base
       Value: Orbit (rviz)
-      Yaw: 0.8
+      Yaw: 4.958594799041748
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 900
-  Width: 1400
-  X: 50
-  Y: 50
+  Height: 1200
+  Hide Left Dock: false
+  Hide Right Dock: true
+  QMainWindow State: 000000ff00000000fd00000001000000000000019b0000045afc0200000004fb000000100044006900730070006c006100790073010000003b000001da000000c700fffffffb0000001200530065006c0065006300740069006f006e010000021b000000a60000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000002c7000000a70000005c00fffffffb0000000a00560069006500770073010000037400000121000000a000ffffff000005df0000045a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1920
+  X: 0
+  Y: 0
