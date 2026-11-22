@@ -62,6 +62,8 @@ def main():
         default=300,
         help="Resolución de las figuras exportadas (por defecto 300 DPI).",
     )
+    parser.add_argument("--lang", choices=["es", "en"], default="es", help="Idioma de las figuras")
+    parser.add_argument("--dataset_name", default=None, help="Nombre del dataset para los títulos")
     parser.add_argument(
         "--no_plots",
         action="store_true",
@@ -115,7 +117,13 @@ def main():
     # Renderizar gráficos de calidad de publicación
     if not args.no_plots:
         print(f"🎨 Renderizando figuras científicas dual-axis a {args.dpi} DPI...")
-        png_path, pdf_path = analyzer.plot_dual_axis(out_dir, dpi=args.dpi, show_diagnostics=True)
+        ds_name = args.dataset_name
+        meta = (run_dir / "training_meta.json") if run_dir else None
+        if ds_name is None and meta is not None and meta.exists():
+            import json as _json
+            ds_name = _json.load(open(meta)).get("dataset_name")
+        png_path, pdf_path = analyzer.plot_dual_axis(out_dir, dpi=args.dpi, show_diagnostics=True,
+                                                     dataset_name=ds_name, language=args.lang)
         print(f"✅ Figuras generadas exitosamente:")
         print(f"  - Canónica PNG: {png_path}")
         print(f"  - Canónica PDF: {pdf_path}")

@@ -53,6 +53,17 @@ METHOD_LABELS = {
 }
 
 
+METHOD_LABELS_EN = {
+    "kneedle_elbow": "Elbow / max. curvature (Kneedle)",
+    "gradient_flatness": "Gradient ≈ 0 (|dL/dt| < ε)",
+    "variance_stabilization": "Variance stabilization (RSD < τ)",
+    "relative_improvement": "Bounded relative improvement (ΔL/L < τ)",
+    "prechelt_progress": "Progress quotient (Prechelt PQ)",
+    "ema_gap": "EMA-gap stabilization",
+    "consensus": "Pareto consensus",
+}
+
+
 @dataclass
 class StoppingRecommendation:
     method_id: str
@@ -926,6 +937,7 @@ class ConvergenceAnalyzer:
         dpi: int = 300,
         show_diagnostics: bool = True,
         dataset_name: Optional[str] = None,
+        language: str = "es",
     ) -> Tuple[Path, Path]:
         """
         Genera la figura de publicación con Doble Eje X Sincrónico:
@@ -934,6 +946,8 @@ class ConvergenceAnalyzer:
         Incluye marcadores verticales explícitos y callouts para cada criterio evaluado.
         Exporta versiones PNG y PDF vectorial sin dependencias de display X11.
         """
+        L = (lambda es, en: en if language == "en" else es)  # textos de figura: "es" (histórico) o "en"
+        name = (lambda r: METHOD_LABELS_EN.get(r.method_id, r.method_name) if language == "en" else r.method_name)
         output_dir.mkdir(parents=True, exist_ok=True)
         if not self.step_history:
             log.warning("No hay datos para graficar convergencia.")
@@ -952,18 +966,18 @@ class ConvergenceAnalyzer:
         fig, ax1 = plt.subplots(figsize=(13, 7))
 
         # Eje Inferior (Steps)
-        p1 = ax1.plot(steps, losses, color="#1f77b4", alpha=0.25, linewidth=1.2, label="Pérdida Cruda (Batch MSE)")
-        p2 = ax1.plot(steps, ema_losses, color="#0b3c5d", linewidth=2.4, label="Pérdida Filtrada EMA (Suavizado α=0.05)")
+        p1 = ax1.plot(steps, losses, color="#1f77b4", alpha=0.25, linewidth=1.2, label=L("Pérdida Cruda (Batch MSE)", "Raw batch loss (MSE)"))
+        p2 = ax1.plot(steps, ema_losses, color="#0b3c5d", linewidth=2.4, label=L("Pérdida Filtrada EMA (Suavizado α=0.05)", "EMA-filtered loss (α=0.05)"))
 
-        ax1.set_xlabel("Paso de Optimización (Optimization Step)", fontsize=12, fontweight="bold", labelpad=8)
-        ax1.set_ylabel("Pérdida de Difusión (MSE Loss)", fontsize=12, fontweight="bold", labelpad=8)
+        ax1.set_xlabel(L("Paso de Optimización (Optimization Step)", "Optimization step"), fontsize=12, fontweight="bold", labelpad=8)
+        ax1.set_ylabel(L("Pérdida de Difusión (MSE Loss)", "Diffusion loss (MSE)"), fontsize=12, fontweight="bold", labelpad=8)
         ax1.grid(True, linestyle="--", alpha=0.5)
 
         # Configurar Eje Superior (Epochs) mediante transformación sincrónica
         f_step_to_epoch = lambda s: step_to_epoch(s, self.steps_per_epoch)
         f_epoch_to_step = lambda e: epoch_to_step(e, self.steps_per_epoch)
         secax = ax1.secondary_xaxis("top", functions=(f_step_to_epoch, f_epoch_to_step))
-        secax.set_xlabel(f"Época de Entrenamiento (1 Época = {self.steps_per_epoch:,} Pasos)", fontsize=12, fontweight="bold", labelpad=8)
+        secax.set_xlabel(L(f"Época de Entrenamiento (1 Época = {self.steps_per_epoch:,} Pasos)", f"Training epoch (1 epoch = {self.steps_per_epoch:,} steps)"), fontsize=12, fontweight="bold", labelpad=8)
 
         # Marcadores verticales de cada criterio evaluado
         marker_handles = []
@@ -995,7 +1009,7 @@ class ConvergenceAnalyzer:
                 linestyle=ls,
                 linewidth=lw,
                 alpha=alpha,
-                label=f"{rec.method_name}: Ép. {rec.recommended_epoch:.2f} (Paso {rec.recommended_step:,})",
+                label=L(f"{rec.method_name}: Ép. {rec.recommended_epoch:.2f} (Paso {rec.recommended_step:,})", f"{name(rec)}: ep. {rec.recommended_epoch:.2f} (step {rec.recommended_step:,})"),
             )
             marker_handles.append(line)
 
@@ -1011,7 +1025,7 @@ class ConvergenceAnalyzer:
 
             # Anotación callout inteligente
             bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec=color, lw=1.5, alpha=0.92)
-            txt = f"Época {rec.recommended_epoch:.1f} (Paso {rec.recommended_step:,})\nL={rec.loss_at_stop:.4f}"
+            txt = L(f"Época {rec.recommended_epoch:.1f} (Paso {rec.recommended_step:,})", f"Epoch {rec.recommended_epoch:.1f} (step {rec.recommended_step:,})") + f"\nL={rec.loss_at_stop:.4f}"
             
             # Posicionamiento alternado para evitar solapamientos
             x_offset = 15 if idx % 2 == 0 else -110
@@ -1031,8 +1045,9 @@ class ConvergenceAnalyzer:
         ds_label = dataset_name or self.dataset_name or "demonstrations.zarr"
 
         ax1.set_title(
-            "Determinación de Convergencia y Evaluación de Criterios de Parada\n"
-            f"Diffusion Policy (DDIM Schedule + ResNet-18) sobre {ds_label}",
+            L("Determinación de Convergencia y Evaluación de Criterios de Parada\n"
+              f"Diffusion Policy (DDIM Schedule + ResNet-18) sobre {ds_label}",
+              f"Convergence and stopping-criteria evaluation\nDiffusion Policy (DDIM + ResNet-18) on {ds_label}"),
             fontsize=14,
             fontweight="bold",
             pad=18,
@@ -1053,20 +1068,21 @@ class ConvergenceAnalyzer:
         if show_diagnostics:
             fig_diag, axs = plt.subplots(2, 2, figsize=(15, 11))
             fig_diag.suptitle(
-                f"Dinámica de Métricas Matemáticas de Convergencia y Regímenes de Parada\n"
-                f"Diffusion Policy (DDIM + ResNet-18) sobre {ds_label}",
+                L(f"Dinámica de Métricas Matemáticas de Convergencia y Regímenes de Parada\n"
+                  f"Diffusion Policy (DDIM + ResNet-18) sobre {ds_label}",
+                  f"Convergence metrics and stopping regimes\nDiffusion Policy (DDIM + ResNet-18) on {ds_label}"),
                 fontsize=15,
                 fontweight="bold",
             )
 
             # Subplot 1: Curva de Pérdida con Dual Axis y Bandas de Parada
-            axs[0, 0].plot(steps, losses, color="#1f77b4", alpha=0.25, label="Loss Crudo")
+            axs[0, 0].plot(steps, losses, color="#1f77b4", alpha=0.25, label=L("Loss Crudo", "Raw loss"))
             axs[0, 0].plot(steps, ema_losses, color="#d62728", linewidth=2.0, label="Loss EMA")
             for rec in self.recommendations.values():
                 c = METHOD_COLORS.get(rec.method_id, "#333")
                 axs[0, 0].axvline(rec.recommended_step, color=c, linestyle="--", alpha=0.7)
-            axs[0, 0].set_title("A) Evolución de Pérdida y Puntos de Detención", fontweight="bold")
-            axs[0, 0].set_xlabel("Paso de Optimización (Step)")
+            axs[0, 0].set_title(L("A) Evolución de Pérdida y Puntos de Detención", "A) Loss and stopping points"), fontweight="bold")
+            axs[0, 0].set_xlabel(L("Paso de Optimización (Step)", "Optimization step"))
             axs[0, 0].set_ylabel("Loss (MSE)")
             axs[0, 0].grid(True, linestyle="--", alpha=0.5)
             axs[0, 0].legend(loc="upper right", fontsize=8.5)
@@ -1079,20 +1095,20 @@ class ConvergenceAnalyzer:
                         lambda e: epoch_to_step(e, self.steps_per_epoch),
                     ),
                 )
-                secax_diag.set_xlabel(f"Época (1 Época = {self.steps_per_epoch:,} Pasos)", fontsize=9, fontweight="bold")
+                secax_diag.set_xlabel(L(f"Época (1 Época = {self.steps_per_epoch:,} Pasos)", f"Epoch (1 epoch = {self.steps_per_epoch:,} steps)"), fontsize=9, fontweight="bold")
 
             # Subplot 2: Magnitud de Gradiente Suavizado |dL/dt|
             dy = np.gradient(smooth_curve_ema(losses, 0.05), steps.astype(np.float64))
             abs_dy = moving_average_edge_padded(np.abs(dy), 15)
-            axs[0, 1].plot(steps, abs_dy, color="#2ca02c", linewidth=1.8, label="|dL/dt| Suavizado")
+            axs[0, 1].plot(steps, abs_dy, color="#2ca02c", linewidth=1.8, label=L("|dL/dt| Suavizado", "Smoothed |dL/dt|"))
             if "gradient_flatness" in self.recommendations:
                 g_rec = self.recommendations["gradient_flatness"]
-                axs[0, 1].axhline(g_rec.threshold, color="red", linestyle=":", label=f"Umbral ε={g_rec.threshold:.2e}")
-                axs[0, 1].axvline(g_rec.recommended_step, color="#2ca02c", linestyle="--", label=f"Stop Paso {g_rec.recommended_step}")
+                axs[0, 1].axhline(g_rec.threshold, color="red", linestyle=":", label=L(f"Umbral ε={g_rec.threshold:.2e}", f"Threshold ε={g_rec.threshold:.2e}"))
+                axs[0, 1].axvline(g_rec.recommended_step, color="#2ca02c", linestyle="--", label=L(f"Stop Paso {g_rec.recommended_step}", f"Stop at step {g_rec.recommended_step}"))
             axs[0, 1].set_yscale("log")
-            axs[0, 1].set_title("B) Tasa de Variación / Gradiente Temporal (|dL/dt|)", fontweight="bold")
-            axs[0, 1].set_xlabel("Paso de Optimización (Step)")
-            axs[0, 1].set_ylabel("Pendiente Absoluta (Escala Log)")
+            axs[0, 1].set_title(L("B) Tasa de Variación / Gradiente Temporal (|dL/dt|)", "B) Loss gradient magnitude (|dL/dt|)"), fontweight="bold")
+            axs[0, 1].set_xlabel(L("Paso de Optimización (Step)", "Optimization step"))
+            axs[0, 1].set_ylabel(L("Pendiente Absoluta (Escala Log)", "Absolute slope (log)"))
             axs[0, 1].grid(True, linestyle="--", alpha=0.5)
             axs[0, 1].legend(loc="upper right", fontsize=8.5)
 
@@ -1105,14 +1121,14 @@ class ConvergenceAnalyzer:
                 m = np.mean(sub)
                 if m > 1e-12:
                     rsds[i] = np.std(sub) / m
-            axs[1, 0].plot(steps, rsds * 100.0, color="#9467bd", linewidth=1.8, label="RSD Móvil (%)")
+            axs[1, 0].plot(steps, rsds * 100.0, color="#9467bd", linewidth=1.8, label=L("RSD Móvil (%)", "Rolling RSD (%)"))
             if "variance_stabilization" in self.recommendations:
                 v_rec = self.recommendations["variance_stabilization"]
-                axs[1, 0].axhline(v_rec.threshold * 100.0, color="red", linestyle=":", label=f"Umbral τ={v_rec.threshold*100:.1f}%")
-                axs[1, 0].axvline(v_rec.recommended_step, color="#9467bd", linestyle="--", label=f"Stop Paso {v_rec.recommended_step}")
-            axs[1, 0].set_title("C) Estabilización de Varianza Estocástica (RSD)", fontweight="bold")
-            axs[1, 0].set_xlabel("Paso de Optimización (Step)")
-            axs[1, 0].set_ylabel("RSD Relativo (%)")
+                axs[1, 0].axhline(v_rec.threshold * 100.0, color="red", linestyle=":", label=L(f"Umbral τ={v_rec.threshold*100:.1f}%", f"Threshold τ={v_rec.threshold*100:.1f}%"))
+                axs[1, 0].axvline(v_rec.recommended_step, color="#9467bd", linestyle="--", label=L(f"Stop Paso {v_rec.recommended_step}", f"Stop at step {v_rec.recommended_step}"))
+            axs[1, 0].set_title(L("C) Estabilización de Varianza Estocástica (RSD)", "C) Stochastic variance stabilization (RSD)"), fontweight="bold")
+            axs[1, 0].set_xlabel(L("Paso de Optimización (Step)", "Optimization step"))
+            axs[1, 0].set_ylabel(L("RSD Relativo (%)", "Relative SD (%)"))
             axs[1, 0].grid(True, linestyle="--", alpha=0.5)
             axs[1, 0].legend(loc="upper right", fontsize=8.5)
 
@@ -1120,18 +1136,18 @@ class ConvergenceAnalyzer:
             if self.epoch_history:
                 eps = [r["epoch"] for r in self.epoch_history]
                 ep_losses = [r["avg_loss"] for r in self.epoch_history]
-                axs[1, 1].plot(eps, ep_losses, color="#ff7f0e", marker="o", markersize=4, linewidth=2.0, label="Pérdida Media / Época")
+                axs[1, 1].plot(eps, ep_losses, color="#ff7f0e", marker="o", markersize=4, linewidth=2.0, label=L("Pérdida Media / Época", "Mean loss / epoch"))
                 for rec in self.recommendations.values():
                     c = METHOD_COLORS.get(rec.method_id, "#333")
                     axs[1, 1].axvline(rec.recommended_epoch, color=c, linestyle="--", alpha=0.7)
-                axs[1, 1].set_title("D) Macro Convergencia por Época Completa", fontweight="bold")
-                axs[1, 1].set_xlabel("Época")
-                axs[1, 1].set_ylabel("Pérdida Promedio (MSE)")
+                axs[1, 1].set_title(L("D) Macro Convergencia por Época Completa", "D) Epoch-level convergence"), fontweight="bold")
+                axs[1, 1].set_xlabel(L("Época", "Epoch"))
+                axs[1, 1].set_ylabel(L("Pérdida Promedio (MSE)", "Mean loss (MSE)"))
                 axs[1, 1].grid(True, linestyle="--", alpha=0.5)
                 axs[1, 1].legend(loc="upper right", fontsize=8.5)
             else:
-                axs[1, 1].text(0.5, 0.5, "Historial de épocas no disponible", ha="center", va="center")
-                axs[1, 1].set_title("D) Macro Convergencia por Época", fontweight="bold")
+                axs[1, 1].text(0.5, 0.5, L("Historial de épocas no disponible", "Epoch history not available"), ha="center", va="center")
+                axs[1, 1].set_title(L("D) Macro Convergencia por Época", "D) Epoch-level convergence"), fontweight="bold")
 
             plt.tight_layout()
             diag_png = output_dir / "convergence_diagnostics_4panel.png"

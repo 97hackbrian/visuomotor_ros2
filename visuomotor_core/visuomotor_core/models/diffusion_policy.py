@@ -21,6 +21,39 @@ from visuomotor_core.models.utils import populate_queues, get_device_from_parame
 
 
 
+# ----------------------------------------------------------------------------------------------
+# Operaciones de cuaterniones en torch ([..., 4] = [qx, qy, qz, qw]); espejo de visuomotor_core/utils/rotations.py
+# ----------------------------------------------------------------------------------------------
+def _quat_normalize(q: Tensor) -> Tensor:
+    return q / q.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+
+
+def _quat_multiply(a: Tensor, b: Tensor) -> Tensor:
+    ax, ay, az, aw = a.unbind(-1)
+    bx, by, bz, bw = b.unbind(-1)
+    return torch.stack([
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+        aw * bw - ax * bx - ay * by - az * bz,
+    ], dim=-1)
+
+
+def _quat_rotate(q: Tensor, v: Tensor) -> Tensor:
+    u, w = q[..., :3], q[..., 3:4]
+    t = 2.0 * torch.cross(u, v, dim=-1)
+    return v + w * t + torch.cross(u, t, dim=-1)
+
+
+def _quat_canonicalize(q: Tensor, mode: str, ref: Tensor | None) -> Tensor:
+    # signo = -1 donde corresponde invertir (aritmética portable a torch 2.0 de la Jetson, sin torch.where escalar)
+    if mode == "home" and ref is not None:
+        flip = ((q * ref).sum(-1, keepdim=True) < 0).to(q.dtype)
+    else:
+        flip = (q[..., 3:4] < 0).to(q.dtype)
+    return q * (1.0 - 2.0 * flip)
+
+
 class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
     """
     Diffusion Policy as per "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion"
@@ -81,6 +114,9 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
             "observation.state": deque(maxlen=self.config.n_obs_steps),
             "action": deque(maxlen=self.config.n_action_steps),
         }
+        # Ensemble temporal: descartar chunks del episodio anterior (si no, se promedian con el nuevo episodio)
+        if hasattr(self, "active_chunks"):
+            self.active_chunks = []
 
     @torch.no_grad()
     def select_action(self, batch: dict[str, Tensor]) -> Tensor:
@@ -113,6 +149,8 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
         "horizon" may not the best name to describe what the variable actually means, because this period is
         actually measured from the first observation which (if `n_obs_steps` > 1) happened in the past.
         """
+        # Estado crudo (sin normalizar) del instante actual: ancla de las acciones "relative_ee".
+        raw_state = batch["observation.state"]
         batch = self.normalize_inputs(batch)
         batch["observation.image"] = batch[self.input_image_key]
 
@@ -133,6 +171,7 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
                 batch_for_model = {k: torch.stack(list(self._queues[k]), dim=1) for k in batch if k in self._queues}
                 actions = self.diffusion.generate_actions(batch_for_model, return_full_horizon=True)
                 actions = self.unnormalize_outputs({"action": actions})["action"]
+                actions = self.actions_to_absolute(actions, raw_state)
                 
                 # Transpose to [H_valid, B, action_dim]
                 actions_transposed = actions.transpose(0, 1)
@@ -157,10 +196,19 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
                 return torch.zeros((1, self.config.output_shapes["action"][0]), device=batch["observation.state"].device)
                 
             actions_tensor = torch.stack(actions_for_curr_step, dim=0) # [num_chunks, B, action_dim]
+            if actions_tensor.shape[-1] >= 7:
+                # q y -q son la misma rotación: alinear signos antes de promediar (si no, se anulan) y renormalizar.
+                ref = self._quaternion_reference(actions_tensor)
+                if ref is None:
+                    ref = actions_tensor[0, :, 3:7]
+                actions_tensor = actions_tensor.clone()
+                actions_tensor[..., 3:7] = _quat_canonicalize(actions_tensor[..., 3:7], "home", ref)
             weights_tensor = torch.tensor(weights, dtype=actions_tensor.dtype, device=actions_tensor.device)
             weights_tensor = weights_tensor / weights_tensor.sum()
             
             ensembled_action = (actions_tensor * weights_tensor.view(-1, 1, 1)).sum(dim=0) # [B, action_dim]
+            if ensembled_action.shape[-1] >= 7:
+                ensembled_action[..., 3:7] = _quat_normalize(ensembled_action[..., 3:7])
             return ensembled_action
             
         else:
@@ -171,6 +219,7 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
     
                 # TODO(rcadene): make above methods return output dictionary?
                 actions = self.unnormalize_outputs({"action": actions})["action"]
+                actions = self.actions_to_absolute(actions, raw_state)
     
                 # Add only up to maxlen to prevent .extend() from dropping the earliest actions!
                 actions_to_queue = actions.transpose(0, 1)[:self._queues["action"].maxlen]
@@ -178,6 +227,51 @@ class DiffusionPolicy(nn.Module, PyTorchModelHubMixin):
     
             action = self._queues["action"].popleft()
             return action
+
+    # ------------------------------------------------------------------------------------------
+    # Representación de la acción y convención de cuaterniones
+    # ------------------------------------------------------------------------------------------
+    def _quaternion_reference(self, like: Tensor) -> Tensor | None:
+        ref = getattr(self.config, "quaternion_reference", None)
+        if getattr(self.config, "quaternion_hemisphere", "qw_positive") != "home" or ref is None:
+            return None
+        return _quat_normalize(torch.as_tensor(ref, dtype=like.dtype, device=like.device))
+
+    def actions_to_absolute(self, actions: Tensor, raw_state: Tensor) -> Tensor:
+        """Lleva acciones desnormalizadas ``[B, H, A]`` a la representación absoluta del estado.
+
+        ``raw_state [B, D]`` es el estado SIN normalizar del instante en que se generó el chunk (para
+        ``relative_ee``: pose actual del efector, ancla de la composición ``T_actual · T_rel``). Los cuaterniones se
+        normalizan y se canonizan con la convención del checkpoint (``quaternion_hemisphere``).
+        """
+        if actions.shape[-1] < 7:
+            return actions
+        out = actions.clone()
+        q = _quat_normalize(out[..., 3:7])
+        if getattr(self.config, "action_representation", "absolute") == "relative_ee":
+            p_c = raw_state[:, None, :3].to(out.dtype)
+            q_c = _quat_normalize(raw_state[:, None, 3:7].to(out.dtype)).expand_as(q)
+            out[..., :3] = p_c + _quat_rotate(q_c, out[..., :3])
+            q = _quat_normalize(_quat_multiply(q_c, q))
+        ref = self._quaternion_reference(out)
+        out[..., 3:7] = _quat_canonicalize(q, getattr(self.config, "quaternion_hemisphere", "qw_positive"), ref)
+        return out
+
+    @torch.no_grad()
+    def predict_chunk(self, batch: dict[str, Tensor]) -> Tensor:
+        """Predicción offline (evaluación): ``batch`` con historial ``[B, n_obs, ...]`` SIN normalizar.
+
+        Devuelve el horizonte completo ejecutable ``[B, horizon - n_obs + 1, A]`` en representación absoluta, igual
+        que lo recibiría ``policy_node`` (sin colas ni ensemble temporal).
+        """
+        raw_state = batch["observation.state"][:, -1]
+        nb = self.normalize_inputs(dict(batch))
+        nb["observation.image"] = nb[self.input_image_key]
+        actions = self.diffusion.generate_actions(
+            {"observation.image": nb["observation.image"], "observation.state": nb["observation.state"]},
+            return_full_horizon=True)
+        actions = self.unnormalize_outputs({"action": actions})["action"]
+        return self.actions_to_absolute(actions, raw_state)
 
     def forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
         """Run the batch through the model and compute the loss for training or validation."""

@@ -41,7 +41,8 @@ class TestConfigConsistency(unittest.TestCase):
         self.assertEqual(align, "false", "Odom/AlignWithGround debe ser 'false' para iniciar odom en la lente")
         self.assertTrue(params.get("wait_imu_to_init", False), "wait_imu_to_init debe ser True para alineación gravitacional")
         guess = str(params.get("Odom/GuessMotion", "")).lower()
-        self.assertEqual(guess, "true", "Odom/GuessMotion debe ser 'true'")
+        # Fase 16 (AGENTS.md §17): GuessMotion desactivado para erradicar el arrastre inercial y la deriva en yaw
+        self.assertEqual(guess, "false", "Odom/GuessMotion debe ser 'false' (anti-deriva, Fase 16)")
 
     def test_data_collection_params_yaml(self):
         param_file = REPO_ROOT / "visuomotor_data_collection" / "config" / "data_collection_params.yaml"

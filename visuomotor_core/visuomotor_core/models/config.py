@@ -150,6 +150,17 @@ class DiffusionConfig:
     use_temporal_ensemble: bool = False
     temporal_ensemble_k: float = 0.01
 
+    # Representación de la acción (se guarda en config.json: el checkpoint lleva su convención a la inferencia).
+    #   "absolute"   : action[0:7] = pose objetivo en el marco del estado (base o base - home).
+    #   "relative_ee": action[0:7] = pose objetivo relativa a la pose ACTUAL del efector, expresada en su propio
+    #                  marco (UMI, Chi et al. RSS 2024: 18-20/20 frente a 5/20 con acción absoluta, por errores de
+    #                  calibración SLAM-robot). select_action la recompone a "absolute" con el estado observado.
+    action_representation: str = "absolute"
+    # Convención de signo del cuaternión de estado/acción absolutos: "qw_positive" (histórica) o "home"
+    # (dot(q, quaternion_reference) >= 0; continua cerca de la garra hacia abajo, ver utils/rotations.py).
+    quaternion_hemisphere: str = "qw_positive"
+    quaternion_reference: list[float] | None = None  # [qx, qy, qz, qw] de HOME si quaternion_hemisphere == "home"
+
     def __post_init__(self):
         """Input validation (not exhaustive)."""
         if self.use_gripper:
@@ -189,6 +200,12 @@ class DiffusionConfig:
                     f"`input_shapes[{image_key}]` does not match `input_shapes[{first_image_key}]`, but we "
                     "expect all image shapes to match."
                 )
+        if self.action_representation not in ("absolute", "relative_ee"):
+            raise ValueError(f"`action_representation` debe ser 'absolute' o 'relative_ee'. Got {self.action_representation}.")
+        if self.quaternion_hemisphere not in ("qw_positive", "home"):
+            raise ValueError(f"`quaternion_hemisphere` debe ser 'qw_positive' o 'home'. Got {self.quaternion_hemisphere}.")
+        if self.quaternion_hemisphere == "home" and (self.quaternion_reference is None or len(self.quaternion_reference) != 4):
+            raise ValueError("quaternion_hemisphere='home' requiere quaternion_reference [qx, qy, qz, qw].")
         supported_prediction_types = ["epsilon", "sample"]
         if self.prediction_type not in supported_prediction_types:
             raise ValueError(
