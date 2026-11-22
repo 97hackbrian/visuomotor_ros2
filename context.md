@@ -393,6 +393,22 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Entrenamiento:* EMA, warmup, split por episodio, evaluación offline por muestreo completo, ColorJitter en GPU,
       `--resume`, guardia de RAM. *Incidente:* tres entrenamientos simultáneos agotaron la RAM del host (OOM -> GDM).
     - Módulo 17.
+42. **Varas exigentes antes del robot y alcance real del xArm5 (2026-11-22):**
+    - *Línea base "velocidad constante":* con trayectorias suaves extrapola muy bien el corto plazo. La política de la
+      época 200 pierde con ella en los 3 pasos ejecutados (3.6 vs 1.3 mm) y gana desde ~0.53 s (FDE 18.5 vs 21.3 mm).
+      Ahora la reportan `evaluation.py` (columnas `cv_*`), `train.py`, las curvas y `tools/compare_eval_runs.py`.
+    - *Ablación visual (`tools/diagnose_policy_baselines.py`):* con imágenes de otro episodio el FDE sube de 18.5 a
+      29.2 mm, así que la política sí usa la imagen. Pero desde el reposo acierta la dirección en el 64 % frente al 55 %
+      de "ir siempre hacia la dirección media" (n = 22): los datos v7 tienen poca variedad de destinos.
+    - *Alcance:* 700 mm es el radio máximo del fabricante (XF1305, `bio/xarm5_ufactory_XF1305/`), no el alcance lateral
+      a la altura de la tarea (±0.47 m a la profundidad de los objetos). `|y| <= 0.30 m` es la caja de seguridad
+      configurada, no un límite del brazo. El 0.9 % de los frames v7 queda fuera del alcance al AVANZAR EN ALTO desde
+      HOME3 (5 episodios, hasta 51 mm): en la próxima toma, bajar antes de alejarse de la base.
+    - *Límites articulares:* el guard del puente usaba la URDF/manual V2.3.0 (J2 120°, J3 -225°); el manual v2.7.1
+      para XF1305 dice J2 -117..116°, J3 -219..10°. Actualizado en `xarm5_real_params.yaml`.
+    - *pytest escribía en la base real:* las pruebas de `merge_zarr_batches` reescribían 6 filas `/tmp/test_zarr_merge_*`
+      en `experiments/experiments.db` en cada corrida (desde el 2026-11-02). Ahora `tests/conftest.py` y `setUpModule`
+      fijan `VISUOMOTOR_DB_PATH` a una base temporal; verificado con el hash de la base antes y después de la suite.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

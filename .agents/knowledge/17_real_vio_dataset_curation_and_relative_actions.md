@@ -154,3 +154,49 @@ Corrida `visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300`: 300 época
 * Paquete: `deploy/jetson/model/` (`model.safetensors` sha256 `5c5c7ed5…`, `config.json`, `training_meta.json`,
   `MODEL_CARD.md`, `final_model_report.png/.pdf`). Despliegue por etapas en `deploy/jetson/README.md`.
 * **El modelo aún NO se ha probado en el xArm5 físico.**
+
+## 9. Diagnóstico frente a líneas base exigentes y ablación visual (2026-11-22)
+
+`tools/diagnose_policy_baselines.py` mide sobre las 2.582 ventanas de validación, con `n_action_steps` = 3 como la
+Jetson. La tabla de §8 usaba los 8 pasos de `config.json`.
+* **Velocidad constante:** extrapola la velocidad de los dos últimos estados y no usa la imagen.
+* **Imágenes cruzadas:** cada ventana recibe la imagen de otra ventana del lote; el 88 % viene de otro episodio.
+* **Dirección:** coseno > 0.9 entre el desplazamiento predicho y el demostrado a 0.75 s.
+
+| Época 200 (validación) | Política | Imágenes cruzadas | Velocidad constante | Quedarse quieto |
+|---|---|---|---|---|
+| Error en los 3 pasos ejecutados (mm) | 3.63 | 4.80 | **1.27** | 5.04 |
+| ADE del horizonte (mm) | 11.6 | 16.9 | **10.6** | 18.6 |
+| FDE a 0.75 s (mm) | **18.5** | 29.2 | 21.3 | 33.4 |
+| Dirección correcta, ya en movimiento (n = 2010) | **63 %** | 36 % | — | — (dirección media: 27 %) |
+| Dirección correcta, desde el reposo (n = 22) | **64 %** | 50 % | — | — (dirección media: 55 %) |
+
+* **La política usa la imagen.** Con imágenes cruzadas el FDE casi iguala a quedarse quieto, y la dirección en
+  movimiento cae de 63 % a 36 %.
+* **Pierde con la velocidad constante a corto plazo y gana a largo.** El perfil de error se cruza a ~0.53 s. La
+  política aporta la intención (hacia dónde y cuándo frenar), pero sus primeros pasos son ruidosos; el ensamble
+  temporal y el suavizador del robot tienen que absorberlo.
+* **Por episodio:** la política bate a la velocidad constante en FDE en 7/8 episodios y en los 3 pasos ejecutados en 0/8.
+* **Desde el reposo el estado es idéntico en todos los episodios.** Ahí la ventaja sobre "ir siempre hacia la
+  dirección media" es pequeña (64 % vs 55 %, n = 22): v7 tiene poca variedad de destinos (desviación estándar lateral
+  de 14 cm; todos van hacia delante y abajo).
+* **Entre las épocas 100 y 300 nada cambia:** FDE 19.1 → 18.4 mm, error en 3 pasos 3.71 → 3.64 mm. Validación
+  estancada y entrenamiento en 4.3 mm: el límite son los datos, no las épocas.
+* **Integración:** `evaluate_sampling` calcula la línea base en cada evaluación de `train.py` (`cv_ade_mm`,
+  `cv_ade_exec_mm`, `cv_fde_mm`, `hold_fde_mm`). El desfase acción/estado se estima del dataset con
+  `estimate_action_offset`: en v7, `action[t] = state[t]` (desfase 0). Las curvas de evaluación y
+  `tools/compare_eval_runs.py` dibujan la línea base. Pruebas: `tests/test_evaluation_baselines.py`.
+* **Criterio para futuros checkpoints:** batir a quedarse quieto no basta. Hay que batir a la velocidad constante en
+  FDE y que el FDE suba claramente con imágenes cruzadas. El objetivo de la próxima toma es reducir el error en los
+  pasos ejecutados hacia el de la velocidad constante.
+
+## 10. Alcance del xArm5 frente a la caja del puente (2026-11-22)
+
+Detalle en el módulo 16 §5s y en `datasets/evaluations_real_v7_xarm5_v2/fig_xarm5_workspace_vs_demos.png`.
+* **`|y| <= 0.30 m` no es un límite físico.** Es la caja de seguridad configurada; el brazo llega a ±0.47 m a la
+  profundidad y altura de los objetos de v7.
+* **El alcance físico limita el inicio.** 209 frames (0.9 %) de 5 episodios avanzan en alto desde HOME3 más allá del
+  alcance del puente.
+* **Para la próxima toma:** ampliar la caja si la celda lo permite (decisión del usuario; con ±0.45 m ningún frame v7
+  queda fuera), repartir los objetos a ambos lados, y desde HOME3 bajar antes de alejarse de la base.
+

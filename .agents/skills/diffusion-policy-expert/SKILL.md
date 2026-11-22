@@ -3,7 +3,7 @@ name: diffusion-policy-expert
 description: Advanced knowledge base and best practices for tuning, debugging, and improving Diffusion Policy (DP) models in robotic visuomotor control. Includes architectural pipelines, mathematical formulations, and troubleshooting guides.
 ---
 
-# Diffusion Policy Expert Knowledge Base (v1.2)
+# Diffusion Policy Expert Knowledge Base (v1.3)
 
 ## 1. La Jerarquía Visuomotora (The Robotics AI Stack)
 El ecosistema visuomotor opera en 6 capas rigurosamente desacopladas:
@@ -378,6 +378,14 @@ Referencia completa: `.agents/knowledge/17_real_vio_dataset_curation_and_relativ
   validación ni por los criterios de parada de §12:** en `train_real_v7x5v2_relative_ee_e300` (76 episodios) estos
   recomendaban la época ~8, mientras el comportamiento siguió mejorando hasta ~200 (ADE ejecutado 7.6 mm vs. 11.0 mm de
   la línea base). El rango $E^*$ de §12.A viene de datasets simulados de 300-500 episodios y no se transfiere.
+- **Batir a "quedarse quieto" no basta: es una vara baja.** Exigir además:
+  1. Batir a la línea base **"velocidad constante"** al final del horizonte. Extrapola la velocidad observada y no usa
+     la imagen; train.py la reporta como `cv_ade_mm` / `cv_ade_exec_mm` / `cv_fde_mm` en `eval_metrics.csv`.
+  2. Que el error **suba claramente con imágenes de otro episodio** (ablación visual de
+     `tools/diagnose_policy_baselines.py`). Si no sube, la política ignora la visión.
+  3. **Reportar el perfil de error por paso del horizonte.** En v7 (época 200) la política perdía con la velocidad
+     constante en los 3 pasos ejecutados (3.6 vs 1.3 mm) y ganaba desde ~0.53 s (FDE 18.5 vs 21.3 mm). Con imágenes
+     cruzadas, FDE 29.2 mm.
 
 ### C. Recursos de este equipo (31 GB RAM, RTX 4060 8 GB)
 - Un entrenamiento pesado a la vez; dos como máximo con `--num_workers 6 --prefetch_factor 2`. Tres simultáneos

@@ -135,6 +135,7 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 ## 5i. HOME del fabricante e interfaz RViz2 en inglés (2026-11-20)
 * Modelo confirmado: UFACTORY xArm 5 = XF1305 ("XF13" en la caja; controlador `DETAIL: 5,5,XF1305,DC1305,v2.5.1`),
   3 kg, 700 mm. Rangos (manual V2.3.0, tabla 1.1): J1 ±360°, J2 -118°~120°, J3 -225°~11°, J4 -97°~180°, J5 ±360°.
+  **Superado (§5s):** el Hardware Manual v2.7.1 para XF1305 da J2 -117°~116° y J3 -219°~10°.
 * HOME1 = Zero Position (todas a 0): manual V2.3.0 §1.5 "Move the robot to the zero position ... then put the xArm
   robot and Control Box in the original packaging"; §3.1.3: con gripper, en cero la herramienta sobrepasa la superficie.
 * HOME2 = Initial Position por defecto del xArm 5 (xArm Studio V1.0.0: "xArm 5: J1:0 J2:0 J3:0 J4:-90 J5:0");
@@ -178,7 +179,8 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * Restricciones para las demostraciones reales (desde cero):
   - Garra vertical; o inclinada solo en el plano del brazo.
   - Inicio equivalente a HOME3, con la misma disposición de los objetos.
-  - Volumen: radio 0.15–0.65 m, z 0.10–0.50 m, |y| ≤ 0.30 m.
+  - Volumen: radio 0.15–0.65 m, z 0.10–0.50 m, |y| ≤ 0.30 m (caja de seguridad configurada, no alcance del brazo:
+    ver §5s; z_max pasó a 0.75 m en §5n).
   - Velocidad ≤ 5 cm/s y ≤ 0.5 rad/s (límites del puente).
   - Montaje de la cámara de muñeca idéntico al del robot.
   - Gripper en 0.0 si no se registra.
@@ -288,6 +290,32 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
 * **Estado del Proyecto (Restricción Crítica):**
   - **Hasta este hito, el modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de inferencia en hardware real.**
   - El dataset está completamente compilado, alineado y certificado para que el entrenamiento (`train.py`) comience en la siguiente fase.
+
+## 5s. Manual oficial v2.7.1 (XF1305), alcance real y límites articulares (2026-11-22)
+* Manuales descargados de https://www.ufactory.cc/download/ a `bio/xarm5_ufactory_XF1305/`, con README de URLs, sha256
+  y páginas: Hardware Manual v2.7.1 ("Apply to Model: XF1305"), Developer Manual v2.0.1 y Quick Start Guide.
+* **Especificación:**
+  - Alcance nominal 700 mm; rango cartesiano X/Y ±700 mm, Z -400..951.5 mm (§8.1; Developer §4.1).
+  - Envolvente de los eslabones (para instalar, sin efector): radio 770 mm, +1037/-416 mm (§2.2.2).
+  - Rangos articulares (Preface, §8.2): J1 ±360°, **J2 -117°..116°, J3 -219°..10°**, J4 -97°..180°, J5 ±360°.
+  - 3 kg, 11.3 kg, 1 m/s, ±0.1 mm.
+* **Límites articulares del guard actualizados.** `joint_lower/upper_limits_rad` en `xarm5_real_params.yaml` y los
+  valores por defecto del puente venían de la URDF de xarm_ros2 / manual V2.3.0 (J2 hasta 120°, J3 hasta -225°). Con
+  margen 0.10 rad, el guard permitía J3 = -219.3°, más allá del límite oficial, y era el controlador quien cortaba con
+  C23. Ahora se usan los de v2.7.1; HOME1/HOME2/HOME3 siguen fuera del margen. Las pruebas de `joints_near_limits`
+  usan sus propias constantes y no cambian.
+* **Alcance real frente a la caja del puente** (`tools/xarm5/analyze_xarm5_workspace.py`, con la misma `ReachLimit`
+  del puente):
+  - 700 mm es el radio máximo alrededor del eje de J1 a la altura del hombro (J2, z = 0.267 m). A una profundidad x,
+    el alcance lateral es aproximadamente √(R² − x²).
+  - A la altura de aproximación de v7 (brida ~0.28 m, garra vertical), en los puntos finales: ±0.47 m con el 95 % del
+    codo recto que usa el puente (mín. ±0.32 m) y ±0.51 m con el codo recto.
+  - La caja configurada (`|y| <= 0.30 m`, r ≤ 0.65 m) es una decisión de seguridad de la celda ("ampliar tras medir
+    la celda real"). Con `|y| <= 0.45 m` ningún frame v7 quedaría fuera; hoy quedan fuera el 1.4 % y 3/76 puntos
+    finales (y ≈ -0.35 m).
+  - Lo que sí está fuera del alcance físico es el **avance en alto desde HOME3**: el 0.9 % de los frames, en
+    5 episodios y hasta 51 mm (el episodio 15 supera el codo recto), con la muñeca alta y adelantada. El puente
+    recortaría esos tramos. En la próxima toma, bajar antes de alejarse de la base.
 
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++

@@ -3,7 +3,7 @@ name: realsense-vio-data-collection
 description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y RTAB-Map VIO (Grado UMI), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
 ---
 
-# Skill: RealSense VIO & UMI Handheld Data Collection (v1.2)
+# Skill: RealSense VIO & UMI Handheld Data Collection (v1.3)
 
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
@@ -29,6 +29,7 @@ Esta habilidad proporciona el procedimiento estandarizado para capturar demostra
 | **Piso de Auto-Stop** | $\ge 2.0\text{ s}$ con `done=1.0` en destino | Garantizado mediante inyección forzada de 40 frames | **PASA** |
 | **Compatibilidad xArm5** (si el dataset se entrenará para el robot real) | 0 episodios marcados en `_conversion_report.json` (o excluidos con `--drop-flagged`) | `tools/xarm5/convert_vio_dataset_to_xarm5.py` | Obligatorio |
 | **Auditoría física** (dataset para el xArm5) | Gravedad del VIO vs. HOME3 < 20° en la mayoría de episodios con la extrínseca configurada; 0 saltos de signo del cuaternión; ruido eliminado por el filtro < 10 mm RMS | `tools/xarm5/analyze_vio_dataset_quality.py` (v7: 13.4° mediana, 0 saltos, 8.8 mm) | Obligatorio |
+| **Alcance del brazo** (dataset para el xArm5) | 0 frames fuera del alcance del puente (muñeca a ≤ `workspace_max_reach_m` del hombro) y 0 fuera de la caja configurada | `tools/xarm5/analyze_xarm5_workspace.py` (v7: 0.9 % y 1.4 %) | Obligatorio |
 
 > [!WARNING]
 > La integridad de tensores y la frecuencia de 20 Hz no certifican la física. `demonstrations_real_v7_xarm5.zarr` pasó
@@ -94,8 +95,12 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
    (hacia la base o alejándose), hasta ±85°. Nunca debe inclinarse lateralmente (roll): el xArm5 no puede ejecutarlo;
    se proyecta y el episodio se marca si la desviación supera `max_orientation_deviation_rad` de
    `xarm5_dataset_alignment.yaml` (0.70 rad desde la Fase 22).
-3. **Volumen alcanzable:**
-   - Radio 0.15–0.65 m y |y| ≤ 0.30 m.
+3. **Volumen alcanzable** (distinguir el brazo de la caja de seguridad; `tools/xarm5/analyze_xarm5_workspace.py`):
+   - **Brazo** (Hardware Manual v2.7.1, XF1305, en `bio/xarm5_ufactory_XF1305/`): 700 mm de radio alrededor del eje de
+     la base, a la altura del hombro (0.267 m). A la altura de aproximación de v7 (brida ~0.28 m, garra vertical) el
+     alcance lateral es ±0.47 m a la profundidad de los objetos (aproximadamente √(R² − x²)).
+   - **Caja de seguridad del puente** (`xarm5_real_params.yaml`): radio 0.15–0.65 m y |y| ≤ 0.30 m. Es una decisión de la
+     celda: respetarla al grabar o ampliarla ANTES, tras medir la celda (con ±0.45 m ningún frame v7 queda fuera).
    - La altura máxima baja con la distancia: 0.75 m cerca de la base, 0.71 m a 0.35 m, 0.61 m a 0.50 m y 0.37 m a 0.65 m.
    - HOME3 ya está en el techo (z = 0.75) y en el radio mínimo (x = 0.15): desde ahí la demostración solo puede bajar o
      alejarse.
@@ -120,6 +125,11 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
 4. **Velocidad real:** ~0.05 m/s es compatible con el puente. Los "0.20 m/s" que daba el dataset sin filtrar eran ruido
    del VIO (~8.8 mm RMS), no la velocidad de la mano.
 5. **Tracking:** si la vista pierde textura (saltos > 0.15 m entre frames), descartar con `[D]` en vez de guardar.
+6. **Desde HOME3, bajar antes de alejarse de la base.** Avanzar en alto saca la muñeca de alcance: 209 frames de
+   5 episodios v7, hasta 51 mm. El puente recortaría esos tramos y el robot se separaría de la demostración al arrancar.
+7. **Repartir los objetos con una grilla planificada:** a ambos lados de la base y en varias profundidades. En v7 la
+   media lateral quedó 10 cm a un lado, y desde el reposo ir siempre hacia la dirección media ya acertaba el 55 % (la
+   política, el 64 %): con poca variedad de destinos la política apenas aprende a usar la imagen para elegir hacia dónde ir.
 
 ---
 
