@@ -1,0 +1,13 @@
+# Filtro One-Euro (pose_smoother: target_frame_raw -> target_frame) para el xArm5 REAL con políticas entrenadas con
+# demostraciones VIO filtradas (demonstrations_real_v7_xarm5_v2: Butterworth de fase cero a 1.5 Hz).
+#
+# El archivo compartido config/pose_smoother_params.yaml (simulación Lite6) usa min_cutoff 0.1 Hz: con comandos a 20 Hz
+# equivale a un retardo de primer orden de ~1.6 s, que haría que el brazo vaya muy por detrás de la política (cada
+# chunk relative_ee se ancla en la pose MEDIDA, así que el retardo se acumula como lentitud) y que la observación
+# difiera de la de entrenamiento. Las acciones de esta política ya son suaves (datos filtrados + ensemble temporal),
+# por lo que el filtro solo debe recortar jitter residual por encima de la banda del movimiento humano (~0.8 Hz).
+pose_smoother:
+  ros__parameters:
+    min_cutoff: 1.5     # Hz: = corte del filtro del dataset; retardo ~0.1 s en reposo
+    beta: 0.007         # corte = min_cutoff + beta·|v| (v en m/s): despreciable a 0.05-0.15 m/s; = valor por defecto del nodo
+    d_cutoff: 1.0

@@ -21,7 +21,9 @@ policy_node:
 
     # --- Configuración de Sensores y Tópicos de Hardware Real ---
     # Tópico de la cámara física (cambiar según el driver usado: RealSense, V4L2 USB Cam, etc.)
-    camera_topic: "/camera/color/image_raw"
+    # Debe ser la MISMA D435i (640x480 a 30 Hz) y el mismo montaje que en la recolección. realsense-ros 4.x publica
+    # /camera/camera/color/image_raw (tópico usado por vo_collector_node); verificar con `ros2 topic list` en la Jetson.
+    camera_topic: "/camera/camera/color/image_raw"
     # xArm5 real: el puente xarm5_bridge publica la apertura del gripper ya convertida a la escala de la
     # política (0.0 abierto .. -0.01 cerrado) con nombre "gripper" (ver config/xarm5/xarm5_real_params.yaml).
     joint_states_topic: "/visuomotor/gripper_joint_states"
@@ -40,6 +42,8 @@ policy_node:
     
     # Resolución de entrada de la red (256x256 RGB)
     image_size: 256
+    # Igual que vo_collector_node (cv2.INTER_AREA 640x480 -> 256x256): paridad exacta con el dataset real.
+    image_resize_method: "cv2_area"
     
     # Posición Home segura de inicio / reposo (metros y radianes)
     # = HOME3 del xArm5 real (pose de trabajo con el efector alineado, home3_joints_rad en xarm5_real_params.yaml;
@@ -62,9 +66,19 @@ policy_node:
     # suma a la acción predicha. Valor explícito (mismo que visuomotor_ros2/config/policy_params.yaml).
     relative_coordinates: true
 
+    # --- Convención de signo del cuaternión (estado observado y acciones) ---
+    # "auto" (recomendado): usar la convención guardada en config.json del checkpoint ("home" para datasets reales
+    # convertidos con xarm5_dataset_alignment.yaml, "qw_positive" para modelos históricos). Forzar "home" o
+    # "qw_positive" solo para depurar: si no coincide con el checkpoint, policy_node se detiene con un error.
+    quaternion_hemisphere: "auto"
+
     # --- Auto-Stop Neuronal Desacoplado ---
     enable_neural_auto_stop: true
-    neural_auto_stop_threshold: 0.50
+    # Calibrado offline (Fase 22) con tools/xarm5/replay_policy_offline.py sobre los 8 episodios de validación de
+    # demonstrations_real_v7_xarm5_v2 (checkpoints épocas 180/200/220): 0.6 durante 5 pasos consecutivos (0.25 s) detuvo
+    # el 100% de los episodios, 0 paradas prematuras, ~8 mm de la meta. Con 0.50/1 había 2 paradas > 1 s adelantadas.
+    neural_auto_stop_threshold: 0.60
+    neural_auto_stop_patience_steps: 5
     
     enable_heuristic_auto_stop: false
     auto_stop_variance_threshold: 1.0e-7

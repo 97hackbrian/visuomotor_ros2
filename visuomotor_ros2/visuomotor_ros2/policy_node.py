@@ -68,10 +68,19 @@ class PolicyNode(Node):
         # --- Parámetros de Auto-Stop ---
         self.declare_parameter('enable_neural_auto_stop', True)
         self.declare_parameter('neural_auto_stop_threshold', 0.5)
+        # Pasos de inferencia CONSECUTIVOS con la 9ª dimensión >= umbral antes de detener (1 = comportamiento histórico)
+        self.declare_parameter('neural_auto_stop_patience_steps', 1)
         self.declare_parameter('enable_heuristic_auto_stop', False)
         self.declare_parameter('enable_auto_stop', True)  # Retrocompatibilidad / interruptor general
         self.declare_parameter('auto_stop_variance_threshold', 0.0000001)
         self.declare_parameter('auto_stop_patience_steps', 20)
+
+        # Convención de signo del cuaternión (estado observado y acciones): 'auto' = la del checkpoint (config.json),
+        # 'qw_positive' (histórica) o 'home' (dot(q, q_home) >= 0, continua con la garra hacia abajo).
+        self.declare_parameter('quaternion_hemisphere', 'auto')
+        # Redimensionado de la imagen: 'torchvision' (histórico: bilineal con antialias) o 'cv2_area'
+        # (cv2.INTER_AREA, idéntico a vo_collector_node para datasets reales).
+        self.declare_parameter('image_resize_method', 'torchvision')
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -103,6 +112,12 @@ class PolicyNode(Node):
         else:
             self.policy = None
             self.get_logger().warn("No checkpoint_path provided. Running in dummy mode.")
+
+        self.q_mode, self.q_ref = self._resolve_quaternion_convention()
+        self.last_valid_cmd_quat = None
+        rep_mode = getattr(self.policy.config, 'action_representation', 'absolute') if self.policy is not None else '-'
+        self.get_logger().info(f"Acción del checkpoint: {rep_mode} | cuaternión: {self.q_mode}"
+                               + (f" ref={np.round(self.q_ref, 4).tolist()}" if self.q_ref is not None else ""))
         
         self.action_executor = ActionExecutor(self)
         chunk_topic = self.get_parameter('action_chunk_topic').value
@@ -140,9 +155,47 @@ class PolicyNode(Node):
         self.frozen_gripper = None
         self.done_trigger_value = None
         self.done_trigger_reason = ""
+        self.done_streak = 0
         
         rate = self.get_parameter('inference_hz').value
         self.timer = self.create_timer(1.0 / rate, self._inference_step, callback_group=self.cbg)
+
+    def _resolve_quaternion_convention(self):
+        """Convención de signo del cuaternión: la del checkpoint ('auto') o la forzada por YAML (con aviso)."""
+        requested = self.get_parameter('quaternion_hemisphere').value
+        ckpt_mode = getattr(self.policy.config, 'quaternion_hemisphere', 'qw_positive') if self.policy is not None else 'qw_positive'
+        ckpt_ref = getattr(self.policy.config, 'quaternion_reference', None) if self.policy is not None else None
+        mode = ckpt_mode if requested == 'auto' else requested
+        if mode not in ('qw_positive', 'home'):
+            raise ValueError(f"quaternion_hemisphere inválido: {requested!r}")
+        if self.policy is not None and requested != 'auto' and requested != ckpt_mode:
+            # fallar en vez de advertir: con la garra hacia abajo el estado quedaría fuera de distribución
+            raise RuntimeError(f"quaternion_hemisphere={requested} difiere del checkpoint ({ckpt_mode}); "
+                               "usar 'auto' o reentrenar con la convención deseada.")
+        if mode != 'home':
+            return mode, None
+        yaml_ref = np.array(euler_to_quat(self.get_parameter('home_roll').value, self.get_parameter('home_pitch').value,
+                                          self.get_parameter('home_yaw').value), dtype=np.float64)
+        yaml_ref /= np.linalg.norm(yaml_ref)
+        if ckpt_ref is None:
+            return mode, yaml_ref
+        ref = np.asarray(ckpt_ref, dtype=np.float64)
+        ref /= np.linalg.norm(ref)
+        ang = np.degrees(2.0 * np.arccos(min(1.0, abs(float(ref @ yaml_ref)))))
+        if ang > 2.0:
+            self.get_logger().warn(f"El HOME del YAML difiere {ang:.1f}° del HOME con que se entrenó el checkpoint.")
+        return mode, ref
+
+    def _canonical_quat(self, q):
+        """Normaliza y fija el signo según la convención; ``None`` si la norma es ~0."""
+        q = np.asarray(q, dtype=np.float64)
+        n = float(np.linalg.norm(q))
+        if n < 1e-6:
+            return None
+        q = q / n
+        if self.q_mode == 'home' and self.q_ref is not None:
+            return -q if float(q @ self.q_ref) < 0.0 else q
+        return -q if q[3] < 0.0 else q
 
     def _joint_cb(self, msg):
         try:
@@ -161,24 +214,14 @@ class PolicyNode(Node):
             base_frame = self.get_parameter('base_frame').value
             t = self.tf_buffer.lookup_transform(base_frame, ee_frame, rclpy.time.Time())
             
-            # Estabilización de cuaternión: semiesfera superior (qw >= 0) y norma unitaria
-            qx = float(t.transform.rotation.x)
-            qy = float(t.transform.rotation.y)
-            qz = float(t.transform.rotation.z)
-            qw = float(t.transform.rotation.w)
-            if qw < 0.0:
-                qw = -qw
-                qx = -qx
-                qy = -qy
-                qz = -qz
-            norm_q = np.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
-            if norm_q > 1e-6:
-                qx /= norm_q
-                qy /= norm_q
-                qz /= norm_q
-                qw /= norm_q
-            else:
-                qx, qy, qz, qw = 0.0, 0.0, 0.0, 1.0
+            # Cuaternión normalizado con la convención de signo del checkpoint (quaternion_hemisphere)
+            q = self._canonical_quat([t.transform.rotation.x, t.transform.rotation.y,
+                                      t.transform.rotation.z, t.transform.rotation.w])
+            if q is None:
+                self.get_logger().warn("Cuaternión de TF con norma ~0; se descarta la observación.",
+                                       throttle_duration_sec=2.0)
+                return
+            qx, qy, qz, qw = (float(v) for v in q)
 
             ee_pose = np.array([
                 t.transform.translation.x,
@@ -263,8 +306,15 @@ class PolicyNode(Node):
             import torchvision.transforms as transforms
             # Prepare image tensor (1, C, H, W)
             img_size = self.get_parameter('image_size').value
-            img_tensor = torch.from_numpy(self.latest_img).to(torch.float32).permute(2, 0, 1) / 255.0
-            img_tensor = transforms.Resize((img_size, img_size), antialias=True)(img_tensor)
+            if self.get_parameter('image_resize_method').value == 'cv2_area':
+                import cv2
+                img_np = self.latest_img
+                if img_np.shape[:2] != (img_size, img_size):
+                    img_np = cv2.resize(img_np, (img_size, img_size), interpolation=cv2.INTER_AREA)
+                img_tensor = torch.from_numpy(np.ascontiguousarray(img_np)).to(torch.float32).permute(2, 0, 1) / 255.0
+            else:
+                img_tensor = torch.from_numpy(self.latest_img).to(torch.float32).permute(2, 0, 1) / 255.0
+                img_tensor = transforms.Resize((img_size, img_size), antialias=True)(img_tensor)
             img_tensor = img_tensor.to(self.device, non_blocking=True).unsqueeze(0)
             
             # Prepare state tensor (1, dim)
@@ -321,21 +371,18 @@ class PolicyNode(Node):
                 p_step.position.z = float(act[2])
                 
                 if len(act) >= 7:
-                    # Normalizar el cuaternión predicho por la red y preservar qw >= 0
-                    qx = float(act[3])
-                    qy = float(act[4])
-                    qz = float(act[5])
-                    qw = float(act[6])
-                    if qw < 0.0:
-                        qw, qx, qy, qz = -qw, -qx, -qy, -qz
-                    norm = np.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
-                    if norm > 1e-6:
-                        p_step.orientation.x = float(qx / norm)
-                        p_step.orientation.y = float(qy / norm)
-                        p_step.orientation.z = float(qz / norm)
-                        p_step.orientation.w = float(qw / norm)
+                    # Cuaternión predicho normalizado con la convención del checkpoint. Si la norma colapsa (p. ej.
+                    # promedio de orientaciones contradictorias) se mantiene la última orientación válida o la medida,
+                    # nunca la identidad (garra hacia arriba).
+                    q_cmd = self._canonical_quat(act[3:7])
+                    if q_cmd is not None:
+                        self.last_valid_cmd_quat = q_cmd
+                    elif self.last_valid_cmd_quat is not None:
+                        q_cmd = self.last_valid_cmd_quat
                     else:
-                        p_step.orientation.x, p_step.orientation.y, p_step.orientation.z, p_step.orientation.w = 0.0, 0.0, 0.0, 1.0
+                        q_cmd = np.asarray(self.latest_state[3:7], dtype=np.float64)
+                    p_step.orientation.x, p_step.orientation.y, p_step.orientation.z, p_step.orientation.w = (
+                        float(v) for v in q_cmd)
                 msg.poses.append(p_step)
 
                 # Binarizador de Inferencia por paso
@@ -363,7 +410,9 @@ class PolicyNode(Node):
             done_flag = None
             if len(first_act) >= 9:
                 done_flag = float(first_act[8])
-                if neural_stop_active and done_flag >= neural_threshold:
+                self.done_streak = self.done_streak + 1 if done_flag >= neural_threshold else 0
+                patience = max(1, int(self.get_parameter('neural_auto_stop_patience_steps').value))
+                if neural_stop_active and self.done_streak >= patience:
                     self.done_trigger_value = done_flag
                     self.done_trigger_reason = f"Neuronal: 9na dim = {done_flag:.4f} >= umbral {neural_threshold:.2f}"
                     self.get_logger().info(

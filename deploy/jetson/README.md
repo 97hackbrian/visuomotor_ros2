@@ -261,6 +261,47 @@ reconvertir), y usar el MISMO soporte de cámara en la mano y en la muñeca del 
 
 ---
 
+### Modelo real v7 (Fase 22): aproximación a las tijeras desde HOME3
+
+Modelo en `deploy/jetson/model/` (checkpoint época 200 de `train_real_v7x5v2_relative_ee_e300`; ficha:
+`MODEL_CARD.md`, figura: `final_model_report.png`). Entrenado con `demonstrations_real_v7_xarm5_v2` (acciones
+`relative_ee`, cuaternión `home`). **Verificado offline y en ROS 2 con el puente simulado; aún no en el brazo físico.**
+
+Requisitos previos:
+1. **Código nuevo en la Jetson:** reconstruir la imagen (`docker compose build`) o usar `docker-compose.dev.yml`
+   (monta `visuomotor_core` y `visuomotor_ros2`): los modelos `relative_ee` necesitan el `DiffusionPolicy` actual.
+2. **Cámara:** la misma D435i a 640x480 color, montada en la brida con el eje óptico a lo largo de la herramienta y la
+   **imagen derecha en HOME3** (arriba de la imagen = lejos de la base, como se sostuvo al grabar). Verificar que
+   `camera_topic` de `jetson_policy_params.yaml` existe (`ros2 topic list | grep color`).
+3. **Escena:** tijeras sobre la mesa delante del robot, dentro de |y| <= 0.30 m (caja del puente), como en los datos.
+
+Puesta en marcha (cada etapa solo si la anterior se comporta como se describe):
+```bash
+# A) Sin brazo: robot simulado + política (debe bajar hacia delante y auto-detenerse)
+ros2 launch visuomotor_bringup xarm5_real.launch.py simulate_robot_state:=true
+ros2 service call /xarm5_bridge/arm std_srvs/srv/Trigger
+ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+
+# B) Brazo real en DRY-RUN: ir a HOME3 y observar los comandos sin mover nada
+ros2 launch visuomotor_bringup xarm5_real.launch.py
+ros2 service call /xarm5_bridge/go_home3 std_srvs/srv/Trigger
+ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+ros2 topic echo /xarm5_bridge/command_preview      # avance hacia delante/abajo, hacia las tijeras
+ros2 topic echo /policy/metrics/done_flag          # sube a ~1 solo cerca del objeto
+
+# C) Movimiento real a 5 cm/s (límite del puente); paro de emergencia a mano
+ros2 launch visuomotor_bringup xarm5_real.launch.py dry_run:=false
+ros2 service call /xarm5_bridge/go_home3 std_srvs/srv/Trigger
+ros2 service call /xarm5_bridge/arm std_srvs/srv/Trigger
+ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+```
+Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quaternion_hemisphere: auto`,
+`image_resize_method: cv2_area`, `n_action_steps: 3` + ensemble temporal, auto-stop `0.60` durante `5` pasos
+(calibrado offline: 100% de paradas, 0 prematuras, ~8 mm de la meta) y `pose_smoother` a 1.5 Hz
+(`config/xarm5/xarm5_pose_smoother_params.yaml`). Si el brazo va claramente rezagado frente a la política, subir
+`max_linear_speed_m_s` a 0.10 m/s en `xarm5_real_params.yaml` tras validar la etapa C (las demostraciones tienen media
+0.05 m/s y p99 0.14 m/s). Registrar por intento: éxito (se detiene sobre las tijeras), distancia final y tiempo.
+
 ## 4. Benchmark de Latencia y VRAM en Borde
 
 Para verificar cuántos milisegundos toma la inferencia y cuánta memoria consume en la Jetson Orin Nano antes de conectar los motores físicos del robot:

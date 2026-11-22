@@ -108,3 +108,7 @@ datasets/visualizations_real_v2/*
 datasets/visualizations_v8/*.gif
 datasets/visualizations_v8/**/*.gif
 datasets/visualizations_v8/last_20_episodes_891_910/*.gif
+
+# Pesos del modelo desplegado (109 MB > límite de 100 MB de GitHub): copiarlos desde visuomotor_core/outputs/<run>/
+# (ver deploy/jetson/model/MODEL_CARD.md: run, época y sha256).
+deploy/jetson/model/*.safetensors

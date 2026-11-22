@@ -91,7 +91,7 @@ def launch_setup(context, *args, **kwargs):
             executable="pose_smoother.py",
             name="pose_smoother",
             output="screen",
-            parameters=[os.path.join(share, "config", "pose_smoother_params.yaml")],
+            parameters=[LaunchConfiguration("smoother_params_file").perform(context)],
         ))
 
     actions.append(Node(
@@ -161,6 +161,9 @@ def generate_launch_description():
                               description="Lanzar el driver xarm_api (false si ya corre aparte)"),
         DeclareLaunchArgument("start_smoother", default_value="true",
                               description="Lanzar pose_smoother (target_frame_raw -> target_frame)"),
+        DeclareLaunchArgument("smoother_params_file", default_value=os.path.join(
+            get_package_share_directory("visuomotor_bringup"), "config", "xarm5", "xarm5_pose_smoother_params.yaml"),
+                              description="Parámetros de pose_smoother para el xArm5 real (min_cutoff 1.5 Hz)"),
         DeclareLaunchArgument("start_rsp", default_value="true",
                               description="robot_state_publisher con la URDF del xArm5 (RobotModel en RViz2)"),
         DeclareLaunchArgument("start_teleop", default_value="true",
