@@ -92,7 +92,10 @@ xarm5_bridge:
     yaw_max: 2.6
 
     # --- Volumen de trabajo en link_base (metros) -------------------------------
-    # Conservador para las primeras pruebas; ampliar tras medir la celda real.
+    # Conservador para las primeras pruebas; ampliar tras medir la celda real. Es una decisión de SEGURIDAD DE LA CELDA,
+    # no un límite del brazo: a la altura de aproximación de demonstrations_real_v7 (brida z ~0.28 m, garra vertical)
+    # el alcance lateral cinemático es ±0.47 m (con el 95% de workspace_max_reach_m) a la profundidad de los objetos;
+    # alcance nominal del fabricante 700 mm (tools/xarm5/analyze_xarm5_workspace.py, 2026-11-22).
     workspace_x_min: 0.15
     workspace_x_max: 0.65                # alcance físico ~0.716 m (FK, garra vertical); 6 cm de margen a la singularidad
     workspace_y_min: -0.30
@@ -190,11 +193,14 @@ xarm5_bridge:
     # Solo cuentan reportes de robot_states posteriores a la habilitación + este margen (evita leer un estado viejo).
     brake_state_settle_s: 0.15
 
-    # --- Límites articulares (xarm_description/urdf/xarm5/xarm5.urdf.xacro) -------------------------
+    # --- Límites articulares: xArm Hardware Manual v2.7.1 (XF1305), Preface y §8.2 ------------------
+    # J1 ±360°, J2 -117°..116°, J3 -219°..10°, J4 -97°..180°, J5 ±360° (bio/xarm5_ufactory_XF1305/). Más estrechos que
+    # la URDF de xarm_ros2 y el manual V2.3.0 que se usaban antes (J2 -118°..120°, J3 -225°..11°): con esos valores y
+    # el margen de 0.10 rad el guard permitía J3 = -219.3°, más allá del límite oficial (lo cortaba el C23).
     # No se arma si alguna junta está a menos de joint_limit_margin_rad de su límite, y armado se detiene antes de que
-    # el controlador corte con C23 (Joint Angle Exceed Limit). J1 y J5 tienen +/-2*pi (+/-360 grados).
-    joint_lower_limits_rad: [-6.283185, -2.059, -3.927, -1.69297, -6.283185]
-    joint_upper_limits_rad: [6.283185, 2.0944, 0.19198, 3.141593, 6.283185]
+    # el controlador corte con C23 (Joint Angle Exceed Limit). HOME1/HOME2/HOME3 quedan fuera del margen.
+    joint_lower_limits_rad: [-6.283185, -2.042035, -3.822271, -1.692969, -6.283185]
+    joint_upper_limits_rad: [6.283185, 2.024582, 0.174533, 3.141593, 6.283185]
     joint_limit_margin_rad: 0.10
     # go_home1 / go_home2 se rechazan si alguna junta debe moverse más que esto (por junta, J1..J5). J1 muy acotado:
     # evita que un HOME haga girar la base 360 grados (si J1 está desfasada 2*pi, usar ~/unwind_j1 desde la terminal).

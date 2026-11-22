@@ -1,0 +1,159 @@
+{
+ "dataset": "datasets/demonstrations_real_v7_xarm5_v2.zarr",
+ "episodes": 76,
+ "frames": 23731,
+ "manufacturer_spec": {
+  "model": "UFACTORY xArm 5, XF1305",
+  "nominal_reach_m": 0.7,
+  "cartesian_range_m": {
+   "x": [
+    -0.7,
+    0.7
+   ],
+   "y": [
+    -0.7,
+    0.7
+   ],
+   "z": [
+    -0.4,
+    0.9515
+   ]
+  },
+  "link_envelope_m": {
+   "radius": 0.77,
+   "above_base": 1.037,
+   "below_base": 0.416
+  },
+  "joint_ranges_deg": {
+   "J1": [
+    -360,
+    360
+   ],
+   "J2": [
+    -117,
+    116
+   ],
+   "J3": [
+    -219,
+    10
+   ],
+   "J4": [
+    -97,
+    180
+   ],
+   "J5": [
+    -360,
+    360
+   ]
+  },
+  "sources": [
+   "bio/xarm5_ufactory_XF1305/xArm_Hardware_Manual_v2.7.1.pdf (Preface, \u00a72.2.2, \u00a78.1-8.2)",
+   "bio/xarm5_ufactory_XF1305/xArm_Developer_Manual_v2.0.1.pdf (\u00a74.1)"
+  ]
+ },
+ "kinematic_model": {
+  "shoulder_xyz_m": [
+   0.0,
+   0.0,
+   0.267
+  ],
+  "wrist_offset_m": [
+   -0.076,
+   0.0,
+   -0.097
+  ],
+  "straight_elbow_m": 0.6406,
+  "bridge_max_reach_m": 0.6086,
+  "bridge_reach_fraction": 0.9500468310958478,
+  "min_reach_m": 0.12
+ },
+ "bridge_box": {
+  "x": [
+   0.15,
+   0.65
+  ],
+  "y": [
+   -0.3,
+   0.3
+  ],
+  "z": [
+   0.1,
+   0.75
+  ],
+  "radius_xy": [
+   0.15,
+   0.65
+  ]
+ },
+ "demos": {
+  "home_xyz_m": [
+   0.15009,
+   0.0,
+   0.75
+  ],
+  "x_range_m": [
+   0.12873818945527077,
+   0.6047978609466553
+  ],
+  "y_range_m": [
+   -0.35140377283096313,
+   0.26909705996513367
+  ],
+  "z_range_m": [
+   0.15810394287109375,
+   0.7755886558443308
+  ],
+  "radius_xy_max_m": 0.653503222222304,
+  "endpoint_z_median_m": 0.28007592260837555,
+  "endpoint_pitch_median_rad": 0.00899066576683666,
+  "shoulder_wrist_max_m": 0.659885920922977,
+  "straight_elbow_utilization_max": 1.0301060270418,
+  "frames_outside_bridge_box_fraction": 0.013948000505667692,
+  "frames_outside_by_y_fraction": 0.013948000505667692,
+  "frames_beyond_bridge_reach_fraction": 0.008807045636509208,
+  "endpoints_outside_bridge_box": 3,
+  "frames_beyond_straight_elbow_fraction": 0.001264169230120939,
+  "episodes_beyond_bridge_reach": {
+   "episode_1": {
+    "frames": 27,
+    "max_excess_mm": 26.537659580130768,
+    "beyond_straight_elbow": false
+   },
+   "episode_14": {
+    "frames": 35,
+    "max_excess_mm": 7.438293280974562,
+    "beyond_straight_elbow": false
+   },
+   "episode_15": {
+    "frames": 78,
+    "max_excess_mm": 51.28592092297701,
+    "beyond_straight_elbow": true
+   },
+   "episode_20": {
+    "frames": 36,
+    "max_excess_mm": 13.705044270977961,
+    "beyond_straight_elbow": false
+   },
+   "episode_72": {
+    "frames": 33,
+    "max_excess_mm": 9.374654172864538,
+    "beyond_straight_elbow": false
+   }
+  },
+  "endpoint_lateral_limit_m": {
+   "bridge_reach_95pct_median": 0.4693341016529848,
+   "bridge_reach_95pct_min": 0.3158434030959196,
+   "straight_elbow_median": 0.5144031880448086,
+   "bridge_box_and_radius_median": 0.3,
+   "demo_abs_y_max": 0.34697726368904114
+  }
+ },
+ "proposed_box": {
+  "y": [
+   -0.45,
+   0.45
+  ],
+  "frames_outside_fraction": 0.0,
+  "endpoints_outside": 0
+ }
+}
