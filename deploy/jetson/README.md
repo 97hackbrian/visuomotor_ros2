@@ -268,12 +268,31 @@ Modelo en `deploy/jetson/model/` (checkpoint época 200 de `train_real_v7x5v2_re
 `relative_ee`, cuaternión `home`). **Verificado offline y en ROS 2 con el puente simulado; aún no en el brazo físico.**
 
 Requisitos previos:
+0. **Pesos (no están en git: 109 MB > límite de GitHub).** Copiar desde el PC los pesos y la referencia visual a la
+   misma carpeta del repo en la Jetson; `config.json`, `training_meta.json` y `MODEL_CARD.md` llegan con `git pull`:
+   ```bash
+   scp deploy/jetson/model/model.safetensors deploy/jetson/model/home3_reference_view.png \
+       <usuario>@<ip_jetson>:<repo>/deploy/jetson/model/
+   sha256sum deploy/jetson/model/model.safetensors   # en la Jetson: debe dar
+   # 5c5c7ed532e9e3fdac1873519783e3c93f814493864888a935a743a3243545fa
+   ```
+   La referencia se regenera con `tools/xarm5/export_home3_reference.py`.
 1. **Código nuevo en la Jetson:** reconstruir la imagen (`docker compose build`) o usar `docker-compose.dev.yml`
-   (monta `visuomotor_core` y `visuomotor_ros2`): los modelos `relative_ee` necesitan el `DiffusionPolicy` actual.
+   (monta `visuomotor_core` y `visuomotor_ros2`): los modelos `relative_ee` necesitan el `DiffusionPolicy` actual, y
+   el puente usa los límites articulares del Hardware Manual v2.7.1 (XF1305) desde el 2026-11-22. El código de la
+   Jetson (Python 3.8, torch 2.0) pasó un chequeo estático de compatibilidad; la prueba real es la etapa A en la Jetson.
 2. **Cámara:** la misma D435i a 640x480 color, montada en la brida con el eje óptico a lo largo de la herramienta y la
    **imagen derecha en HOME3** (arriba de la imagen = lejos de la base, como se sostuvo al grabar). Verificar que
    `camera_topic` de `jetson_policy_params.yaml` existe (`ros2 topic list | grep color`).
-3. **Escena:** tijeras sobre la mesa delante del robot, dentro de |y| <= 0.30 m (caja del puente), como en los datos.
+   **Comprobación visual obligatoria antes de armar:** con el brazo en HOME3, abrir
+   `ros2 run rqt_image_view rqt_image_view /camera/camera/color/image_raw` y compararla con
+   `deploy/jetson/model/home3_reference_view.png`. Deben coincidir la orientación y el encuadre de la mesa, y no deben
+   verse los dedos de la garra (en las demos no aparecen). Si no coincide, la política verá imágenes fuera de
+   distribución y fallará de forma sistemática: corregir el montaje antes de seguir.
+3. **Escena:** tijeras de podar sobre la misma mesa (mantel blanco y los dos ArUco), dentro de |y| <= 0.30 m (caja de
+   seguridad configurada del puente; el brazo alcanza ±0.47 m a esa profundidad) y entre ~0.35 y 0.60 m delante de la
+   base, como en los datos.
+4. **Latencia en la Orin:** correr el benchmark de la sección 4 con este modelo; DDIM de 10 pasos debe sostener 20 Hz.
 
 Puesta en marcha (cada etapa solo si la anterior se comporta como se describe):
 ```bash
@@ -301,6 +320,20 @@ Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quater
 (`config/xarm5/xarm5_pose_smoother_params.yaml`). Si el brazo va claramente rezagado frente a la política, subir
 `max_linear_speed_m_s` a 0.10 m/s en `xarm5_real_params.yaml` tras validar la etapa C (las demostraciones tienen media
 0.05 m/s y p99 0.14 m/s). Registrar por intento: éxito (se detiene sobre las tijeras), distancia final y tiempo.
+
+**Protocolo de ensayo (etapa C).**
+- **Ensayos:** 20 intentos en una grilla de 6 posiciones de las tijeras (izquierda, centro y derecha × cerca y lejos),
+  rotando el orden.
+- **Éxito:** desde HOME3, el brazo se detiene solo (auto-stop) a ≤ 5 cm del punto de aproximación, sin intervención y
+  sin rechazos del puente.
+- **Registrar:** distancia final, tiempo, paradas prematuras, recortes del puente y un rosbag de `/policy/metrics`.
+- **Estimación previa:** ~40 % (30-55 %) si la vista en HOME3 coincide con la referencia. Con 20 intentos, el
+  intervalo de confianza al 95 % es de unos ±20 puntos (Wilson: 10/20 → 30-70 %); con 10, de unos ±30.
+- **Diagnóstico por síntoma:**
+  - Dirección equivocada desde el arranque: montaje o vista.
+  - Arranca bien y se desvía: error que se acumula en lazo cerrado; hacen falta más datos o correcciones grabadas
+    con la cámara del robot.
+  - No se detiene, o se detiene antes: umbral y paciencia del auto-stop.
 
 ## 4. Benchmark de Latencia y VRAM en Borde
 

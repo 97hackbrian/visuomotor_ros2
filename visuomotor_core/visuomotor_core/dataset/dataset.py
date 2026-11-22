@@ -1,3 +1,5 @@
+from __future__ import annotations  # anotaciones X | Y: importable en Python 3.8 (Jetson JetPack 5)
+
 import torch
 import datasets
 from pathlib import Path

@@ -338,6 +338,9 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/diagnose_policy_baseli
 
 # 20. Alcance del xArm5 (manual + modelo del puente) vs. caja de seguridad vs. demostraciones (con caja propuesta opcional)
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_xarm5_workspace.py --dataset datasets/demonstrations_real_v7_xarm5_v2.zarr --out-dir datasets/evaluations_real_v7_xarm5_v2 --propose-y-max 0.45
+
+# 21. Referencia visual de HOME3 (primer frame de las demos) para comparar con la cámara montada antes de armar el brazo
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/export_home3_reference.py --dataset datasets/demonstrations_real_v7_xarm5_v2.zarr
 ```
 
 ---

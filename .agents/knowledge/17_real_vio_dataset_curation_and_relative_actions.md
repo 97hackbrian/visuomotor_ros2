@@ -200,3 +200,21 @@ Detalle en el módulo 16 §5s y en `datasets/evaluations_real_v7_xarm5_v2/fig_xa
 * **Para la próxima toma:** ampliar la caja si la celda lo permite (decisión del usuario; con ±0.45 m ningún frame v7
   queda fuera), repartir los objetos a ambos lados, y desde HOME3 bajar antes de alejarse de la base.
 
+## 11. Preparación para la prueba física (2026-11-22)
+
+* **Python 3.8 en la Jetson** (L4T r35.4.1, torch 2.0.0, diffusers 0.30.3). Chequeo estático del código que corre ahí
+  (`visuomotor_core`, `visuomotor_ros2`, `visuomotor_bringup`, 46 archivos): sintaxis con `ast`
+  (`feature_version=(3, 8)`), anotaciones `X | Y` / `list[...]` evaluadas sin `from __future__ import annotations` y
+  APIs de la stdlib posteriores a 3.8.
+  - Solo fallaba `dataset/dataset.py`, un archivo antiguo que nadie importa; se corrigió con la importación de
+    `__future__`.
+  - La prueba real sigue siendo la etapa A (robot simulado) ejecutada en la Jetson.
+* **Pesos fuera de git** (`deploy/jetson/model/*.safetensors`): se copian con `scp` y se verifica el sha256
+  `5c5c7ed532e9e3fd…`.
+* **Referencia visual** (`tools/xarm5/export_home3_reference.py` → `deploy/jetson/model/home3_reference_view.png`):
+  primer frame de 12 demos más la mediana de las 76. Muestra la mesa con mantel blanco, los dos ArUco, las tijeras de
+  podar y la base amarilla y negra abajo, y ninguna garra en el encuadre. Hay que compararla con la cámara montada en
+  HOME3 antes de armar.
+* **Protocolo** (`deploy/jetson/README.md`, Fase 22): 20 intentos en grilla de 6 posiciones; éxito = parada
+  automática a ≤ 5 cm sin intervención; estimación previa ~40 % (30-55 %).
+
