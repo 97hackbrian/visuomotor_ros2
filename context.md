@@ -378,6 +378,22 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - Las demostraciones a mano registran la cámara en `odom`; hay que convertirlas con `tools/xarm5/convert_vio_dataset_to_xarm5.py` antes de entrenar (home = HOME3, extrínseca medida, misma proyección que el puente).
     - Módulo 16, §5m–5o.
 
+41. **Dataset real v7: la "certificación" no detectaba errores físicos; curación v2 y acciones relativas (UMI):**
+    - *Defectos de `demonstrations_real_v7_xarm5.zarr`:* (1) extrínseca cámara-TCP invertida 180° sobre el eje óptico
+      (suposición sin medir marcada como calibrada; gravedad inicial a 57° de HOME3 en mediana, 0/83 < 20°); (2) signo
+      del cuaternión discontinuo con `qw >= 0` (1015 saltos q -> -q: `qw = -sin(pitch/2)·sin((yaw-2·acimut)/2)` ≈ 0 en
+      HOME3); (3) ruido del VIO ~8.8 mm RMS que inflaba 4x la velocidad (0.20 m/s aparentes vs 0.05 m/s reales);
+      (4) odometría NO reiniciada entre episodios (su "vertical" deriva hasta 60°; los ArUco de la mesa lo prueban);
+      (5) 7 episodios con giros de muñeca de ~180° o pérdidas de tracking; (6) std del gripper = 1e-6.
+    - *Corrección:* conversor v2 (extrínseca `rpy (pi, -pi/2, 0)`, filtro Hampel + Butterworth 1.5 Hz de fase cero,
+      hemisferio "home", auditoría de saltos) -> `demonstrations_real_v7_xarm5_v2.zarr` (76 episodios, 0 saltos de
+      signo, recorte del puente > 5 cm en 0.1% de frames). Piso de std en `zarr_dataset.py`.
+    - *Representación `relative_ee`:* acción relativa al efector actual (UMI). Piloto a 20 épocas en validación:
+      ADE 12.6 mm vs 38.9 mm con `absolute` (que no bate la línea base "quedarse quieto", 18.6 mm).
+    - *Entrenamiento:* EMA, warmup, split por episodio, evaluación offline por muestreo completo, ColorJitter en GPU,
+      `--resume`, guardia de RAM. *Incidente:* tres entrenamientos simultáneos agotaron la RAM del host (OOM -> GDM).
+    - Módulo 17.
+
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 1. **Eje 1 (Demostrador Experto para Datasets):** Comparación empírica de datasets generados por PID cartesiano vs. SOTA MPC vs. SOTA Impedancia Cartesiana.
@@ -423,9 +439,23 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
   - Corrección de división por cero en `visuomotor_core/dataset/normalize.py` para tensores constantes (gripper pasivo en 0.0) y redirección de logs en `tools/hardware/run_*.sh` a `/tmp/.ros_log_user` para UID 1000.
   - *Estado Crítico:* **El modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de inferencia en hardware real.** El dataset está listo y certificado para iniciar el entrenamiento con `train.py`.
 
+- **Fase 22 (Curación Física del Dataset Real v7, Acciones Relativas UMI y Entrenamiento para el xArm5):**
+  - Auditoría física del dataset v7 (gravedad del VIO, ArUco de la mesa, PSD, continuidad del cuaternión) y conversión
+    v2 corregida (`datasets/demonstrations_real_v7_xarm5_v2.zarr`, figuras en `datasets/evaluations_real_v7_xarm5_v2/`).
+  - Piloto de representación (`relative_ee` vs `absolute`) y entrenamiento principal `relative_ee` de 300 épocas
+    (`visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300`, checkpoints cada 10 épocas, 8 episodios de validación).
+  - Ruta de despliegue verificada sin hardware: reproducción offline de la inferencia de la Jetson y prueba ROS 2 en lazo
+    cerrado con el puente simulado. Módulo 17.
+  - *Modelo entregado:* época 200 en `deploy/jetson/model/` (validación: ADE ejecutado 7.6 mm vs 11.0 mm de la línea
+    base, F1 done 0.70, progreso 1.00; auto-stop calibrado 0.60 x 5 pasos; lazo cerrado simulado coseno 0.99).
+    Los criterios de parada por pérdida sugerían la época ~8: para DP se eligen checkpoints por comportamiento.
+  - *Estado:* el modelo aún NO se ha probado en el xArm5 físico.
+
 **Roadmap Experimental Inmediato:**
-1. **Entrenamiento de Solo DP con el Dataset Real xArm5:** Entrenar con `train.py` sobre `demonstrations_real_v7_xarm5.zarr` a 100 épocas (batch size 64) monitoreando la pérdida DDIM y parada asintótica.
-2. **Despliegue e Inferencia en Vivo en xArm5:** Ejecutar `policy_node.py` en Jetson Orin Nano / host conectado por DDS unicast a `xarm5_bridge` para evaluar el éxito de tarea real en hardware físico por primera vez.
+1. **Despliegue en el xArm5 real del checkpoint seleccionado** (Fase 22): montar la D435i con la imagen derecha en
+   HOME3, dry-run, luego armado a 5 cm/s; medir éxito de aproximación y error final frente a las tijeras.
+2. **Recolección v8 con protocolo corregido:** reiniciar la odometría por episodio (o registrar la IMU), medir la
+   traslación cámara-TCP y empezar cada episodio en la pose de HOME3 (inclinación ~25°).
 3. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
 4. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
 5. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.

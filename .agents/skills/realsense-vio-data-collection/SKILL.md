@@ -3,7 +3,7 @@ name: realsense-vio-data-collection
 description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y RTAB-Map VIO (Grado UMI), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
 ---
 
-# Skill: RealSense VIO & UMI Handheld Data Collection (v1.1)
+# Skill: RealSense VIO & UMI Handheld Data Collection (v1.2)
 
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
@@ -28,6 +28,12 @@ Esta habilidad proporciona el procedimiento estandarizado para capturar demostra
 | **Frecuencia de Muestreo** | $20.0\text{ Hz}$ canónicos sincrónicos | $20.0\text{ Hz}$ sincrónicos con timer de ROS 2 | **PASA** |
 | **Piso de Auto-Stop** | $\ge 2.0\text{ s}$ con `done=1.0` en destino | Garantizado mediante inyección forzada de 40 frames | **PASA** |
 | **Compatibilidad xArm5** (si el dataset se entrenará para el robot real) | 0 episodios marcados en `_conversion_report.json` (o excluidos con `--drop-flagged`) | `tools/xarm5/convert_vio_dataset_to_xarm5.py` | Obligatorio |
+| **Auditoría física** (dataset para el xArm5) | Gravedad del VIO vs. HOME3 < 20° en la mayoría de episodios con la extrínseca configurada; 0 saltos de signo del cuaternión; ruido eliminado por el filtro < 10 mm RMS | `tools/xarm5/analyze_vio_dataset_quality.py` (v7: 13.4° mediana, 0 saltos, 8.8 mm) | Obligatorio |
+
+> [!WARNING]
+> La integridad de tensores y la frecuencia de 20 Hz no certifican la física. `demonstrations_real_v7_xarm5.zarr` pasó
+> esa "certificación" con la cámara invertida 180°, 1015 saltos de signo del cuaternión y velocidades infladas 4x por el
+> ruido (ver `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`).
 
 ---
 
@@ -86,7 +92,8 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
      redefine HOME3, actualizar allí y reconvertir.
 2. **Orientación:** la garra debe estar vertical o inclinada solo en el plano vertical que contiene a la base del brazo
    (hacia la base o alejándose), hasta ±85°. Nunca debe inclinarse lateralmente (roll): el xArm5 no puede ejecutarlo;
-   se proyecta y el episodio se marca si la desviación supera 0.15 rad.
+   se proyecta y el episodio se marca si la desviación supera `max_orientation_deviation_rad` de
+   `xarm5_dataset_alignment.yaml` (0.70 rad desde la Fase 22).
 3. **Volumen alcanzable:**
    - Radio 0.15–0.65 m y |y| ≤ 0.30 m.
    - La altura máxima baja con la distancia: 0.75 m cerca de la base, 0.71 m a 0.35 m, 0.61 m a 0.50 m y 0.37 m a 0.65 m.
@@ -97,6 +104,22 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
 5. **Montaje:** el mismo soporte de cámara en la mano y en la muñeca del robot (extrínseca cámara→TCP en
    `visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml`, medir y poner `extrinsic_calibrated: true`).
 6. **Gripper:** `0.0` si no se registra (`[G]` para alternar).
+
+---
+
+## 3c. Protocolo de Grabación para el xArm5 (lecciones de `demonstrations_real_v7`)
+
+1. **Reiniciar la odometría al inicio de cada episodio** (o registrar la IMU cruda). Hoy `odom` persiste durante toda
+   la sesión y su vertical deriva hasta 50-60° (medido con los ArUco de la mesa); solo el movimiento relativo dentro del
+   episodio es fiable, y el conversor ya lo usa así.
+2. **Sostener la cámara derecha:** arriba de la imagen = lejos de la base, igual que montada en la brida en HOME3
+   (`tcp_to_camera_rpy_rad: [pi, -pi/2, 0]`). Empezar con la inclinación de HOME3 (~25° de la vertical); en v7 la media
+   medida fue 32° ± 6°.
+3. **No girar la muñeca más de ±140°:** el yaw del puente está acotado a ±2.6 rad y los giros de ~180° se convierten en
+   saltos; en v7 se descartaron 5 episodios por eso.
+4. **Velocidad real:** ~0.05 m/s es compatible con el puente. Los "0.20 m/s" que daba el dataset sin filtrar eran ruido
+   del VIO (~8.8 mm RMS), no la velocidad de la mano.
+5. **Tracking:** si la vista pierde textura (saltos > 0.15 m entre frames), descartar con `[D]` en vez de guardar.
 
 ---
 
@@ -132,9 +155,16 @@ escribe una copia nueva y nunca modifica el original:
 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v5.zarr --report-only   # auditoría
 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v5.zarr --drop-flagged
 # -> entrenar con datasets/demonstrations_real_v5_xarm5.zarr; revisar demonstrations_real_v5_xarm5_conversion_report.json
+# (si <src>_xarm5.zarr ya existe, pasar --dst con un sufijo nuevo, p. ej. _xarm5_v2.zarr: nunca se sobrescribe)
+
+# Auditoría física obligatoria (gravedad vs. extrínseca, ArUco, PSD/ruido, velocidad real, saltos de signo), con figuras
+python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v5.zarr \
+    --old <conversión anterior, o la misma si no hay> --new datasets/demonstrations_real_v5_xarm5.zarr --out-dir datasets/evaluations_real_v5_xarm5
 ```
 La herramienta se niega a convertir con `extrinsic_calibrated: false`. Marca los episodios con orientación inalcanzable,
-fuera del volumen o del alcance, o más rápidos que el puente.
+fuera del volumen o del alcance, con saltos de tracking (`max_raw_step_m`) o más rápidos que el puente. Desde el conversor
+v2 aplica el filtro de trayectoria (Hampel + Butterworth 1.5 Hz de fase cero) y la convención de cuaternión `home` de
+`xarm5_dataset_alignment.yaml`. Nunca relajar esos umbrales para que un dataset "pase".
 
 ---
 

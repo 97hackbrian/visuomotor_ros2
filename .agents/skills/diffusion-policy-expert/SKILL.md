@@ -3,7 +3,7 @@ name: diffusion-policy-expert
 description: Advanced knowledge base and best practices for tuning, debugging, and improving Diffusion Policy (DP) models in robotic visuomotor control. Includes architectural pipelines, mathematical formulations, and troubleshooting guides.
 ---
 
-# Diffusion Policy Expert Knowledge Base (v1.1)
+# Diffusion Policy Expert Knowledge Base (v1.2)
 
 ## 1. La Jerarquía Visuomotora (The Robotics AI Stack)
 El ecosistema visuomotor opera en 6 capas rigurosamente desacopladas:
@@ -123,6 +123,9 @@ En políticas visuomotoras continuas basadas en difusión:
       q1 = -q1
       dot = -dot
   ```
+* **Excepción (xArm5 real, garra hacia abajo):** ahí $q_w \approx 0$ y la regla $q_w \ge 0$ es discontinua (1015 saltos
+  de signo en `demonstrations_real_v7_xarm5.zarr`). Usar la semiesfera `home` ($\mathbf{q}\cdot\mathbf{q}_{\text{home}} \ge 0$),
+  que el checkpoint guarda en `config.json` (`quaternion_hemisphere`) y `policy_node` lee con `auto`. Ver §13.
 
 ### C. Freno Dinámico en Z (Prevención de Desenfoque Óptico)
 * Movimientos rápidos de rotación del gripper combinados con descensos bruscos provocan *Motion Blur* severo en la cámara de muñeca, degradando las activaciones del ResNet.
@@ -352,3 +355,40 @@ $$\mathbf{a}_{\text{final}} = \pi_{\text{base}}(\mathbf{s}) + \pi_{\text{res}}(\
 ### C. Doble Eje X Obligatorio y Parametrización de Datasets
 - Todo gráfico de pérdida temporal debe renderizar sincronizadamente los Pasos (eje inferior) y las Épocas (eje superior: $\text{epoch} = \text{step} / N_{\text{steps\_per\_epoch}}$).
 - Prohibición estricta de nombres de dataset hardcodeados: las herramientas deben recibir `dataset_name` dinámicamente y reflejarlo en títulos y leyendas.
+
+---
+
+## 13. Entrenamiento con Demostraciones Reales a Mano (VIO → xArm5, Fase 22)
+
+Referencia completa: `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
+
+### A. Configuración
+- **Representación de acción `relative_ee` (UMI):** `--action_representation relative_ee`. En el piloto de 20 épocas
+  (validación) dio ADE 12.6 mm frente a 38.9 mm con `absolute`, que no batió la línea base "quedarse quieto" (18.6 mm).
+  `DiffusionPolicy` recompone la acción absoluta con el estado observado, así que `policy_node` y `ActionChunk` no cambian.
+- **Validación por episodio:** siempre `--val_ratio 0.1` (split estratificado por episodio completo) y `--eval_every 10`.
+- **Regularización y robustez:** EMA de pesos (activa por defecto), `--color_jitter` (en GPU), `--save_every 10`,
+  `--resume` tras cualquier interrupción y `--max_rss_gb 12` como guardia de RAM.
+- **Convención del cuaternión:** `--quaternion_hemisphere auto` hereda la del dataset (`home` para datos reales del
+  xArm5). Un valor explícito que la contradiga detiene el entrenamiento.
+
+### B. Selección de checkpoints
+- Elegir por métricas de muestreo completo frente a la línea base "quedarse quieto": ADE/FDE, ADE ejecutado (los
+  `n_action_steps` que se envían al robot), error de rotación, F1 de `done` y progreso. **Nunca por la pérdida de
+  validación ni por los criterios de parada de §12:** en `train_real_v7x5v2_relative_ee_e300` (76 episodios) estos
+  recomendaban la época ~8, mientras el comportamiento siguió mejorando hasta ~200 (ADE ejecutado 7.6 mm vs. 11.0 mm de
+  la línea base). El rango $E^*$ de §12.A viene de datasets simulados de 300-500 episodios y no se transfiere.
+
+### C. Recursos de este equipo (31 GB RAM, RTX 4060 8 GB)
+- Un entrenamiento pesado a la vez; dos como máximo con `--num_workers 6 --prefetch_factor 2`. Tres simultáneos
+  provocaron un OOM global que cerró la sesión gráfica del usuario.
+- VRAM < 7.8 GB: batch 64 en bf16 tuvo un pico asignado de 2.0 GB (`torch.cuda.max_memory_allocated`); el cuello de
+  botella de este equipo es la RAM del host, no la GPU.
+
+### D. Antes de desplegar
+1. `tools/xarm5/replay_policy_offline.py`: reproduce la ruta de inferencia de la Jetson sobre los episodios de
+   validación y calibra umbral y paciencia del auto-stop (`neural_auto_stop_threshold`, `neural_auto_stop_patience_steps`).
+2. `tools/xarm5/check_policy_closed_loop_sim.py`: cadena ROS 2 completa con el puente simulado (dirección del
+   movimiento, parada automática y rechazos del puente).
+3. Copiar `model.safetensors` + `config.json` a `deploy/jetson/model/`, reconstruir la imagen de la Jetson y probar en
+   dry-run antes de armar el brazo.

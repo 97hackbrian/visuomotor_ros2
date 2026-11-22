@@ -58,7 +58,7 @@ El repositorio se divide en 5 paquetes desacoplados:
 ### A. Observación Propioceptiva (`observation.state`) — 8 Dimensiones
 Modela exclusivamente lo que los sensores físicos miden en el instante $t$:
 * `state[0:3]`: Posición cartesiana actual del TCP $[X, Y, Z]$ en metros (referencia `link_base`).
-* `state[3:7]`: Orientación del TCP como cuaternión $[q_x, q_y, q_z, q_w]$ (con $q_w \ge 0$).
+* `state[3:7]`: Orientación del TCP como cuaternión $[q_x, q_y, q_z, q_w]$. Signo según `quaternion_hemisphere`: `qw_positive` ($q_w \ge 0$, histórico/simulación) u `home` ($\mathbf{q}\cdot\mathbf{q}_{\text{home}} \ge 0$, obligatorio con la garra del xArm5 hacia abajo, donde $q_w \approx 0$ y $q_w \ge 0$ es discontinuo). El checkpoint guarda la convención en `config.json`.
 * `state[7]`: Estado medido de apertura del gripper (leído de `/joint_states`).
 
 > [!CRITICAL]
@@ -71,6 +71,7 @@ Modela la trayectoria futura predicha por la U-Net ($16 \times 9$):
 * `action[3:7]`: Cuaternión objetivo $[q_x, q_y, q_z, q_w]$ (normalizado en inferencia).
 * `action[7]`: Comando de gripper ($0.0$ abierto, $\le -0.005$ cerrado).
 * `action[8]`: **`done_flag` / Auto-Stop Neuronal** ($0.0$ = tarea en curso, $1.0$ = tarea completada).
+* `action_representation` (en `config.json`): `absolute` (pose en el marco del estado) o `relative_ee` (pose relativa al efector actual, estilo UMI; `DiffusionPolicy` la recompone a absoluta con el estado observado, así que `policy_node` y `ActionChunk` no cambian).
 
 ### C. Observación Visual (`observation.image`)
 * Formato: $[3, 256, 256]$ RGB normalizado en $[0, 1]$.
@@ -239,6 +240,18 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Suite de Evaluación y Registro SQLite:* `tools/evaluate_real_dataset.py` genera paneles multicanal 2x3 a 300 DPI y PDF 100% en inglés académico (`demonstrations_real_v7_xarm5_sota_panel.png/.pdf` y `demonstrations_real_v7_sota_panel.png/.pdf`). Subfigura D (Eficiencia Geométrica: $D = 0.60\text{ m}$ vs $L_{\text{eff}} = 1.12\text{ m}$, tortuosidad $1.88 \pm 0.40$), Subfigura E (Espacio de Fases: $\mathbf{v}(d_{\text{target}})$ con desaceleración en zona de contacto $d \le 5\text{ cm}$), y registro relacional en `experiments/experiments.db`.
     - *Cláusula de Estado Operativo:* **Hasta esta fase, el dataset está 100% certificado y listo, pero el modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de despliegue en hardware real.**
     - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md` §5r.
+    - **SUPERADO por el punto 22:** la auditoría física de la Fase 22 encontró la extrínseca invertida 180°, saltos de signo del cuaternión, ruido VIO de ~8.8 mm RMS y umbrales de auditoría relajados. No entrenar con `demonstrations_real_v7_xarm5.zarr`.
+
+22. **Curación Física del Dataset Real v7, Acciones Relativas (UMI) y Entrenamiento para el xArm5 (Fase 22):**
+    - *Dataset obligatorio:* `datasets/demonstrations_real_v7_xarm5_v2.zarr` (76 episodios, 23,731 frames, conversor v2). Extrínseca `tcp_to_camera_rpy_rad: [pi, -pi/2, 0]` determinada con la gravedad del VIO y los ArUco de la mesa (arriba de la imagen = lejos de la base en HOME3), filtro de trayectoria (Hampel + Butterworth 1.5 Hz de fase cero), `quaternion_hemisphere: home`, 7 episodios descartados (giros de muñeca ~180° y pérdidas de tracking).
+    - *Reglas de datos reales:* una "certificación" de integridad/tensores no basta: auditar la física (gravedad, continuidad del cuaternión, PSD/ruido, velocidad real, volumen del puente). La odometría de `vo_collector` no se reinicia entre episodios: usar solo movimiento relativo dentro del episodio. Nunca relajar umbrales de auditoría para que un dataset "pase".
+    - *Entrenamiento:* `--action_representation relative_ee` (piloto en validación: ADE 12.6 mm vs 38.9 mm con `absolute`), EMA de pesos, warmup, `--val_ratio` (split por episodio) con evaluación offline por muestreo completo (ADE/FDE/rotación/F1 done/progreso vs línea base "quedarse quieto"), `--color_jitter` (GPU), `--resume`, `--max_rss_gb`.
+    - *Recursos del host (31 GB RAM):* UN entrenamiento pesado a la vez (máx. dos con `--num_workers 6 --prefetch_factor 2`). Tres simultáneos provocaron un OOM global que cerró la sesión gráfica del usuario.
+    - *Despliegue:* `policy_node` con `quaternion_hemisphere: auto|home`, `image_resize_method: cv2_area`, `neural_auto_stop_patience_steps`; `xarm5_real.launch.py` con `xarm5_pose_smoother_params.yaml` (1.5 Hz). Verificación sin hardware: `tools/xarm5/replay_policy_offline.py` y `tools/xarm5/check_policy_closed_loop_sim.py`. Recompilar `install/` con `--symlink-install` y reconstruir la imagen de la Jetson.
+    - *Modelo entregado:* `deploy/jetson/model/` = época 200 de `visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300` (300 épocas). Validación (8 episodios): ADE 11.6 mm, ADE ejecutado 7.6 mm (línea base 11.0), FDE 18.5 mm, 1.74°, F1 done 0.70, progreso 1.00. Auto-stop calibrado 0.60 x 5 pasos (100% paradas, 0 prematuras, ~8 mm). Lazo cerrado ROS 2 simulado: coseno 0.99, 0 rechazos.
+    - *Selección de checkpoints:* los criterios de parada basados en la pérdida (punto 14) recomendaban la época ~8; las métricas de comportamiento mejoraron hasta ~200. En DP se elige con métricas de muestreo completo y reproducción de la ruta de despliegue, no con la pérdida.
+    - *Cláusula de Estado Operativo:* **el modelo aún NO ha sido evaluado en el xArm5 físico.**
+    - *Memoria Modular:* `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
 
 ---
 
@@ -306,6 +319,17 @@ docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=true
 ./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"
 docker exec -it -u 1000 visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
+
+# 16. Dataset real -> xArm5 (conversor v2: auditoría, filtro, hemisferio) y diagnóstico físico con figuras
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v7.zarr --dst datasets/demonstrations_real_v7_xarm5_v2.zarr --drop-flagged
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v7.zarr --old datasets/demonstrations_real_v7_xarm5.zarr --new datasets/demonstrations_real_v7_xarm5_v2.zarr --out-dir datasets/evaluations_real_v7_xarm5_v2
+
+# 17. Entrenamiento real xArm5 (relative_ee, EMA, validación por episodio, guardia de RAM; reanudable con --resume)
+docker exec -d -u 1000 -w /ros visuomotor_ros2 bash -c "python3 visuomotor_core/train.py --root /ros/datasets/demonstrations_real_v7_xarm5_v2.zarr --epoch 300 --batch_size 64 --num_workers 6 --prefetch_factor 2 --max_rss_gb 12 --save_every 10 --eval_every 10 --val_ratio 0.1 --action_representation relative_ee --color_jitter --out_dir /ros/visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300 > /ros/visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300.stdout 2>&1"
+
+# 18. Verificación de despliegue sin hardware (reproducción de la ruta de la Jetson y lazo cerrado ROS 2 con puente simulado)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/replay_policy_offline.py --checkpoint <ckpt> --dataset datasets/demonstrations_real_v7_xarm5_v2.zarr --episodes val --out-dir <dir>
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source /tmp/xarm_ws/install/setup.bash && source install/setup.bash && python3 tools/xarm5/check_policy_closed_loop_sim.py --checkpoint <ckpt> --dataset datasets/demonstrations_real_v7_xarm5_v2.zarr --episode episode_45 --out-dir <dir>"
 ```
 
 ---
