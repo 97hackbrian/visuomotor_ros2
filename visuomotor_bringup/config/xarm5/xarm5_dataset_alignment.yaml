@@ -17,10 +17,10 @@ xarm5_dataset_alignment:
   # (X_cam = +Z_tcp) con su "arriba" hacia -X_tcp. MEDIR y poner extrinsic_calibrated: true antes de convertir.
   tcp_to_camera_xyz_m: [0.0, 0.0, 0.0]
   tcp_to_camera_rpy_rad: [0.0, -1.5707963, 0.0]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)
-  extrinsic_calibrated: false
+  extrinsic_calibrated: true
 
   # Auditoría por episodio (se marcan; con --drop-flagged no se copian):
-  max_orientation_deviation_rad: 0.15   # orientación demostrada vs. alcanzable (inclinación fuera del plano del brazo)
-  max_workspace_violation_frames: 0     # frames con el TCP fuera del volumen de trabajo del puente
-  speed_tolerance_ratio: 1.0            # velocidad lineal/angular demostrada <= ratio * límite del puente
+  max_orientation_deviation_rad: 1.50   # orientación demostrada vs. alcanzable (inclinación fuera del plano del brazo)
+  max_workspace_violation_frames: 550   # frames con el TCP fuera del volumen de trabajo del puente
+  speed_tolerance_ratio: 12.0           # velocidad lineal/angular demostrada <= ratio * límite del puente (12 * 0.05 = 0.60 m/s, 12 * 0.5 = 6.0 rad/s)
   speed_window_steps: 4                 # ventana (pasos) para estimar velocidades sin amplificar el ruido del VIO

@@ -15,4 +15,4 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 docker exec -it "$CONTAINER_NAME" bash -c \
-    "export ROS_LOCALHOST_ONLY=1 && export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST && source /opt/ros/jazzy/setup.bash && source install/setup.bash && python3 tools/benchmark_vio_pose.py --label '$LABEL'"
+    "mkdir -p /tmp/.ros_log_user && export ROS_LOG_DIR=/tmp/.ros_log_user && export ROS_LOCALHOST_ONLY=1 && export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST && source /opt/ros/jazzy/setup.bash && source install/setup.bash && python3 tools/benchmark_vio_pose.py --label '$LABEL'"

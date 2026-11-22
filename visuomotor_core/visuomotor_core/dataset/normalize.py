@@ -67,7 +67,9 @@ class Normalize(nn.Module):
                 assert not torch.isinf(min).any(), _no_stats_error_str("min")
                 assert not torch.isinf(max).any(), _no_stats_error_str("max")
                 # normalize to [0,1]
-                val = (batch[key] - min) / (max - min)
+                diff = max - min
+                diff = torch.where(diff > 1e-6, diff, torch.ones_like(diff))
+                val = (batch[key] - min) / diff
                 # normalize to [-1, 1]
                 out[key] = val * 2 - 1
             else:

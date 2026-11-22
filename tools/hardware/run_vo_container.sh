@@ -50,4 +50,4 @@ docker run $INTERACTIVE_FLAGS --rm \
     -v "$WORKSPACE_DIR":/ros:rw \
     -w /ros \
     $IMAGE_NAME \
-    bash -c "for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; mkdir -p /tmp/.ros && chmod -R 777 /tmp/.ros 2>/dev/null || true; trap 'for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; chown -R 1000:1000 /ros/datasets /ros/build /ros/install 2>/dev/null || true' EXIT; source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"
+    bash -c "for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; mkdir -p /tmp/.ros/log && chmod -R 777 /tmp/.ros 2>/dev/null || true; trap 'for dev in /sys/bus/iio/devices/iio:device*/buffer/enable; do [ -f \"\$dev\" ] && echo 0 > \"\$dev\" 2>/dev/null || true; done; chown -R 1000:1000 /ros/datasets /ros/build /ros/install 2>/dev/null || true' EXIT; source /opt/ros/jazzy/setup.bash && source install/setup.bash && $*"
