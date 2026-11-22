@@ -156,3 +156,21 @@ flowchart TD
         Bridge --> Hardware["xArm5 Controller (192.168.1.228)"]
     end
 ```
+
+---
+
+## 7. Evaluación y Certificación SOTA del Dataset (`tools/evaluate_real_dataset.py`)
+
+Tras la conversión o recolección, evaluar el dataset con la herramienta científica desacoplada:
+```bash
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "\
+    python3 tools/evaluate_real_dataset.py \
+    --dataset datasets/demonstrations_real_vX_xarm5.zarr \
+    --out-dir datasets/evaluations_real_vX_xarm5"
+```
+* **Métricas evaluadas:**
+  - Desplazamiento neto $D$ vs. longitud de camino efectivo suavizado $L_{\text{eff}}$ (índice de tortuosidad $L_{\text{eff}}/D$).
+  - Perfil de aproximación en espacio de fases $\mathbf{v}(d_{\text{target}})$ hacia la zona de contacto ($d \le 5\text{ cm}$).
+  - Garantía de piso terminal de auto-stop ($\ge 2.0\text{ s}$ con `done=1.0`).
+  - Generación de panel SOTA multicanal 2x3 (`.png` 300 DPI y `.pdf`), reporte Markdown y registro automático en SQLite `experiments/experiments.db`.
+  - Todo reporte y gráfico generado en inglés formal de publicación científica.

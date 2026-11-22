@@ -131,3 +131,19 @@ model,episode,spawn_x,spawn_y,spawn_z,spawn_yaw,task_success,is_clamped,min_dist
    - Medir el incremento en la tasa de éxito al generar $B \in \{1, 4, 8\}$ hipótesis candidatas en paralelo en GPU y seleccionar la de mayor valor predicho por el Crítico $V_\phi(s, a)$.
 4. **Diagnóstico Interpretable de Fallos mediante AdaBoost con Tocones:**
    - Entrenar tocones de decisión sobre las variables continuas de `metrics.csv` y `benchmark_episodes.csv` ($\delta_{\text{elastic}}$, $\Delta Z$, error terminal) para identificar los umbrales mecánicos exactos que separan el éxito del fallo.
+
+---
+
+## 7. Evaluación y Caracterización Cinemática de Datasets Reales (Panel SOTA 2x3)
+
+Al procesar demostraciones capturadas en hardware real (`tools/evaluate_real_dataset.py`), deben seguirse estos principios metrológicos:
+1. **Eficiencia Geométrica (Desplazamiento Neto $D$ vs. Arco Efectivo $L_{\text{eff}}$):**
+   - La sumatoria directa de desplazamientos euclidianos paso a paso ($\sum \|\Delta \mathbf{p}_t\|$) sobremuestreados a 20 Hz introduce una acumulación espuria de micro-vibraciones y temblores del sensor (ej. inflando una trayectoria de 60 cm a más de 8 metros).
+   - Se debe aplicar un filtro de media móvil temporal (ventana de 5 pasos / 0.25 s) sobre la trayectoria antes de calcular la longitud de arco efectiva:
+     $$L_{\text{eff}} = \sum_{t=1}^T \|\mathbf{p}^{\text{suave}}_t - \mathbf{p}^{\text{suave}}_{t-1}\|$$
+   - El cociente $L_{\text{eff}} / D$ define el **Índice de Tortuosidad Suave** (esperado $1.8\text{--}2.0$ para aproximaciones de alcance curvilíneo humano natural).
+2. **Perfil de Desaceleración en Espacio de Fases $\mathbf{v}(d_{\text{target}})$:**
+   - Mapear la velocidad cartesiana respecto a la distancia al objetivo con el eje X invertido (origen del movimiento a la izquierda, contacto a la derecha en $0\text{ m}$).
+   - Evidencia la dinámica biológica de desaceleración gradual y control fino al entrar en la zona crítica de contacto ($d \le 5\text{ cm}$).
+3. **Estandarización Idiomática:**
+   - Todas las figuras, etiquetas de ejes, leyendas, reportes Markdown y tablas estructuradas exportadas deben generarse estrictamente en inglés académico formal.
