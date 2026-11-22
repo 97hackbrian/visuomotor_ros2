@@ -2,7 +2,8 @@
 """Compara corridas de entrenamiento por sus métricas offline de muestreo completo (``eval_metrics.csv``).
 
 Figura (inglés, PNG 300 DPI + PDF) con 6 paneles sobre los episodios de validación (held-out): ADE, ADE ejecutado,
-FDE, error de orientación, F1 del flag done y razón de progreso, con la línea base "quedarse quieto". Solo lectura.
+FDE, error de orientación, F1 del flag done y razón de progreso, con las líneas base "quedarse quieto" y "velocidad
+constante" (esta última solo en corridas evaluadas después de añadirla a ``evaluation.py``). Solo lectura.
 
 Uso (contenedor):
     python3 tools/compare_eval_runs.py --runs visuomotor_core/outputs/run_a visuomotor_core/outputs/run_b \
@@ -53,9 +54,9 @@ def main(argv=None):
     meta = json.load(open(Path(args.runs[0]) / "training_meta.json"))
     ds = meta.get("dataset_name", "")
     n_val = len(meta.get("val_episodes", []))
-    panels = [("ade_mm", "A) Average displacement error", "ADE (mm)", "hold_ade_mm"),
-              ("ade_exec_mm", "B) ADE over executed steps", "ADE exec. (mm)", "hold_ade_exec_mm"),
-              ("fde_mm", "C) Final displacement error", "FDE (mm)", None),
+    panels = [("ade_mm", "A) Average displacement error", "ADE (mm)", ("hold_ade_mm", "cv_ade_mm")),
+              ("ade_exec_mm", "B) ADE over executed steps", "ADE exec. (mm)", ("hold_ade_exec_mm", "cv_ade_exec_mm")),
+              ("fde_mm", "C) Final displacement error", "FDE (mm)", ("hold_fde_mm", "cv_fde_mm")),
               ("rot_deg", "D) Geodesic orientation error", "deg", None),
               ("done_f1", "E) Done-flag F1 (first executed step)", "F1", None),
               ("progress_ratio", "F) Progress ratio (pred./demo)", "ratio", None)]
@@ -66,10 +67,11 @@ def main(argv=None):
             pts = [(r["epoch"], r[key]) for r in rows if key in r]
             if pts:
                 ax.plot([p[0] for p in pts], [p[1] for p in pts], color=color, marker="o", ms=5, lw=2, label=label)
-        if base:
-            vals = [r.get(base) for rows in data for r in rows if r.get(base) == r.get(base) and r.get(base) is not None]
+        for bk, ls, color, blabel in zip(base or (), ("--", "-."), (GRAY, INK),
+                                         ("Baseline: hold current pose", "Baseline: constant velocity")):
+            vals = [r.get(bk) for rows in data for r in rows if r.get(bk) == r.get(bk) and r.get(bk) is not None]
             if vals:
-                ax.axhline(vals[-1], color=GRAY, ls="--", lw=1.4, label="Baseline: hold current pose")
+                ax.axhline(vals[-1], color=color, ls=ls, lw=1.4, label=blabel)
         if key == "progress_ratio":
             ax.axhline(1.0, color=GRAY, ls="--", lw=1.4, label="Ideal")
         if key in ("ade_mm", "ade_exec_mm", "fde_mm"):

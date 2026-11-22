@@ -95,6 +95,17 @@ def plot_training_curves(out_dir: Path, step_history: List[Dict], epoch_history:
     _save(fig, Path(out_dir) / "losses" / "training_curves", dpi)
 
 
+_BASELINES = {"ade_mm": ("hold_ade_mm", "cv_ade_mm"), "ade_exec_mm": ("hold_ade_exec_mm", "cv_ade_exec_mm"),
+              "fde_mm": ("hold_fde_mm", "cv_fde_mm")}
+
+
+def _finite(v) -> bool:
+    try:
+        return v is not None and bool(np.isfinite(float(v)))
+    except (TypeError, ValueError):
+        return False
+
+
 def plot_eval_curves(out_dir: Path, eval_history: List[Dict], steps_per_epoch: int, dataset_name: str = "",
                      dpi: int = 300):
     """Métricas de muestreo completo por checkpoint (held-out vs. subconjunto de entrenamiento)."""
@@ -120,11 +131,14 @@ def plot_eval_curves(out_dir: Path, eval_history: List[Dict], steps_per_epoch: i
             if rows:
                 ax.plot([r["step"] for r in rows], [r[key] for r in rows], color=color, marker="o", ms=4, lw=1.8,
                         label=label)
-        if key in ("ade_mm", "ade_exec_mm"):
-            hk = "hold_ade_mm" if key == "ade_mm" else "hold_ade_exec_mm"
-            rows = [r for r in eval_history if r["split"] == "val" and r.get(hk) is not None]
-            if rows:
-                ax.axhline(rows[-1][hk], color=GRAY, ls="--", lw=1.5, label="Baseline: hold current pose")
+        if key in _BASELINES:
+            # Líneas base sobre las mismas ventanas held-out (no dependen del checkpoint: se usa la última)
+            for bk, ls, color, label in zip(_BASELINES[key], ("--", "-."), (GRAY, INK),
+                                            ("Baseline: hold current pose (held-out)",
+                                             "Baseline: constant velocity (held-out)")):
+                rows = [r for r in eval_history if r["split"] == "val" and _finite(r.get(bk))]
+                if rows:
+                    ax.axhline(float(rows[-1][bk]), color=color, ls=ls, lw=1.5, label=label)
         if key == "progress_ratio":
             ax.axhline(1.0, color=GRAY, ls="--", lw=1.5, label="Ideal")
         ax.set_title(ttl, fontweight="bold")

@@ -30,7 +30,8 @@ from visuomotor_core.models.config import DiffusionConfig
 from visuomotor_core.models.diffusion_policy import DiffusionPolicy
 from visuomotor_core.training.augment import make_gpu_augment
 from visuomotor_core.training.ema import EMAModel
-from visuomotor_core.training.evaluation import evaluate_denoising_loss, evaluate_sampling, fixed_subset
+from visuomotor_core.training.evaluation import (estimate_action_offset, evaluate_denoising_loss, evaluate_sampling,
+                                                 fixed_subset)
 from visuomotor_core.training.plots import plot_eval_curves, plot_training_curves
 from visuomotor_core.utils.logger import benchmark, configure_logging
 
@@ -128,6 +129,9 @@ def main(
              f"Acción: {action_representation} | Cuaternión: {q_mode} ref={q_ref}")
     if val_eps:
         log.info(f"Episodios de validación: {val_eps}")
+    # Alineación acción/estado para la línea base "velocidad constante" de la evaluación offline
+    action_offset = estimate_action_offset(root, train_eps)
+    log.info(f"Línea base cinemática: action[t] ~ state[t+{action_offset}] (estimado en los episodios de entrenamiento)")
 
     cfg = DiffusionConfig(action_representation=action_representation, quaternion_hemisphere=q_mode,
                           quaternion_reference=q_ref)
@@ -207,6 +211,7 @@ def main(
         "val_ratio": val_ratio, "val_seed": val_seed, "train_episodes": train_eps, "val_episodes": val_eps,
         "action_representation": action_representation, "quaternion_hemisphere": q_mode,
         "quaternion_reference": q_ref, "color_jitter": jitter, "proprio_dropout": proprio_dropout, "seed": seed,
+        "eval_action_offset_steps": action_offset,
     }
     with open(output_directory / "training_meta.json", "w", encoding="utf-8") as f:
         json.dump(training_meta, f, indent=2)
@@ -299,7 +304,8 @@ def main(
         return fh, w
 
     eval_keys = ["n_windows", "ade_mm", "ade_exec_mm", "fde_mm", "rot_deg", "hold_ade_mm", "hold_ade_exec_mm", "progress_ratio",
-                 "done_acc", "done_precision", "done_recall", "done_f1"]
+                 "done_acc", "done_precision", "done_recall", "done_f1",
+                 "hold_fde_mm", "cv_ade_mm", "cv_ade_exec_mm", "cv_fde_mm"]
     rows_step = rows_epoch = rows_eval = None
     if resume:
         rows_step = [[r["step"], r["epoch"], r["loss"], r["loss_ema"], f"{r['lr']:.6e}", r["vram_peak_mb"],
@@ -330,7 +336,8 @@ def main(
             for split, ds, idx in (("val", val_abs_ds, val_eval_idx), ("train", train_abs_ds, train_eval_idx)):
                 if ds is None or len(idx) == 0:
                     continue
-                m = evaluate_sampling(model, ds, idx, device, n_action_steps=cfg.n_action_steps)
+                m = evaluate_sampling(model, ds, idx, device, n_action_steps=cfg.n_action_steps,
+                                      action_offset=action_offset)
                 row = {"epoch": epoch_idx, "step": step, "split": split,
                        "denoise_loss": val_loss if split == "val" else float("nan"), **m,
                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -340,6 +347,7 @@ def main(
                 res[split] = m
                 log.info(f"[Eval {split}] época {epoch_idx}: ADE {m['ade_mm']:.1f} mm | ADE exec {m['ade_exec_mm']:.1f} "
                          f"| FDE {m['fde_mm']:.1f} | rot {m['rot_deg']:.2f}° | hold-baseline {m['hold_ade_mm']:.1f}/{m['hold_ade_exec_mm']:.1f} mm "
+                         f"| vel.-cte ADE/exec/FDE {m['cv_ade_mm']:.1f}/{m['cv_ade_exec_mm']:.1f}/{m['cv_fde_mm']:.1f} mm "
                          f"| progreso {m['progress_ratio']:.2f} | done F1 {m['done_f1']:.3f}")
             eval_csv_file.flush()
             try:
