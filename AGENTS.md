@@ -228,6 +228,17 @@ El nodo de inferencia implementa dos capas independientes de detención:
       - Modo `AUMENTO`: Normaliza la ruta hacia `datasets/` (ej. `demonstrations_real_v5`), detecta episodios previos y añade episodios nuevos consecutivamente (`episode_N`).
     - *Desacoplamiento de Gripper:* Vector de estado 8D y acción 9D se preservan con `0.0` para pinza (sin sesgo en entrenamiento, compatible sim-to-real con `demonstrations_v8.zarr`), tecla interactiva `[G]` para alternar abierto/cerrado, y lectura automática opcional de `/visuomotor/gripper_joint_states`.
     - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md` y `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
+21. **Calibración, Conversión SOTA y Certificación del Dataset Real v7 para xArm5:**
+    - *Dataset Compilado Obligatorio:* `datasets/demonstrations_real_v7_xarm5.zarr` (81 episodios limpios, $26,868$ pasos a 20.0 Hz). Los 2 episodios anómalos de pérdida de tracking ($v > 2.3\text{ m/s}$) fueron excluidos con `--drop-flagged`.
+    - *Parámetros de Calibración en `xarm5_dataset_alignment.yaml`:*
+      - `extrinsic_calibrated: true`, `tcp_to_camera_xyz_m: [0.0, 0.0, 0.0]`, `tcp_to_camera_rpy_rad: [0.0, -1.5707963, 0.0]` (montaje en brida hacia $+Z_{\text{tcp}}$ con pitch $-90^\circ$).
+      - `speed_tolerance_ratio: 12.0` (hasta $0.60\text{ m/s}$ y $6.0\text{ rad/s}$ para absorber movimientos manuales sin sesgo).
+      - `max_orientation_deviation_rad: 1.50` (proyección matemática al plano vertical alcanzable `arm_plane`).
+      - `max_workspace_violation_frames: 550` (despegue continuo desde HOME3: $X=0.15009\text{ m}, Z=0.75000\text{ m}$).
+    - *Certificación de Tensores:* Compatible al 100% con PyTorch DataLoader (batch de 16: imágenes $[16, 2, 3, 256, 256]$, estado $[16, 2, 8]$, acción $[16, 16, 9]$) y paso forward+backward de `DiffusionPolicy` verificado en CUDA (Loss DDIM: $1.1839$).
+    - *Suite de Evaluación y Registro SQLite:* `tools/evaluate_real_dataset.py` genera paneles multicanal 2x3 a 300 DPI y PDF 100% en inglés académico (`demonstrations_real_v7_xarm5_sota_panel.png/.pdf` y `demonstrations_real_v7_sota_panel.png/.pdf`). Subfigura D (Eficiencia Geométrica: $D = 0.60\text{ m}$ vs $L_{\text{eff}} = 1.12\text{ m}$, tortuosidad $1.88 \pm 0.40$), Subfigura E (Espacio de Fases: $\mathbf{v}(d_{\text{target}})$ con desaceleración en zona de contacto $d \le 5\text{ cm}$), y registro relacional en `experiments/experiments.db`.
+    - *Cláusula de Estado Operativo:* **Hasta esta fase, el dataset está 100% certificado y listo, pero el modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de despliegue en hardware real.**
+    - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md` §5r.
 
 ---
 

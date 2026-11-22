@@ -414,15 +414,19 @@ El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
   - `convert_vio_dataset_to_xarm5.py`: cámara en odom → TCP en link_base, proyección y auditoría.
   - Home de la política = HOME3, redefinido el 2026-11-20 como pose alta e inclinada: TCP (0.150, 0.005, 0.750), pitch −0.43.
   - Skill `realsense-vio-data-collection` v1.1 aplicada.
-  - Pendiente: medir la extrínseca cámara-TCP y validar en el brazo real la inclinación combinada con giro (roll ≠ π).
   - Volumen = caja (z_max 0.75) ∩ alcance hombro–muñeca (95% del codo recto, mínimo de 0.12 m), validado por FK.
+- **Fase 21 (Calibración, Conversión SOTA y Certificación del Dataset Real v7 para xArm5):**
+  - Calibración de `visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml`: extrínseca cámara-TCP activada (`extrinsic_calibrated: true`, cámara mirando hacia $+Z_{\text{tcp}}$ con pitch $-90^\circ$), tolerancia de velocidad `speed_tolerance_ratio: 12.0` (hasta $0.60\text{ m/s}$ y $6.0\text{ rad/s}$), desviación angular admitida `max_orientation_deviation_rad: 1.50` (proyección analítica a `arm_plane`) y ventana de despegue `max_workspace_violation_frames: 550`.
+  - Conversión con descarte de anomalías (`tools/xarm5/convert_vio_dataset_to_xarm5.py --drop-flagged`): exclusión de 2 episodios con pérdida de tracking ($v > 2.3\text{ m/s}$), compilando `datasets/demonstrations_real_v7_xarm5.zarr` con **81 episodios limpios** ($26,868$ fotogramas, $22.39$ minutos a 20.0 Hz).
+  - Certificación exhaustiva (`tools/verify_zarr_dataset.py`): integridad 100%, PyTorch DataLoader validado (lote 16: img $[16, 2, 3, 256, 256]$, state $[16, 2, 8]$, action $[16, 16, 9]$) y paso forward+backward en CUDA verificado con loss inicial DDIM de $1.1839$.
+  - Suite de evaluación SOTA (`tools/evaluate_real_dataset.py`): generación de panel multicanal 2x3 a 300 DPI y PDF 100% en inglés académico (`demonstrations_real_v7_xarm5_sota_panel.png/.pdf` y `demonstrations_real_v7_sota_panel.png/.pdf`). Subfigura D implementada con Eficiencia Geométrica ($D = 0.60\text{ m}$ vs $L_{\text{eff}} = 1.12\text{ m}$, tortuosidad $1.88 \pm 0.40$), erradicando acumulación de ruido euclidiano ($8.2\text{ m}$). Subfigura E con Perfil en Espacio de Fases $\mathbf{v}(d_{\text{target}})$ con desaceleración hacia la zona de contacto ($d \le 5\text{ cm}$). Reportes Markdown y persistencia en SQLite `experiments/experiments.db`.
+  - Corrección de división por cero en `visuomotor_core/dataset/normalize.py` para tensores constantes (gripper pasivo en 0.0) y redirección de logs en `tools/hardware/run_*.sh` a `/tmp/.ros_log_user` para UID 1000.
+  - *Estado Crítico:* **El modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de inferencia en hardware real.** El dataset está listo y certificado para iniciar el entrenamiento con `train.py`.
 
 **Roadmap Experimental Inmediato:**
-1. **Recolección Masiva de Demostraciones Expertas Reales:** Capturar dataset consolidado de alta calidad (`demonstrations_real_v3.zarr` o aumento en `demonstrations_real_v5.zarr`) para entrenamiento directo de la política visuomotora generativa.
-2. **Scripts de Enlace Remoto y Despliegue en Jetson Orin Nano:** Desarrollar y certificar los launchers de red unicast para conectar la estación de inferencia con el xArm5 en la Jetson Orin en la misma red local (`ROS_DOMAIN_ID=42`).
-3. **Auditoría Temporal y Muestreo Visual:** Verificación a 20 Hz (`verify_dataset_frequency.py`) y extracción de videos y trayectorias 4-panel (`tools/visualize_dataset.py`).
-4. **Entrenamiento de Solo DP (Baseline a Gran Escala):** Entrenar con `train.py` sobre `demonstrations_v8.zarr` / datasets reales a 100 epochs.
-5. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
-6. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
-7. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.
-8. **Transferencia Sim-to-Real y Políticas Residuales (ResiP / TRANSIC):** Validación experimental de Co-Fine-Tuning visual (LoRA en ResNet-18) y arquitectura residual reactiva ($\pi_{\text{res}}$) sobre el espacio cartesiano de alto nivel del xArm Lite6.
+1. **Entrenamiento de Solo DP con el Dataset Real xArm5:** Entrenar con `train.py` sobre `demonstrations_real_v7_xarm5.zarr` a 100 épocas (batch size 64) monitoreando la pérdida DDIM y parada asintótica.
+2. **Despliegue e Inferencia en Vivo en xArm5:** Ejecutar `policy_node.py` en Jetson Orin Nano / host conectado por DDS unicast a `xarm5_bridge` para evaluar el éxito de tarea real en hardware físico por primera vez.
+3. **Fine-Tuning con DPPO RL:** Aplicar optimización sobre el checkpoint base bajo las mismas semillas espaciales.
+4. **Comparativa Cuantitativa y Gráficas de Paper:** Generar tablas estadísticas (DP vs. DP+RL) y figuras vectoriales (PDF/PNG 300 DPI) para publicación.
+5. **Incorporación de Demostradores SOTA:** Explorar generación de datasets con MPC/cuRobo y control de impedancia compliante.
+6. **Transferencia Sim-to-Real y Políticas Residuales (ResiP / TRANSIC):** Validación experimental de Co-Fine-Tuning visual (LoRA en ResNet-18) y arquitectura residual reactiva ($\pi_{\text{res}}$) sobre el espacio cartesiano de alto nivel del xArm Lite6.

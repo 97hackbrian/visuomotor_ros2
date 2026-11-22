@@ -25,6 +25,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import numpy as np
+from scipy.ndimage import uniform_filter1d
 import zarr
 
 # Asegurar importación de visuomotor_core
@@ -169,6 +170,9 @@ def main():
     all_start_positions = []
     all_path_lengths = []
     all_tortuosities = []
+    all_eff_path_lengths = []
+    all_eff_tortuosities = []
+    all_displacements = []
     
     for idx, ep_name in enumerate(ep_keys):
         g = root[ep_name]
@@ -185,6 +189,11 @@ def main():
         diffs = np.diff(pos, axis=0)
         step_distances = np.linalg.norm(diffs, axis=1)
         path_length_m = float(np.sum(step_distances))
+        
+        # Smooth trajectory for effective physical path length (0.25s / 5 steps window)
+        pos_smooth = uniform_filter1d(pos, size=5, axis=0) if len(pos) >= 5 else pos.copy()
+        diffs_smooth = np.diff(pos_smooth, axis=0)
+        eff_path_length_m = float(np.sum(np.linalg.norm(diffs_smooth, axis=1)))
         
         linear_vel = step_distances / dt  # [T-1]
         v_max = float(np.max(linear_vel)) if len(linear_vel) > 0 else 0.0
@@ -203,6 +212,7 @@ def main():
         end_pt = pos[-1].copy()
         displacement_m = float(np.linalg.norm(end_pt - start_pt))
         tortuosity = float(path_length_m / max(displacement_m, 1e-4))
+        eff_tortuosity = float(eff_path_length_m / max(displacement_m, 1e-4))
         
         done_steps = int(np.sum(done_flag >= 0.5))
         done_duration_s = done_steps * dt
@@ -213,8 +223,10 @@ def main():
             "steps": n_steps,
             "duration_s": duration_s,
             "path_length_m": path_length_m,
+            "effective_path_length_m": eff_path_length_m,
             "displacement_m": displacement_m,
             "tortuosity": tortuosity,
+            "effective_tortuosity": eff_tortuosity,
             "v_max_m_s": v_max,
             "v_mean_m_s": v_mean,
             "a_max_m_s2": a_max,
@@ -240,6 +252,9 @@ def main():
         all_start_positions.append(start_pt)
         all_path_lengths.append(path_length_m)
         all_tortuosities.append(tortuosity)
+        all_eff_path_lengths.append(eff_path_length_m)
+        all_eff_tortuosities.append(eff_tortuosity)
+        all_displacements.append(displacement_m)
 
     total_steps = sum(r["steps"] for r in episode_records)
     total_time_s = sum(r["duration_s"] for r in episode_records)
@@ -277,6 +292,23 @@ def main():
             "std": float(np.std(all_path_lengths)),
             "min": float(np.min(all_path_lengths)),
             "max": float(np.max(all_path_lengths)),
+        },
+        "net_displacement_m": {
+            "mean": float(np.mean(all_displacements)),
+            "std": float(np.std(all_displacements)),
+            "min": float(np.min(all_displacements)),
+            "max": float(np.max(all_displacements)),
+        },
+        "effective_path_length_m": {
+            "mean": float(np.mean(all_eff_path_lengths)),
+            "std": float(np.std(all_eff_path_lengths)),
+            "min": float(np.min(all_eff_path_lengths)),
+            "max": float(np.max(all_eff_path_lengths)),
+        },
+        "effective_tortuosity": {
+            "mean": float(np.mean(all_eff_tortuosities)),
+            "std": float(np.std(all_eff_tortuosities)),
+            "median": float(np.median(all_eff_tortuosities)),
         },
         "tortuosity_index": {
             "mean": float(np.mean(all_tortuosities)),
@@ -334,19 +366,19 @@ def main():
     
     fig, axes = plt.subplots(2, 3, figsize=(18, 11), dpi=300)
     
-    # 1. Top-Left: Trayectorias 3D Proyectadas en Plano XY (Planta) y XZ (Alzado)
+    # 1. Top-Left: Trayectorias 3D Proyectadas en Plano XY (Planta y Dispersión)
     ax1 = axes[0, 0]
     cmap = plt.get_cmap("viridis")
     for i, traj in enumerate(all_trajectories):
         color = cmap(i / max(total_episodes - 1, 1))
         ax1.plot(traj[:, 0], traj[:, 1], color=color, alpha=0.45, linewidth=1.2)
-    # Puntos de inicio y fin
-    ax1.scatter(start_pos[:, 0], start_pos[:, 1], color="blue", s=25, alpha=0.8, label=f"Inicio (t=0, N={total_episodes})", zorder=5)
-    ax1.scatter(term_pos[:, 0], term_pos[:, 1], color="crimson", marker="x", s=40, alpha=0.85, label=f"Destino Hold (done=1, N={total_episodes})", zorder=6)
-    draw_confidence_ellipse(ax1, term_pos[:, 0], term_pos[:, 1], n_std=2.0, edgecolor="red", linestyle="--", linewidth=1.5, label="Covarianza 95% (Agarre)")
-    ax1.set_xlabel("X Cartesiano (m)")
-    ax1.set_ylabel("Y Cartesiano (m)")
-    ax1.set_title("A. Trayectorias en Plano XY (Planta y Dispersión)")
+    # Start and terminal points
+    ax1.scatter(start_pos[:, 0], start_pos[:, 1], color="blue", s=25, alpha=0.8, label=f"Start Pose (t=0, N={total_episodes})", zorder=5)
+    ax1.scatter(term_pos[:, 0], term_pos[:, 1], color="crimson", marker="x", s=40, alpha=0.85, label=f"Target Hold (done=1, N={total_episodes})", zorder=6)
+    draw_confidence_ellipse(ax1, term_pos[:, 0], term_pos[:, 1], n_std=2.0, edgecolor="red", linestyle="--", linewidth=1.5, label="95% Grasp Target Covariance")
+    ax1.set_xlabel("Cartesian X (m)")
+    ax1.set_ylabel("Cartesian Y (m)")
+    ax1.set_title("A. Horizontal Trajectories & Spatial Dispersion (XY Plane)")
     ax1.grid(True, linestyle=":", alpha=0.6)
     ax1.legend(loc="upper left", framealpha=0.9)
     
@@ -366,14 +398,14 @@ def main():
         v_mat = np.array(interp_vels)
         mean_profile = np.mean(v_mat, axis=0)
         std_profile = np.std(v_mat, axis=0)
-        ax2.plot(interp_times, mean_profile, color="#1f77b4", linewidth=2.5, label=r"Velocidad Media $\mu(t)$")
+        ax2.plot(interp_times, mean_profile, color="#1f77b4", linewidth=2.5, label=r"Mean Velocity $\mu(t)$")
         ax2.fill_between(interp_times, np.maximum(0, mean_profile - std_profile), mean_profile + std_profile,
-                         color="#1f77b4", alpha=0.25, label=r"Banda $\pm 1\sigma$")
-    ax2.axhline(0.20, color="orange", linestyle="--", linewidth=1.5, label="Velocidad Calibrada (0.20 m/s)")
-    ax2.axhline(0.35, color="red", linestyle=":", linewidth=1.5, label="Cota Operativa (0.35 m/s)")
-    ax2.set_xlabel("Tiempo Demostrado (s)")
-    ax2.set_ylabel("Velocidad Lineal (m/s)")
-    ax2.set_title(r"B. Dinámica de Velocidad Cartesiana $\mathbf{v}(t)$ a 20 Hz")
+                         color="#1f77b4", alpha=0.25, label=r"$\pm 1\sigma$ Confidence Band")
+    ax2.axhline(0.20, color="orange", linestyle="--", linewidth=1.5, label="Nominal Calibration Velocity (0.20 m/s)")
+    ax2.axhline(0.35, color="red", linestyle=":", linewidth=1.5, label="Operational Velocity Limit (0.35 m/s)")
+    ax2.set_xlabel("Demonstration Time (s)")
+    ax2.set_ylabel("Linear Velocity (m/s)")
+    ax2.set_title(r"B. Cartesian Velocity Dynamics $\mathbf{v}(t)$ @ 20 Hz")
     ax2.grid(True, linestyle=":", alpha=0.6)
     ax2.legend(loc="upper right", framealpha=0.9)
     
@@ -381,61 +413,97 @@ def main():
     ax3 = axes[0, 2]
     steps_arr = np.array([r["steps"] for r in episode_records])
     dur_arr = np.array([r["duration_s"] for r in episode_records])
-    counts, bins, _ = ax3.hist(dur_arr, bins=16, color="#2ca02c", alpha=0.65, edgecolor="black", density=True, label="Frecuencia empírica")
+    counts, bins, _ = ax3.hist(dur_arr, bins=16, color="#2ca02c", alpha=0.65, edgecolor="black", density=True, label="Empirical Frequency")
     from scipy.stats import gaussian_kde
     try:
         kde = gaussian_kde(dur_arr)
         x_kde = np.linspace(dur_arr.min() * 0.9, dur_arr.max() * 1.05, 200)
-        ax3.plot(x_kde, kde(x_kde), color="#005a00", linewidth=2.5, label="Densidad KDE")
+        ax3.plot(x_kde, kde(x_kde), color="#005a00", linewidth=2.5, label="Gaussian KDE Density")
     except Exception:
         pass
-    ax3.axvline(np.mean(dur_arr), color="darkred", linestyle="-", linewidth=2.0, label=f"Media: {np.mean(dur_arr):.1f}s ({mean_steps:.0f} pas)")
-    ax3.axvline(np.median(dur_arr), color="blue", linestyle="--", linewidth=1.5, label=f"Mediana: {np.median(dur_arr):.1f}s")
-    ax3.set_xlabel("Duración del Episodio (s)")
-    ax3.set_ylabel("Densidad de Probabilidad")
-    ax3.set_title("C. Distribución de Duración Temporal y Pasos")
+    ax3.axvline(np.mean(dur_arr), color="darkred", linestyle="-", linewidth=2.0, label=f"Mean: {np.mean(dur_arr):.1f} s ({mean_steps:.0f} steps)")
+    ax3.axvline(np.median(dur_arr), color="blue", linestyle="--", linewidth=1.5, label=f"Median: {np.median(dur_arr):.1f} s")
+    ax3.set_xlabel("Episode Duration (s)")
+    ax3.set_ylabel("Probability Density")
+    ax3.set_title("C. Temporal Duration and Step Distribution")
     ax3.grid(True, linestyle=":", alpha=0.6)
     ax3.legend(loc="upper right", framealpha=0.9)
     
-    # 4. Bottom-Left: Boxplots Cinemáticos Comparativos
+    # 4. Bottom-Left: Physical Path Length & Geometric Efficiency (Option A)
     ax4 = axes[1, 0]
     box_data = [
-        v_means,
-        v_peaks,
-        np.array(all_path_lengths),
-        np.array(all_accelerations) * 0.1, # Escala ajustada para visualización conjunta
+        np.array(all_displacements),
+        np.array(all_eff_path_lengths),
     ]
-    labels = ["Vel Media\n(m/s)", "Vel Pico\n(m/s)", "Longitud\n(m)", "Acel Máx / 10\n(0.1 m/s²)"]
+    labels = [
+        f"Net Displacement $D$\n(μ = {np.mean(all_displacements):.2f} m)",
+        f"Effective Path $L_{{eff}}$\n(μ = {np.mean(all_eff_path_lengths):.2f} m)",
+    ]
+    colors = ["#1f77b4", "#2ca02c"]
     bp = ax4.boxplot(box_data, labels=labels, patch_artist=True,
-                     boxprops=dict(facecolor="#aec7e8", color="#1f77b4"),
-                     medianprops=dict(color="red", linewidth=2.0),
-                     whiskerprops=dict(color="#1f77b4", linewidth=1.2),
-                     capprops=dict(color="#1f77b4", linewidth=1.2))
-    # Jitter de puntos individuales para transparencia SOTA
+                     medianprops=dict(color="darkred", linewidth=2.0),
+                     whiskerprops=dict(linewidth=1.2),
+                     capprops=dict(linewidth=1.2))
+    for patch, col in zip(bp['boxes'], colors):
+        patch.set_facecolor(col)
+        patch.set_alpha(0.35)
+        patch.set_edgecolor(col)
+        patch.set_linewidth(1.5)
+        
     for i, d in enumerate(box_data):
         x_jit = np.random.normal(i + 1, 0.04, size=len(d))
-        ax4.plot(x_jit, d, "o", color="#333333", alpha=0.35, markersize=3.5)
-    ax4.set_ylabel("Magnitud Métrico-Temporal")
-    ax4.set_title("D. Dispersión y Estadísticos Cinemáticos (N=83)")
+        ax4.plot(x_jit, d, "o", color=colors[i], alpha=0.55, markersize=4.0)
+        
+    mean_tort = float(np.mean(all_eff_tortuosities))
+    std_tort = float(np.std(all_eff_tortuosities))
+    ax4.text(0.98, 0.95, f"Smooth Tortuosity Index:\n$L_{{eff}} / D = {mean_tort:.2f} \\pm {std_tort:.2f}$\n(Curved reaching arc)",
+             transform=ax4.transAxes, fontsize=9.5, verticalalignment="top", horizontalalignment="right",
+             bbox=dict(boxstyle="round,pad=0.4", facecolor="white", edgecolor="gray", alpha=0.9))
+             
+    ax4.set_ylabel("Physical Distance (m)")
+    ax4.set_title(f"D. Geometric Efficiency: Net vs. Effective Path (N={total_episodes})")
     ax4.grid(True, linestyle=":", alpha=0.6)
     
-    # 5. Bottom-Center: Auto-Stop Signal Floor (Done Flag)
+    # 5. Bottom-Center: Phase-Space Deceleration Profile (E1 Proposal)
     ax5 = axes[1, 1]
-    window_pts = 80 # Últimos 4.0 segundos a 20 Hz
-    for i, ep_name in enumerate(ep_keys):
-        g = root[ep_name]
-        act = np.array(g["action"])
-        done_f = act[:, 8] if act.shape[1] >= 9 else np.zeros(len(act))
-        # Extraer los últimos window_pts pasos
-        trail_done = done_f[-window_pts:] if len(done_f) >= window_pts else np.pad(done_f, (window_pts - len(done_f), 0), 'constant')
-        t_trail = (np.arange(window_pts) - window_pts) * dt
-        ax5.plot(t_trail, trail_done, color="#d62728", alpha=0.25, linewidth=0.9)
+    max_d = float(np.max(all_displacements)) * 1.15
+    d_grid = np.linspace(0.0, max_d, 120)
+    interp_v_phase = []
+    
+    for traj in all_trajectories:
+        traj_smooth = uniform_filter1d(traj, size=5, axis=0) if len(traj) >= 5 else traj.copy()
+        target = traj_smooth[-1]
+        dists = np.linalg.norm(traj_smooth - target, axis=1) # Distance to target
+        diffs = np.diff(traj_smooth, axis=0)
+        step_lens = np.linalg.norm(diffs, axis=1)
+        vels = np.append(step_lens / dt, 0.0) # Speed at each step
         
-    ax5.axvline(-2.0, color="black", linestyle="--", linewidth=1.8, label="Piso Mínimo Garantizado (2.0s = 40 pas)")
-    ax5.axhline(0.5, color="gray", linestyle=":", linewidth=1.2, label="Umbral Auto-Stop ($0.50$)")
-    ax5.set_xlabel("Tiempo Relativo al Fin del Episodio (s)")
-    ax5.set_ylabel("Done Flag (0 = En Tránsito, 1 = Hold)")
-    ax5.set_title("E. Certificación de Auto-Stop Neuronal (100% Conforme)")
+        # Plot individual trajectories with high transparency
+        ax5.plot(dists, vels, color="gray", alpha=0.15, linewidth=0.8)
+        
+        # Monotonic sort for clean interpolation
+        s_idx = np.argsort(dists)
+        d_unique, u_idx = np.unique(dists[s_idx], return_index=True)
+        v_unique = vels[s_idx][u_idx]
+        v_interp = np.interp(d_grid, d_unique, v_unique, left=0.0, right=0.0)
+        interp_v_phase.append(v_interp)
+        
+    v_phase_mat = np.array(interp_v_phase)
+    mean_v_phase = np.mean(v_phase_mat, axis=0)
+    std_v_phase = np.std(v_phase_mat, axis=0)
+    
+    ax5.plot(d_grid, mean_v_phase, color="#d62728", linewidth=2.5, label=r"Mean Profile $\mu_v(d)$")
+    ax5.fill_between(d_grid, np.maximum(0, mean_v_phase - std_v_phase), mean_v_phase + std_v_phase,
+                     color="#d62728", alpha=0.22, label=r"$\pm 1\sigma$ Dispersion")
+                     
+    ax5.axvline(0.05, color="darkgreen", linestyle="--", linewidth=1.5, label=r"Contact Zone ($d \leq 5$ cm)")
+    ax5.axhline(0.20, color="orange", linestyle=":", linewidth=1.5, label="Nominal Cruise (0.20 m/s)")
+    
+    # Invert X axis so motion flows from departure (d ~ 0.65m on left) to arrival (d = 0m on right)
+    ax5.set_xlim(max_d, -0.02)
+    ax5.set_xlabel(r"Distance to Grasp Target (m) [Departure $\rightarrow$ Arrival]")
+    ax5.set_ylabel("Cartesian Velocity (m/s)")
+    ax5.set_title(r"E. Phase-Space Deceleration Profile: $\mathbf{v}(d_{target})$")
     ax5.grid(True, linestyle=":", alpha=0.6)
     ax5.legend(loc="upper left", framealpha=0.9)
     
@@ -444,15 +512,15 @@ def main():
     for i, traj in enumerate(all_trajectories):
         color = cmap(i / max(total_episodes - 1, 1))
         ax6.plot(traj[:, 0], traj[:, 2], color=color, alpha=0.45, linewidth=1.2)
-    ax6.scatter(start_pos[:, 0], start_pos[:, 2], color="blue", s=25, alpha=0.8, label=f"Inicio (Z=0, N={total_episodes})", zorder=5)
-    ax6.scatter(term_pos[:, 0], term_pos[:, 2], color="crimson", marker="x", s=40, alpha=0.85, label="Destino Final", zorder=6)
-    ax6.set_xlabel("X Cartesiano (m)")
-    ax6.set_ylabel("Z Cartesiano (m)")
-    ax6.set_title("F. Perfil de Descenso Vertical (Alzado XZ)")
+    ax6.scatter(start_pos[:, 0], start_pos[:, 2], color="blue", s=25, alpha=0.8, label=f"Start Pose (Z=0, N={total_episodes})", zorder=5)
+    ax6.scatter(term_pos[:, 0], term_pos[:, 2], color="crimson", marker="x", s=40, alpha=0.85, label="Terminal Target", zorder=6)
+    ax6.set_xlabel("Cartesian X (m)")
+    ax6.set_ylabel("Cartesian Z (m)")
+    ax6.set_title("F. Vertical Descent Profile (Elevation XZ)")
     ax6.grid(True, linestyle=":", alpha=0.6)
     ax6.legend(loc="lower left", framealpha=0.9)
     
-    fig.suptitle(f"Panel SOTA de Evaluación Metrológica y Cinemática: {dataset_name} ({total_episodes} Episodios, {total_steps:,} Pasos a 20 Hz)", fontsize=15, fontweight="bold")
+    fig.suptitle(f"SOTA Metrological & Kinematic Benchmark Panel: {dataset_name} ({total_episodes} Episodes, {total_steps:,} Steps @ 20 Hz)", fontsize=15, fontweight="bold")
     plt.tight_layout()
     
     panel_png = out_dir / f"{dataset_name}_sota_panel.png"
@@ -475,29 +543,30 @@ def main():
     
     md_report_path = out_dir / f"{dataset_name}_report.md"
     with open(md_report_path, "w", encoding="utf-8") as f:
-        f.write(f"# Reporte de Evaluación SOTA: `{dataset_name}`\n\n")
-        f.write(f"**Fecha:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n")
+        f.write(f"# SOTA Evaluation Report: `{dataset_name}`\n\n")
+        f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n")
         f.write(f"**Dataset:** `{dataset_path}`  \n")
-        f.write(f"**Sensor:** Intel RealSense D435i (Estéreo Activo IR + IMU) + RTAB-Map VIO  \n")
-        f.write(f"**Total Episodios:** {total_episodes}  \n")
-        f.write(f"**Total Fotogramas:** {total_steps:,} ({total_time_s/60.0:.2f} minutos de datos a 20 Hz)  \n\n")
-        f.write("## 1. Tabla de Estadísticos Globales\n\n")
-        f.write("| Dimensión / Métrica | Valor Medio (μ ± σ) | Mediana | Rango [Mín, Máx] |\n")
+        f.write(f"**Sensor:** Intel RealSense D435i (Active IR Stereo + IMU) + RTAB-Map VIO  \n")
+        f.write(f"**Total Episodes:** {total_episodes}  \n")
+        f.write(f"**Total Frames:** {total_steps:,} ({total_time_s/60.0:.2f} minutes @ 20 Hz)  \n\n")
+        f.write("## 1. Global Summary Statistics Table\n\n")
+        f.write("| Dimension / Metric | Mean Value (μ ± σ) | Median | Range [Min, Max] |\n")
         f.write("| :--- | :--- | :--- | :--- |\n")
-        f.write(f"| **Pasos por Episodio** | {mean_steps:.1f} ± {std_steps:.1f} | {summary_metrics['steps_per_episode']['median']:.0f} | [{summary_metrics['steps_per_episode']['min']}, {summary_metrics['steps_per_episode']['max']}] |\n")
-        f.write(f"| **Duración Temporal (s)** | {mean_steps*dt:.2f}s ± {std_steps*dt:.2f}s | {summary_metrics['steps_per_episode']['median']*dt:.2f}s | [{summary_metrics['steps_per_episode']['min']*dt:.2f}s, {summary_metrics['steps_per_episode']['max']*dt:.2f}s] |\n")
-        f.write(f"| **Longitud de Trayectoria (m)** | {summary_metrics['path_length_m']['mean']:.3f} m ± {summary_metrics['path_length_m']['std']:.3f} m | - | [{summary_metrics['path_length_m']['min']:.3f} m, {summary_metrics['path_length_m']['max']:.3f} m] |\n")
-        f.write(f"| **Índice de Tortuosidad ($L/D$)** | {summary_metrics['tortuosity_index']['mean']:.2f} ± {summary_metrics['tortuosity_index']['std']:.2f} | {summary_metrics['tortuosity_index']['median']:.2f} | Directo y suave |\n")
-        f.write(f"| **Velocidad Cartesiana Media** | {summary_metrics['linear_velocity_m_s']['overall_mean']:.3f} m/s ± {summary_metrics['linear_velocity_m_s']['overall_std']:.3f} m/s | - | Pico máx: {summary_metrics['linear_velocity_m_s']['peak_max']:.3f} m/s |\n")
-        f.write(f"| **Suavidad (Log Dim. Jerk)** | {summary_metrics['smoothness_ldlj']['mean']:.2f} ± {summary_metrics['smoothness_ldlj']['std']:.2f} | - | Fluidez humana experta |\n")
-        f.write(f"| **Piso Señal Parada (done=1.0)** | {summary_metrics['done_signal_floor']['mean_done_frames']:.1f} pas ({summary_metrics['done_signal_floor']['mean_done_duration_s']:.2f}s) | 40 pas | Mín: {summary_metrics['done_signal_floor']['min_done_frames']} pas ({summary_metrics['done_signal_floor']['min_done_duration_s']:.2f}s) |\n")
-        f.write(f"| **Tasa Cumplimiento Auto-Stop** | **{summary_metrics['done_signal_floor']['compliance_rate_pct']:.1f}%** | 100% | ≥ 40 frames garantizados |\n\n")
-        f.write("## 2. Volumen y Envolvente Espacial (Bounding Box 3D)\n\n")
-        f.write(f"* **X:** [{bbox_min[0]:.3f}, {bbox_max[0]:.3f}] m (Amplitud: {bbox_span[0]:.3f} m)\n")
-        f.write(f"* **Y:** [{bbox_min[1]:.3f}, {bbox_max[1]:.3f}] m (Amplitud: {bbox_span[1]:.3f} m)\n")
-        f.write(f"* **Z:** [{bbox_min[2]:.3f}, {bbox_max[2]:.3f}] m (Amplitud: {bbox_span[2]:.3f} m)\n\n")
-        f.write("## 3. Panel Visual SOTA\n\n")
-        f.write(f"![Panel SOTA Multicanal]({panel_png.name})\n")
+        f.write(f"| **Steps per Episode** | {mean_steps:.1f} ± {std_steps:.1f} | {summary_metrics['steps_per_episode']['median']:.0f} | [{summary_metrics['steps_per_episode']['min']}, {summary_metrics['steps_per_episode']['max']}] |\n")
+        f.write(f"| **Temporal Duration (s)** | {mean_steps*dt:.2f}s ± {std_steps*dt:.2f}s | {summary_metrics['steps_per_episode']['median']*dt:.2f}s | [{summary_metrics['steps_per_episode']['min']*dt:.2f}s, {summary_metrics['steps_per_episode']['max']*dt:.2f}s] |\n")
+        f.write(f"| **Net Displacement ($D$)** | {summary_metrics['net_displacement_m']['mean']:.3f} m ± {summary_metrics['net_displacement_m']['std']:.3f} m | - | [{summary_metrics['net_displacement_m']['min']:.3f} m, {summary_metrics['net_displacement_m']['max']:.3f} m] |\n")
+        f.write(f"| **Effective Path ($L_{{eff}}$)** | {summary_metrics['effective_path_length_m']['mean']:.3f} m ± {summary_metrics['effective_path_length_m']['std']:.3f} m | - | [{summary_metrics['effective_path_length_m']['min']:.3f} m, {summary_metrics['effective_path_length_m']['max']:.3f} m] |\n")
+        f.write(f"| **Smooth Tortuosity ($L_{{eff}}/D$)** | {summary_metrics['effective_tortuosity']['mean']:.2f} ± {summary_metrics['effective_tortuosity']['std']:.2f} | {summary_metrics['effective_tortuosity']['median']:.2f} | Direct & smooth reaching |\n")
+        f.write(f"| **Mean Cartesian Velocity** | {summary_metrics['linear_velocity_m_s']['overall_mean']:.3f} m/s ± {summary_metrics['linear_velocity_m_s']['overall_std']:.3f} m/s | - | Peak max: {summary_metrics['linear_velocity_m_s']['peak_max']:.3f} m/s |\n")
+        f.write(f"| **Smoothness (Log Dim. Jerk)** | {summary_metrics['smoothness_ldlj']['mean']:.2f} ± {summary_metrics['smoothness_ldlj']['std']:.2f} | - | Expert human smoothness |\n")
+        f.write(f"| **Terminal Stop Floor (done=1.0)** | {summary_metrics['done_signal_floor']['mean_done_frames']:.1f} steps ({summary_metrics['done_signal_floor']['mean_done_duration_s']:.2f}s) | 40 steps | Min: {summary_metrics['done_signal_floor']['min_done_frames']} steps ({summary_metrics['done_signal_floor']['min_done_duration_s']:.2f}s) |\n")
+        f.write(f"| **Auto-Stop Compliance Rate** | **{summary_metrics['done_signal_floor']['compliance_rate_pct']:.1f}%** | 100% | ≥ 40 frames guaranteed |\n\n")
+        f.write("## 2. 3D Spatial Bounding Box (Workspace Envelope)\n\n")
+        f.write(f"* **X:** [{bbox_min[0]:.3f}, {bbox_max[0]:.3f}] m (Span: {bbox_span[0]:.3f} m)\n")
+        f.write(f"* **Y:** [{bbox_min[1]:.3f}, {bbox_max[1]:.3f}] m (Span: {bbox_span[1]:.3f} m)\n")
+        f.write(f"* **Z:** [{bbox_min[2]:.3f}, {bbox_max[2]:.3f}] m (Span: {bbox_span[2]:.3f} m)\n\n")
+        f.write("## 3. Multichannel SOTA Visual Panel\n\n")
+        f.write(f"![Multichannel SOTA Panel]({panel_png.name})\n")
     print(f"✔ Reporte Markdown generado en: {md_report_path}")
     
     # =========================================================================

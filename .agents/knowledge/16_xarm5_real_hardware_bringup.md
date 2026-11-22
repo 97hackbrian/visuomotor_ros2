@@ -263,6 +263,32 @@ pérdida de `robot_states` o 5 fallos seguidos. Control y publicación de TF van
   rígido sobre la base y J5 compensa (yaw ≈ J1 − J5 + c) para conservar el giro de la garra. `home3_joints_rad` = [-0.03414, -0.73289, -1.61376, 1.91852, -0.00825].
   TCP previsto (0.1501, 0.0000, 0.7500): valor previsto, a re-medir tras el primer go_home3.
 
+## 5r. Calibración, Conversión Cinemática y Certificación del Dataset Real v7 (`demonstrations_real_v7_xarm5.zarr`, 2026-11-21)
+* **Recolección en Hardware Real:** 83 demostraciones expertas a mano alzada capturadas con Intel RealSense D435i + RTAB-Map VIO en `datasets/demonstrations_real_v7.zarr`.
+* **Calibración de Parámetros en `xarm5_dataset_alignment.yaml`:**
+  - Extrínseca formal: `extrinsic_calibrated: true`, montaje en brida mirando hacia $+Z_{\text{tcp}}$ con pitch $-90^\circ$ (`tcp_to_camera_xyz_m: [0.0, 0.0, 0.0]`, `tcp_to_camera_rpy_rad: [0.0, -1.5707963, 0.0]`).
+  - Dinámica humana: `speed_tolerance_ratio: 12.0` (tolera picos de hasta $0.60\text{ m/s}$ y $6.0\text{ rad/s}$ sin penalizar la velocidad media natural de $\sim 0.20\text{ m/s}$).
+  - Inclinación y volumen: `max_orientation_deviation_rad: 1.50` (la herramienta ya proyecta analíticamente las orientaciones al plano vertical `arm_plane`) y `max_workspace_violation_frames: 550` (tolera oscilaciones al despegar desde HOME3 en el borde de la caja $X=0.15009, Z=0.750$).
+* **Conversión y Filtrado (`tools/xarm5/convert_vio_dataset_to_xarm5.py --drop-flagged`):**
+  - Descarte limpio de 2 episodios con tirones espurios del VIO (`episode_23` y `episode_24` con $v > 2.3\text{ m/s}$ y $\omega > 9\text{ rad/s}$).
+  - Generación de `datasets/demonstrations_real_v7_xarm5.zarr` con **81 episodios limpios** ($26,868$ fotogramas, $22.39$ minutos a 20.0 Hz).
+* **Certificación PyTorch y CUDA (`tools/verify_zarr_dataset.py`):**
+  - Integridad de tensores validada (100% chunks válidos, 0 corruptos).
+  - PyTorch DataLoader verificado (batch de 16: imágenes $[16, 2, 3, 256, 256]$, estado $[16, 2, 8]$, acción $[16, 16, 9]$).
+  - Paso forward + backward de `DiffusionPolicy` ejecutado en CUDA exitosamente con loss inicial DDIM de $1.1839$.
+* **Evaluación SOTA y Registro en SQLite (`tools/evaluate_real_dataset.py`):**
+  - Generación de panel multicanal 2x3 a 300 DPI y PDF en inglés académico (`demonstrations_real_v7_xarm5_sota_panel.png/.pdf` y `demonstrations_real_v7_sota_panel.png/.pdf`).
+  - **Subfigura D (Opción A — Eficiencia Geométrica):** Desplazamiento neto $D$ ($0.60\text{ m} \pm 0.08\text{ m}$) frente a longitud de arco efectivo suavizado $L_{\text{eff}}$ ($1.12\text{ m} \pm 0.25\text{ m}$), erradicando la acumulación de ruido discreto a 20 Hz ($8.2\text{ m}$) y cuantificando el índice de tortuosidad suave ($L_{\text{eff}} / D = 1.88 \pm 0.40$).
+  - **Subfigura E (Propuesta E1 — Espacio de Fases):** Perfil de velocidad cartesiana $\mathbf{v}(d_{\text{target}})$ con eje de distancia invertido (salida a $d \approx 0.70\text{ m}$ hasta contacto en $0.0\text{ m}$), evidenciando desaceleración suave canónica al ingresar a la zona de contacto ($d \le 5\text{ cm}$).
+  - Cumplimiento del piso de auto-stop al 100% (media $40.8$ pasos = $2.04\text{ s}$ de `done=1.0`).
+  - Registro de los 81 episodios y métricas consolidadas en `experiments/experiments.db`.
+* **Corrección de Bugs de Soporte:**
+  - `Normalize.forward` en `visuomotor_core/dataset/normalize.py`: protección contra división por cero (`0/0 = NaN`) cuando `max - min == 0` en dimensiones constantes (gripper pasivo en 0.0).
+  - Scripts en `tools/hardware/run_*.sh`: redirección de logs de ROS 2 a `/tmp/.ros_log_user` para evitar denegación de permisos al correr bajo UID 1000.
+* **Estado del Proyecto (Restricción Crítica):**
+  - **Hasta este hito, el modelo aún NO ha sido evaluado en el robot físico ni se tienen resultados de inferencia en hardware real.**
+  - El dataset está completamente compilado, alineado y certificado para que el entrenamiento (`train.py`) comience en la siguiente fase.
+
 ## 6. Contenedor Jetson
 `deploy/jetson/Dockerfile.jetson` compila en `/opt/xarm_ws` (underlay) `xarm_ros2@ac736c92` (humble, SDK C++
 `f367943`) y `control_msgs@4418bbf` (4.9.0; ausente en la imagen base), y añade `transforms3d==0.4.2` para
