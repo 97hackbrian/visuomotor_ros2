@@ -63,6 +63,27 @@ def create_dummy_episode(ep_group, num_steps=20, img_shape=(256, 256, 3), corrup
         ep_group.create_dataset("action", data=actions, chunks=(1, *actions.shape[1:]), dtype=actions.dtype)
 
 
+_PREV_DB_PATH = None
+_DB_DIR = None
+
+
+def setUpModule():
+    """merge_zarr_batches registra cada fusión en experiments.db: usar una base temporal (también con
+    `python3 -m unittest`; con pytest lo hace además tests/conftest.py). Los subprocesos heredan la variable."""
+    global _PREV_DB_PATH, _DB_DIR
+    _PREV_DB_PATH = os.environ.get("VISUOMOTOR_DB_PATH")
+    _DB_DIR = tempfile.mkdtemp(prefix="test_merge_db_")
+    os.environ["VISUOMOTOR_DB_PATH"] = os.path.join(_DB_DIR, "experiments_test.db")
+
+
+def tearDownModule():
+    if _PREV_DB_PATH is None:
+        os.environ.pop("VISUOMOTOR_DB_PATH", None)
+    else:
+        os.environ["VISUOMOTOR_DB_PATH"] = _PREV_DB_PATH
+    shutil.rmtree(_DB_DIR, ignore_errors=True)
+
+
 class TestMergeZarrBatchesUnit(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp(prefix="test_zarr_merge_")

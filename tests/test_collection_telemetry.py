@@ -36,11 +36,15 @@ class TestCollectionTelemetry(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp(prefix="test_telem_")
         self.db_path = os.path.join(self.test_dir, "test_experiments.db")
+        self._prev_db_path = os.environ.get("VISUOMOTOR_DB_PATH")
         os.environ["VISUOMOTOR_DB_PATH"] = self.db_path
 
     def tearDown(self):
-        if "VISUOMOTOR_DB_PATH" in os.environ:
-            del os.environ["VISUOMOTOR_DB_PATH"]
+        # restaurar (no borrar): borrar la variable devolvía a las pruebas siguientes a la base real experiments.db
+        if self._prev_db_path is None:
+            os.environ.pop("VISUOMOTOR_DB_PATH", None)
+        else:
+            os.environ["VISUOMOTOR_DB_PATH"] = self._prev_db_path
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir, ignore_errors=True)
 
