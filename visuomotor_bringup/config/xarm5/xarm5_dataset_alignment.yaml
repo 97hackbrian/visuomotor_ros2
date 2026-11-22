@@ -2,25 +2,59 @@
 #
 # Lo usa tools/xarm5/convert_vio_dataset_to_xarm5.py. Las demás fuentes, para que entrenamiento y robot coincidan
 # sin duplicar valores:
-#   * pose de inicio (home) y relative_coordinates -> deploy/jetson/config/jetson_policy_params.yaml (policy_node)
+#   * pose de inicio (home), relative_coordinates y quaternion_hemisphere -> deploy/jetson/config/jetson_policy_params.yaml
 #   * orientation_mode, límites de inclinación/yaw, volumen y velocidades -> xarm5_real_params.yaml (xarm5_bridge)
 #
 # Modelo: cada episodio empieza con la cámara en la pose equivalente a HOME (la misma que la cámara tendría montada
 # en la muñeca del xArm5 con el brazo en home). La odometría (marco 'odom', frame_id 'camera_link') se expresa
 # relativa al primer frame del episodio y se lleva a link_base:
 #   T_base_tcp(t) = T_base_tcp_home · T_tcp_cam · [T_odom_cam(0)^-1 · T_odom_cam(t)] · T_tcp_cam^-1
+# (relativo al inicio: inmune a la deriva de odom entre episodios; la odometría NO se reinicia entre episodios y su
+# "vertical" deriva hasta 50-60° a lo largo de una sesión, medido con los ArUco de la mesa el 2026-11-22).
 xarm5_dataset_alignment:
-  # Extrínseca del montaje: pose de 'camera_link' (el frame_id de RTAB-Map, convención ROS: X adelante, Y izquierda,
-  # Z arriba) expresada en el TCP del xArm5 (xarm_tcp = brida; Z de la herramienta apunta hacia fuera de la brida).
-  # El soporte de la cámara en la mano y en la muñeca del robot debe ser EL MISMO.
-  # Valor por defecto = suposición sin medir: cámara en la brida mirando a lo largo del eje de la herramienta
-  # (X_cam = +Z_tcp) con su "arriba" hacia -X_tcp. MEDIR y poner extrinsic_calibrated: true antes de convertir.
+  # Extrínseca del montaje: pose de 'camera_link' (convención ROS: X adelante, Y izquierda, Z arriba) en el TCP del
+  # xArm5 (xarm_tcp = brida; Z de la herramienta apunta hacia fuera de la brida). El soporte de la cámara en la mano
+  # y en la muñeca del robot debe ser EL MISMO.
+  #
+  # Orientación DETERMINADA CON LOS DATOS (2026-11-22, demonstrations_real_v7, 83 episodios):
+  #   * Eje óptico = +Z_tcp (pitch -pi/2) y "arriba" de la imagen = +X_tcp (roll = pi): con el brazo en HOME3 la
+  #     parte SUPERIOR de la imagen apunta hacia FUERA de la base (lado lejano de la mesa) y la inferior hacia la base.
+  #   * Evidencia: (1) la gravedad del VIO al inicio de cada episodio frente a la de HOME3 da 57° de error mediano con
+  #     rpy (0, -pi/2, 0) (0/83 episodios < 20°) y 13° con (pi, -pi/2, 0) (59/83 < 20°); (2) la pose de los ArUco de
+  #     la mesa en el primer frame (independiente del VIO) da el eje óptico a 31° ± 6° de la vertical (HOME3: 24.6°)
+  #     y la imagen DERECHA (giro ~0°), es decir, la persona sostuvo la cámara "derecha".
+  #   * El valor anterior (0, -pi/2, 0) era la suposición sin medir y reflejaba los desplazamientos laterales de las
+  #     demostraciones (TCP "detrás de la base", x hasta -0.04 m). Conservado en el historial de git.
+  #   * IMPLICACIÓN DE DESPLIEGUE: montar la D435i en la brida con la imagen derecha en HOME3 (arriba de la imagen =
+  #     lejos de la base). Si se monta girada 180°, las imágenes del robot quedarían invertidas respecto al dataset.
+  # Traslación cámara-TCP sin medir (0): medirla y reconvertir afina las posiciones cuando la garra gira.
   tcp_to_camera_xyz_m: [0.0, 0.0, 0.0]
-  tcp_to_camera_rpy_rad: [0.0, -1.5707963, 0.0]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)
+  tcp_to_camera_rpy_rad: [3.14159265, -1.5707963, 0.0]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)
   extrinsic_calibrated: true
 
+  # Filtro de la trayectoria VIO antes de convertir (visuomotor_core/dataset/trajectory_filters.py).
+  # PSD medida en v7: movimiento humano < ~0.8 Hz, piso de ruido plano desde ~0.9 Hz; residuo ~8 mm RMS isótropo
+  # (ruido del VIO en movimiento, no artefacto de muestreo) y saltos aislados de 3-9 cm. Sin filtrar, la velocidad
+  # aparente es 0.20 m/s; la real es ~0.05 m/s (picos 0.13-0.21 m/s). La política aprendería el ruido como objetivo.
+  trajectory_filter:
+    enabled: true
+    hampel_half_window: 3        # 7 muestras (0.35 s)
+    hampel_n_sigma: 3.0
+    lowpass_cutoff_hz: 1.5       # Butterworth de fase cero (filtfilt): conserva < 0.8 Hz, corta el piso de ruido
+    lowpass_order: 4
+    filter_orientation: true
+
+  # Convención de signo del cuaternión del dataset convertido: "home" (dot(q, q_home) >= 0, con q_home = rpy de HOME
+  # de jetson_policy_params.yaml) es continua con la garra hacia abajo; "qw_positive" salta de signo cerca de HOME3.
+  # El checkpoint la hereda (train.py --quaternion_hemisphere auto) y policy_node la lee del checkpoint ('auto').
+  quaternion_hemisphere: "home"
+
   # Auditoría por episodio (se marcan; con --drop-flagged no se copian):
-  max_orientation_deviation_rad: 1.50   # orientación demostrada vs. alcanzable (inclinación fuera del plano del brazo)
-  max_workspace_violation_frames: 550   # frames con el TCP fuera del volumen de trabajo del puente
-  speed_tolerance_ratio: 12.0           # velocidad lineal/angular demostrada <= ratio * límite del puente (12 * 0.05 = 0.60 m/s, 12 * 0.5 = 6.0 rad/s)
-  speed_window_steps: 4                 # ventana (pasos) para estimar velocidades sin amplificar el ruido del VIO
+  max_orientation_deviation_rad: 0.70   # inclinación fuera del plano del brazo (lo que el xArm5 no puede imitar)
+  max_raw_step_m: 0.15                  # salto de la odometría entre frames (0.15 m en 50 ms = pérdida de tracking)
+  workspace_tolerance_m: 0.03           # recortes del puente menores que esto no cuentan (bordes de la caja)
+  max_workspace_violation_frames: 100000
+  max_workspace_violation_fraction: 0.5 # objeto fuera del volumen del puente la mitad del episodio -> no ejecutable
+  speed_tolerance_ratio: 6.0            # tras filtrar: <= 6 x límite del puente (0.30 m/s, 3.0 rad/s); >> indica giros
+                                        # de muñeca de ~180° que el yaw acotado (±2.6 rad) convierte en saltos
+  speed_window_steps: 4                 # ventana (pasos) para estimar velocidades

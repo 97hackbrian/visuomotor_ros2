@@ -11,10 +11,14 @@ las acciones se proyectan con el MISMO modo y límites que aplica ``xarm5_bridge
 ejecutable tal cual.
 
 Por cada frame (state y action):
+    [opcional] filtro de la trayectoria VIO (Hampel + Butterworth de fase cero, ``trajectory_filter`` en la
+               alineación): elimina el ruido del VIO (~8 mm RMS en v7) que inflaba 4x la velocidad aparente
     T_rel(t)      = T_odom_cam(0)^-1 · T_odom_cam(t)                    (movimiento relativo al inicio)
     T_base_tcp(t) = T_base_tcp_home · T_tcp_cam · T_rel(t) · T_tcp_cam^-1
     orientación   -> proyección alcanzable (orientation_mode del puente, p. ej. arm_plane)
     posición      -> menos home_x/y/z si relative_coordinates (igual que policy_node)
+    signo del cuaternión -> ``quaternion_hemisphere`` del policy_node ('home': dot(q, q_home) >= 0, continuo;
+                            'qw_positive': convención histórica, discontinua con la garra hacia abajo)
 El gripper (state[7], action[7]), done (action[8]) y las imágenes se copian sin cambios.
 
 Seguridad de datos: el dataset de origen se abre en solo lectura; el destino debe NO existir (nunca se sobrescribe).
@@ -38,6 +42,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "visuomotor_bringup"))
+sys.path.insert(0, str(REPO / "visuomotor_core"))
 
 from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     ReachLimit,
@@ -54,6 +59,10 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     rotation_angle,
     rpy_to_quat,
 )
+from visuomotor_core.dataset.trajectory_filters import TrajectoryFilterConfig, smooth_pose_trajectory  # noqa: E402
+from visuomotor_core.utils.rotations import HEMISPHERE_MODES, canonicalize  # noqa: E402
+
+CONVERTER_VERSION = 2  # 2: filtro de trayectoria opcional + hemisferio de cuaternión + auditoría de saltos VIO
 
 DEFAULT_BRIDGE_PARAMS = REPO / "visuomotor_bringup/config/xarm5/xarm5_real_params.yaml"
 DEFAULT_ALIGNMENT = REPO / "visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml"
@@ -104,6 +113,20 @@ class Converter:
         self.max_ws_frames = int(alignment["max_workspace_violation_frames"])
         self.speed_ratio = float(alignment["speed_tolerance_ratio"])
         self.speed_window = max(1, int(alignment["speed_window_steps"]))
+        # Opcionales (ausentes = comportamiento de la versión 1)
+        tf = alignment.get("trajectory_filter")
+        self.filter_cfg = TrajectoryFilterConfig.from_dict(tf) if tf else TrajectoryFilterConfig(enabled=False)
+        self.max_raw_step = float(alignment.get("max_raw_step_m", float("inf")))
+        self.max_ws_fraction = float(alignment.get("max_workspace_violation_fraction", 1.0))
+        # recorte del puente por debajo de esta distancia no cuenta como violación (0 = cualquier recorte, v1)
+        self.ws_tolerance = float(alignment.get("workspace_tolerance_m", 0.0))
+        # convención del dataset: alineación (fuente propia); compatibilidad: policy YAML si declara un modo concreto
+        pol_mode = str(policy.get("quaternion_hemisphere", "qw_positive"))
+        self.hemisphere = str(alignment.get("quaternion_hemisphere",
+                                            pol_mode if pol_mode in HEMISPHERE_MODES else "qw_positive"))
+        if self.hemisphere not in HEMISPHERE_MODES:
+            raise ValueError(f"quaternion_hemisphere={self.hemisphere!r}; opciones: {HEMISPHERE_MODES}")
+        self.q_ref = rpy_to_quat(*self.home_rpy)
 
     def project(self, xyz: np.ndarray, quat) -> np.ndarray:
         """Orientación ejecutable con la misma secuencia que xarm5_bridge (sin yaw_offset: es calibración del robot)."""
@@ -132,24 +155,48 @@ class Converter:
         ang = np.array([rotation_angle(quats[i], quats[i + w]) for i in range(len(quats) - w)]) * rate_hz / w
         return float(lin.max()), float(ang.max())
 
+    def filter_poses(self, poses: np.ndarray, rate_hz: float):
+        """Filtra ``poses [T, 7]`` (xyz + quat en odom) si ``trajectory_filter.enabled``; devuelve (poses, stats)."""
+        if not self.filter_cfg.enabled:
+            return np.asarray(poses, dtype=np.float64), {}
+        p, q, fstats = smooth_pose_trajectory(poses[:, :3], poses[:, 3:7], rate_hz, self.filter_cfg)
+        return np.concatenate([p, q], axis=1), fstats
+
     def convert_episode(self, state: np.ndarray, action: np.ndarray, rate_hz: float):
-        ref_inv = inv(pose_matrix(state[0, :3], state[0, 3:7]))  # cámara al inicio del episodio = cámara en HOME
+        raw_steps = np.linalg.norm(np.diff(np.asarray(state[:, :3], dtype=np.float64), axis=0), axis=1)
+        poses = {}
+        filter_stats = {}
+        for name, arr in (("state", state), ("action", action)):
+            poses[name], fs = self.filter_poses(np.asarray(arr[:, :7], dtype=np.float64), rate_hz)
+            if name == "state":
+                filter_stats = fs
+        # cámara al inicio del episodio (ya filtrada) = cámara en HOME
+        ref_inv = inv(pose_matrix(poses["state"][0, :3], poses["state"][0, 3:7]))
         out = {}
         stats = {}
         for name, arr in (("state", state), ("action", action)):
-            xyz, q_req = self.to_base(arr[:, :7], ref_inv)
+            xyz, q_req = self.to_base(poses[name], ref_inv)
             q_proj = np.array([self.project(xyz[i], q_req[i]) for i in range(len(xyz))])
             dev = np.array([rotation_angle(q_req[i], q_proj[i]) for i in range(len(xyz))])
+            q_proj = canonicalize(q_proj, self.hemisphere, self.q_ref)
             new = arr.astype(np.float64).copy()
             new[:, :3] = xyz - self.home_xyz if self.relative else xyz
             new[:, 3:7] = q_proj
             out[name] = new.astype(np.float32)
             if name == "action":
-                ws = sum(1 for p, qp in zip(xyz, q_proj)
-                         if clamp_to_workspace(p, arm_plane_params(qp, arm_azimuth(p))[0], self.workspace, self.reach)[1])
+                clamp_dist = np.array([
+                    np.linalg.norm(clamp_to_workspace(p, arm_plane_params(qp, arm_azimuth(p))[0], self.workspace,
+                                                      self.reach)[0] - p) for p, qp in zip(xyz, q_proj)])
+                ws = int((clamp_dist > self.ws_tolerance).sum())
                 lin, ang = self.speeds(xyz, q_proj, rate_hz)
+                q_steps = np.sum(q_proj[1:] * q_proj[:-1], axis=1)
                 stats = {
                     "frames": int(len(xyz)),
+                    "raw_max_step_m": float(raw_steps.max()) if len(raw_steps) else 0.0,
+                    "trajectory_filter": filter_stats,
+                    "quaternion_sign_flips": int((q_steps < 0.0).sum()),
+                    "workspace_violation_fraction": float(ws) / max(1, len(xyz)),
+                    "workspace_max_clamp_m": float(clamp_dist.max()) if len(clamp_dist) else 0.0,
                     "max_orientation_deviation_rad": float(dev.max()),
                     "mean_orientation_deviation_rad": float(dev.mean()),
                     "frames_over_deviation": int((dev > self.max_dev).sum()),
@@ -163,8 +210,10 @@ class Converter:
                 reasons = []
                 if stats["max_orientation_deviation_rad"] > self.max_dev:
                     reasons.append("orientación fuera de lo alcanzable por el xArm5")
-                if ws > self.max_ws_frames:
+                if ws > self.max_ws_frames or float(ws) / max(1, len(xyz)) > self.max_ws_fraction:
                     reasons.append("TCP fuera del volumen de trabajo o del alcance del brazo")
+                if stats["raw_max_step_m"] > self.max_raw_step:
+                    reasons.append(f"salto de tracking VIO {stats['raw_max_step_m']:.3f} m > {self.max_raw_step:.3f} m")
                 if lin > self.speed_ratio * self.max_lin:
                     reasons.append(f"velocidad lineal {lin:.3f} > {self.speed_ratio * self.max_lin:.3f} m/s")
                 if ang > self.speed_ratio * self.max_ang:
@@ -216,7 +265,9 @@ def main(argv=None):
               "home_rpy_rad": list(conv.home_rpy), "relative_coordinates": conv.relative,
               "tcp_to_camera_xyz_m": alignment["tcp_to_camera_xyz_m"],
               "tcp_to_camera_rpy_rad": alignment["tcp_to_camera_rpy_rad"],
-              "extrinsic_calibrated": conv.calibrated, "episodes": {}}
+              "extrinsic_calibrated": conv.calibrated, "converter_version": CONVERTER_VERSION,
+              "trajectory_filter": conv.filter_cfg.to_dict(), "quaternion_hemisphere": conv.hemisphere,
+              "quaternion_reference_xyzw": [float(v) for v in conv.q_ref], "episodes": {}}
     n_out = 0
     for key in episode_keys(root):
         ep = root[key]
@@ -243,6 +294,8 @@ def main(argv=None):
                           "frame": bridge["base_frame"], "ee_frame": bridge["tcp_frame"],
                           "orientation_mode": conv.mode, "relative_coordinates": conv.relative,
                           "home_xyz_m": conv.home_xyz.tolist(), "audit_flags": stats["flags"],
+                          "converter_version": CONVERTER_VERSION, "quaternion_hemisphere": conv.hemisphere,
+                          "trajectory_filter": conv.filter_cfg.to_dict(),
                           "max_orientation_deviation_rad": stats["max_orientation_deviation_rad"]})
             g.attrs.update(attrs)
             n_out += 1
