@@ -43,36 +43,42 @@ def run_benchmark(model_path: str, num_steps: int = 10, iterations: int = 30):
     t_load = time.perf_counter() - t0
     print(f"✓ Modelo cargado en {t_load:.2f} s")
 
-    # Ajustar pasos de desruidificado DDIM
-    policy.config.num_inference_steps = num_steps
+    # Ajustar pasos de desruidificado DDIM (igual que policy_node: atributo del modelo de difusión)
+    policy.diffusion.num_inference_steps = num_steps
     print(f"Pasos DDIM configurados: {num_steps}")
 
-    # 3. Creación de Lote Dummy de Observación
-    # Batch size = 1, Obs horizon = 2, RGB 3x256x256, State 8D
+    # 3. Lote de observación SIN normalizar, como el que arma policy_node: batch 1, n_obs = 2, RGB 3x256x256 en [0, 1]
+    #    y estado 8D con un cuaternión unitario (con relative_ee la acción se recompone con el estado; un cuaternión
+    #    nulo daría NaN). Se mide predict_chunk = normalización + DDIM + desnormalización + recomposición, es decir,
+    #    el cómputo completo de cada inferencia de policy_node (select_action lo llama cada n_action_steps).
+    state = torch.zeros((1, 2, 8), dtype=torch.float32, device=device)
+    state[..., 3:7] = torch.tensor([0.0, 0.7071068, 0.0, 0.7071068], device=device)
     dummy_batch = {
-        "observation.image": torch.zeros((1, 2, 3, 256, 256), dtype=torch.float32, device=device),
-        "observation.state": torch.zeros((1, 2, 8), dtype=torch.float32, device=device),
+        "observation.image": torch.rand((1, 2, 3, 256, 256), dtype=torch.float32, device=device),
+        "observation.state": state,
     }
 
     # 4. Calentamiento (Warm-up)
     print("\nEjecutando pases de calentamiento (Warm-up)...")
     with torch.no_grad():
         for _ in range(5):
-            _ = policy.generate_actions(dummy_batch)
+            _ = policy.predict_chunk(dummy_batch)
     if device.type == "cuda":
         torch.cuda.synchronize()
 
-    # 5. Evaluación Comparativa: FP32 vs FP16
-    eval_configs = [
-        ("FP32 (Precisión Simple Estándar)", False, torch.float32),
-        ("FP16 (Precisión Media Acelerada Tensor Cores)", True, torch.float16),
-    ]
+    # 5. Comparación: ejecución normal frente a CUDA Graph (encoder + bucle DDIM capturados; mismo resultado).
+    #    FP16 (autocast) se midió en la Orin y es MÁS lento que FP32 (los casts cuestan más de lo que ahorran): no se usa.
+    eval_configs = [("FP32 normal", False), ("FP32 + CUDA Graph", True)]
 
     print("\n" + "-" * 70)
-    print(f"{'Modo de Precisión':<42} | {'Latencia (ms)':<13} | {'Frecuencia':<10} | {'VRAM Pico':<10}")
+    print(f"{'Modo':<42} | {'Latencia (ms)':<13} | {'Frecuencia':<10} | {'VRAM Pico':<10}")
     print("-" * 70)
 
-    for mode_name, use_amp, amp_dtype in eval_configs:
+    for mode_name, use_graph in eval_configs:
+        if use_graph:
+            if device.type != "cuda" or not policy.enable_cuda_graph(batch_size=1):
+                print(f"{mode_name:<42} | sin CUDA: omitido")
+                continue
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats()
 
@@ -82,23 +88,15 @@ def run_benchmark(model_path: str, num_steps: int = 10, iterations: int = 30):
                 if device.type == "cuda":
                     torch.cuda.synchronize()
                 t_start = time.perf_counter()
-
-                if use_amp and device.type == "cuda":
-                    with torch.autocast(device_type="cuda", dtype=amp_dtype):
-                        pred_action = policy.generate_actions(dummy_batch)
-                else:
-                    pred_action = policy.generate_actions(dummy_batch)
-
+                pred_action = policy.predict_chunk(dummy_batch)
                 if device.type == "cuda":
                     torch.cuda.synchronize()
-                t_end = time.perf_counter()
-                latencies.append((t_end - t_start) * 1000.0)
+                latencies.append((time.perf_counter() - t_start) * 1000.0)
 
         lat_median = np.median(latencies)
         lat_p95 = np.percentile(latencies, 95)
         hz = 1000.0 / lat_median
         vram_mb = (torch.cuda.max_memory_allocated() / 1e6) if device.type == "cuda" else 0.0
-
         status = "✓ APTO 20Hz" if hz >= 20.0 else "⚠️ INFERIOR A 20Hz"
         print(f"{mode_name:<42} | {lat_median:6.2f} ± {lat_p95-lat_median:4.1f} ms | {hz:6.1f} Hz   | {vram_mb:6.1f} MB  [{status}]")
 

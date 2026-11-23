@@ -8,9 +8,14 @@ policy_node:
     # Frecuencia de control reactivo en Hz
     inference_hz: 20.0
     
-    # Pasos de difusión inversa (DDIM Denoising Steps)
-    # 10 pasos en Jetson Orin Nano con FP16 toma ~25-35 ms, permitiendo holgadamente 20 Hz
-    num_inference_steps: 10
+    # Pasos de difusión inversa (DDIM). Medido en la Orin Nano (15 W, jetson_clocks, 2026-11-23), inferencia completa
+    # (encoder + DDIM): 10 pasos 204 ms normal / ~105 ms con CUDA Graph; 5 pasos 112 ms / ~58 ms. FP16 no acelera.
+    # Las cifras anteriores de "25-35 ms" nunca se midieron. 5 pasos no degradan el comando en validación
+    # (replay_policy_offline, 8 episodios: 11.5 mm frente a 11.6 mm con 10 pasos; auto-stop 100 %, 0 prematuras).
+    # policy_node infiere de forma síncrona cada n_action_steps ticks: con ~58 ms el ciclo de 20 Hz se retrasa ~5 %.
+    num_inference_steps: 5
+    # CUDA Graph del encoder + bucle DDIM: mismo resultado numérico (diferencia 0 medida en la Orin), mitad de tiempo
+    use_cuda_graph: true
     
     # Pasos de acción ejecutados antes de replanificar (3 = solapamiento de 13 pasos para máxima suavidad)
     n_action_steps: 3

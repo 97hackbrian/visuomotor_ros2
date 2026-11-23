@@ -38,6 +38,8 @@ class PolicyNode(Node):
         self.declare_parameter('ee_frame', 'gripper_base_link')
         self.declare_parameter('base_frame', 'link_base')
         self.declare_parameter('num_inference_steps', 16)
+        # CUDA Graphs: encoder + bucle DDIM en un grafo (mismo resultado, ~2x más rápido en la Jetson Orin Nano)
+        self.declare_parameter('use_cuda_graph', False)
         self.declare_parameter('n_action_steps', 8)
         self.declare_parameter('use_temporal_ensemble', True)
         self.declare_parameter('temporal_ensemble_k', 0.01)
@@ -109,6 +111,17 @@ class PolicyNode(Node):
             self.policy.to(self.device)
             self.policy.reset()
             self.get_logger().info(f"Loaded {self.get_parameter('model_type').value} model from {ckpt_path}")
+            if self.get_parameter('use_cuda_graph').value:
+                t0 = time.perf_counter()
+                try:
+                    ok = self.policy.enable_cuda_graph(batch_size=1)
+                    self.get_logger().info(
+                        f"CUDA Graph {'capturado' if ok else 'NO disponible (sin CUDA): inferencia normal'} "
+                        f"({self.policy.diffusion.num_inference_steps} pasos DDIM, "
+                        f"{(time.perf_counter() - t0) * 1000:.0f} ms)")
+                except Exception as e:  # noqa: BLE001 - fail-safe: la política sigue en modo normal
+                    self.policy.diffusion.disable_cuda_graph()
+                    self.get_logger().warn(f"No se pudo capturar el CUDA Graph ({e}); inferencia normal.")
         else:
             self.policy = None
             self.get_logger().warn("No checkpoint_path provided. Running in dummy mode.")
