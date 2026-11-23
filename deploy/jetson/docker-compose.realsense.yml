@@ -1,0 +1,18 @@
+# ==============================================================================
+# docker-compose.realsense.yml: misma imagen de inferencia, construida sobre la base con el driver de la D435i
+# ==============================================================================
+# 1. Base con el driver (una sola vez, 30-60 min en la Orin Nano):
+#      docker build -f deploy/jetson/Dockerfile.realsense_base -t visuomotor_jetson_base:realsense-2.59.1 deploy/jetson
+# 2. Imagen del proyecto encima de esa base y contenedor nuevo:
+#      docker compose -f docker-compose.yml -f docker-compose.realsense.yml build
+#      docker compose -f docker-compose.yml -f docker-compose.realsense.yml up -d
+# Vuelta atrás: la imagen sin driver sigue siendo visuomotor_jetson:latest (o la etiqueta de respaldo
+# visuomotor_jetson:pre-realsense-*):  docker compose up -d
+# ==============================================================================
+
+services:
+  inference:
+    build:
+      args:
+        BASE_IMAGE: visuomotor_jetson_base:realsense-2.59.1
+    image: visuomotor_jetson:realsense

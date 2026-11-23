@@ -1,0 +1,64 @@
+# ==============================================================================
+# Dockerfile.realsense_base: imagen BASE con el driver de la RealSense D435i para la Jetson
+# ==============================================================================
+# Por qué existe: la imagen dustynv/ros:humble-desktop-pytorch-l4t-r35.4.1 trae ROS 2 Humble compilado desde
+# fuente en /opt/ros/humble/install. Instalar ros-humble-realsense2-camera con apt traería un segundo ROS desde
+# packages.ros.org mezclado con el compilado. Aquí se compila el driver contra el ROS de la imagen:
+#   * librealsense v2.59.1 y realsense-ros 4.59.1: las MISMAS versiones con las que se grabaron las demostraciones
+#     (imagen visuomotor_ros2_vo:jazzy), para que el color llegue a la política procesado igual que al entrenar;
+#   * backend RSUSB (libusb): sin parches del kernel ni módulos en el host. El contenedor ya es privileged y monta
+#     /dev; el host ya tiene /etc/udev/rules.d/99-realsense-libusb.rules;
+#   * diagnostic_updater (dependencia de realsense2_camera que la imagen no trae), fijado por commit.
+#
+# No toca el proyecto: Dockerfile.jetson se construye ENCIMA de esta imagen (docker-compose.realsense.yml cambia
+# BASE_IMAGE). Así los cambios de código no recompilan el driver (30-60 min en la Orin Nano).
+#
+# Construcción (en la Jetson, desde la raíz del repo; no necesita contexto del repo):
+#   docker build -f deploy/jetson/Dockerfile.realsense_base -t visuomotor_jetson_base:realsense-2.59.1 deploy/jetson
+# Principio de diseño del proyecto: sin apt-get upgrade; solo se añade libusb-1.0-0-dev.
+# ==============================================================================
+
+ARG BASE_IMAGE=dustynv/ros:humble-desktop-pytorch-l4t-r35.4.1
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_SETUP=/opt/ros/${ROS_DISTRO}/install/setup.bash
+
+ARG LIBREALSENSE_VERSION=v2.59.1
+ARG REALSENSE_ROS_VERSION=4.59.1
+# ros/diagnostics, rama ros2-humble (diagnostic_updater 4.0.7), resuelta el 2026-11-23
+ARG DIAGNOSTICS_COMMIT=a14e99f3e98249470943fe5b0cc6892df80dc950
+ARG BUILD_JOBS=4
+
+# 1. libusb para el backend RSUSB (libssl-dev, libudev-dev, pkg-config y eigen ya vienen en la imagen)
+RUN apt-get update && apt-get install -y --no-install-recommends libusb-1.0-0-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# 2. librealsense (sin ejemplos gráficos, sin Python, sin buscar actualizaciones en línea)
+RUN git clone -q --depth 1 --branch ${LIBREALSENSE_VERSION} https://github.com/IntelRealSense/librealsense.git \
+        /tmp/librealsense && \
+    cmake -S /tmp/librealsense -B /tmp/librealsense/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DFORCE_RSUSB_BACKEND=ON \
+        -DBUILD_WITH_CUDA=OFF \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_GRAPHICAL_EXAMPLES=OFF \
+        -DBUILD_PYTHON_BINDINGS=OFF \
+        -DBUILD_UNIT_TESTS=OFF \
+        -DCHECK_FOR_UPDATES=OFF && \
+    cmake --build /tmp/librealsense/build -j${BUILD_JOBS} && \
+    cmake --install /tmp/librealsense/build && \
+    ldconfig && rm -rf /tmp/librealsense
+
+# 3. realsense-ros + diagnostic_updater en un workspace subyacente (como /opt/xarm_ws del driver del xArm5)
+ENV REALSENSE_WS=/opt/realsense_ws
+RUN mkdir -p ${REALSENSE_WS}/src && cd ${REALSENSE_WS}/src && \
+    git clone -q --depth 1 --branch ${REALSENSE_ROS_VERSION} https://github.com/IntelRealSense/realsense-ros.git && \
+    git init -q diagnostics && cd diagnostics && \
+    git remote add origin https://github.com/ros/diagnostics.git && \
+    git fetch -q --depth 1 origin ${DIAGNOSTICS_COMMIT} && git checkout -q FETCH_HEAD && \
+    cd ${REALSENSE_WS} && /bin/bash -c "source ${ROS_SETUP} && \
+        colcon build --packages-select diagnostic_updater realsense2_camera_msgs realsense2_camera \
+            --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" && \
+    rm -rf ${REALSENSE_WS}/build ${REALSENSE_WS}/log ${REALSENSE_WS}/src

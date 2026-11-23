@@ -281,6 +281,21 @@ Requisitos previos:
    (monta `visuomotor_core` y `visuomotor_ros2`): los modelos `relative_ee` necesitan el `DiffusionPolicy` actual, y
    el puente usa los límites articulares del Hardware Manual v2.7.1 (XF1305) desde el 2026-11-22. El código de la
    Jetson (Python 3.8, torch 2.0) pasó un chequeo estático de compatibilidad; la prueba real es la etapa A en la Jetson.
+1b. **Driver de la cámara (2026-11-23).** `Dockerfile.jetson` no trae el driver de la RealSense. La imagen base
+   dustynv tiene ROS compilado desde fuente, así que no se puede usar `apt install ros-humble-realsense2-camera`.
+   El driver se compila una vez en una imagen base aparte:
+   - librealsense 2.59.1 y realsense-ros 4.59.1, las mismas versiones que en la recolección;
+   - backend RSUSB, sin tocar el kernel ni el host.
+   ```bash
+   docker tag visuomotor_jetson:latest visuomotor_jetson:pre-realsense-$(date +%Y%m%d)   # respaldo
+   docker build -f deploy/jetson/Dockerfile.realsense_base -t visuomotor_jetson_base:realsense-2.59.1 deploy/jetson
+   cd deploy/jetson
+   docker compose -f docker-compose.yml -f docker-compose.realsense.yml build
+   docker compose -f docker-compose.yml -f docker-compose.realsense.yml up -d
+   # cámara (dentro del contenedor): mismos parámetros que la recolección
+   docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh ros2 launch visuomotor_bringup d435i_camera.launch.py
+   ```
+   Para volver atrás: `docker compose up -d`, que usa la imagen sin driver.
 2. **Cámara:** la misma D435i a 640x480 color, montada en la brida con el eje óptico a lo largo de la herramienta y la
    **imagen derecha en HOME3** (arriba de la imagen = lejos de la base, como se sostuvo al grabar). Verificar que
    `camera_topic` de `jetson_policy_params.yaml` existe (`ros2 topic list | grep color`).
