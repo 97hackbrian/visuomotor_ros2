@@ -12,3 +12,4 @@ trial_010,"izquierda, diagonal (repetición del 9)",False,False,,False,,False,"[
 trial_011,"centro, junto al borde frente a la base",False,False,,False,,False,"[0.21, 0.459]",0.324,VIGILANTE: brida a z=0.150 m < 0.15 m,False,"[3.91, -5.24]",1.79,"[0.4654, -0.0707, 0.1498]",792.1,0.1498,53.2,0.011
 trial_012,"centro entre los ArUco, vertical",False,False,,False,,True,"[0.16, 0.296]",0.234,VIGILANTE: brida a z=0.150 m < 0.15 m,False,"[3.37, -3.64]",5.09,"[0.5638, -0.1071, 0.1496]",850.5,0.1496,54.1,0.661
 trial_013,"centro-derecha junto al ArUco derecho, en diagonal",True,True,,True,20.87692435200006,True,"[0.188, 0.296]",0.249,parada automática de la política,True,"[-0.76, -1.12]",1.08,"[0.533, -0.0761, 0.2981]",697.4,0.2981,54.3,0.764
+trial_014,"centro; escena cambiada: mantel corrido (mitad madera), sin ArUco",False,False,,False,,True,"[0.16, 0.335]",0.272,VIGILANTE: brida a z=0.149 m < 0.15 m,False,,,"[0.5878, -0.0925, 0.1495]",793.2,0.1495,51.1,0.111
