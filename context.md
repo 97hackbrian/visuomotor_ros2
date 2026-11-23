@@ -471,6 +471,33 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       `home3_reference_view.png`, etapa B (dry-run) y etapa C (5 cm/s), siempre con orden explícita del usuario para
       cada movimiento.
 
+45. **Primera evaluación en el xArm5 físico (2026-11-23): 6/7 éxitos (86 %, IC de Wilson al 95 %: 49–97 %):**
+    - *Preparación:*
+      - HOME3 medido: (0,15005, −0,00004, 0,75001) m y las mismas juntas previstas.
+      - La vista en HOME3, en el espacio de la política, coincide con las demos: similitud 0,84 con la mediana (las
+        demos dan 0,80), ArUco del mismo tamaño y giro de 1,7°.
+      - El eje óptico está 7° más vertical que en las demos (25,5° frente a 32,3° ± 5,8°): es el diseño de HOME3.
+    - *Etapa B (dry-run):* objetivo 14 mm hacia delante y abajo, a 20,0 Hz, done ≤ 0,005 y 0,0 mm de movimiento real.
+    - *Etapa C (7 intentos, 5 cm/s):*
+      - 7/7 paradas automáticas, 0 errores, 0 rechazos y 0 recortes del puente; el vigilante nunca intervino.
+      - Centro 2/2, izquierda 2/2 (+17 cm en y), derecha extrema 2/2 (−25 cm en y).
+      - Repetibilidad con las tijeras quietas: 6–17 mm.
+      - Tiempo hasta la parada: 20–30 s.
+      - Falla: tijeras giradas ~75° en yaw y más lejos. El brazo bajó hasta z = 0,257 m y se detuvo encima del
+        pivote, demasiado cerca (vista +3,6σ, 1,5 veces el tamaño). Las demos v7 tienen las tijeras casi siempre
+        verticales: hay que variar el yaw en v8.
+    - *Criterio de éxito automático* (`tools/xarm5/real_trial_metrics.py`): parada neuronal más vista final (centroide
+      de las tijeras a ≤ 2,5σ y tamaño entre p05 y p95 de los últimos frames de las 76 demos).
+    - *Datos:* `experiments/xarm5_real_trials/2026-11-23/` (imágenes previa y final, trazas, registros y resumen con IC).
+    - *Herramientas:* `tools/xarm5/real_trials/run_trial.sh` (chequeo previo, pitidos, vigilante, desarme, métricas)
+      y `--dry-run` para la etapa B.
+    - *Dos errores propios, corregidos:*
+      - Un proceso en segundo plano de un script ignora SIGINT: la política se detiene con SIGTERM/SIGKILL a su grupo
+        y se verifica que queden 0 publicadores.
+      - El aborto del chequeo previo leía el código de un `grep`: no habría abortado. Ahora usa el código del
+        chequeo, verificado por SSH.
+      En los 7 intentos el chequeo pasó completo, así que el segundo error no tuvo efecto.
+
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 1. **Eje 1 (Demostrador Experto para Datasets):** Comparación empírica de datasets generados por PID cartesiano vs. SOTA MPC vs. SOTA Impedancia Cartesiana.

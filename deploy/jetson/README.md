@@ -354,6 +354,15 @@ Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quater
 - **Registrar:** distancia final, tiempo, paradas prematuras, recortes del puente y un rosbag de `/policy/metrics`.
 - **Estimación previa:** ~40 % (30-55 %) si la vista en HOME3 coincide con la referencia. Con 20 intentos, el
   intervalo de confianza al 95 % es de unos ±20 puntos (Wilson: 10/20 → 30-70 %); con 10, de unos ±30.
+- **Resultados del 2026-11-23:** 6/7 éxitos (86 %, IC 49–97 %).
+  - 7/7 paradas automáticas, 0 errores del puente.
+  - Falla con las tijeras giradas ~75° en yaw.
+  - Detalle en `experiments/xarm5_real_trials/2026-11-23/summary.md`.
+- **Orquestador desde el PC:** `tools/xarm5/real_trials/run_trial.sh N "posición"`.
+  - Hace chequeo previo de solo lectura (si falla, aborta sin armar), suena un pitido al empezar y otro al terminar,
+    y corre un vigilante que desarma ante z < 0,15 m, errores o 45 s.
+  - Desarma sin poner frenos y verifica que no quede ninguna política publicando.
+  - Las métricas las calcula `tools/xarm5/real_trial_metrics.py`.
 - **Diagnóstico por síntoma:**
   - Dirección equivocada desde el arranque: montaje o vista.
   - Arranca bien y se desvía: error que se acumula en lazo cerrado; hacen falta más datos o correcciones grabadas

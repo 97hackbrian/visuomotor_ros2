@@ -1,0 +1,50 @@
+/usr/local/lib/python3.8/dist-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: '/usr/local/lib/python3.8/dist-packages/torchvision/image.so: undefined symbol: _ZN5torch3jit17parseSchemaOrNameERKSs'If you don't plan on using image functionality from `torchvision.io`, you can ignore this warning. Otherwise, there might be something wrong with your environment. Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
+  warn(
+Loading weights from local directory
+[INFO] [0000004265.472875968] [policy_node]: Loaded diffusion model from /ros_ws/model
+[INFO] [0000004271.158044480] [policy_node]: CUDA Graph capturado (5 pasos DDIM, 5683 ms)
+[INFO] [0000004271.159672000] [policy_node]: Acción del checkpoint: relative_ee | cuaternión: home ref=[0.9768, -0.0098, 0.213, 0.0207]
+[WARN] [0000004271.183488640] [policy_node]: TF Error en la inferencia: "link_base" passed to lookupTransform argument target_frame does not exist. 
+[INFO] [0000004271.229520384] [policy_node]: Yendo a posicion inicial [0.15, 0.00, 0.75]...
+[INFO] [0000004272.279100928] [policy_node]: Yendo a posicion inicial [0.15, 0.00, 0.75]...
+[INFO] [0000004273.279202432] [policy_node]: Yendo a posicion inicial [0.15, 0.00, 0.75]...
+[INFO] [0000004274.279359392] [policy_node]: Yendo a posicion inicial [0.15, 0.00, 0.75]...
+[INFO] [0000004275.329009664] [policy_node]: Yendo a posicion inicial [0.15, 0.00, 0.75]...
+[INFO] [0000004276.179259392] [policy_node]: RESET finalizado. ¡Cediendo el control a la Red Neuronal (Diffusion Policy)!
+[INFO] [0000004276.293518144] [policy_node]: [IA] Accion: X=0.152 Y=-0.001 Z=0.750 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0000 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004277.360090400] [policy_node]: [IA] Accion: X=0.169 Y=-0.020 Z=0.743 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0004 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004278.412406752] [policy_node]: [IA] Accion: X=0.189 Y=-0.050 Z=0.727 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0002 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004279.461225824] [policy_node]: [IA] Accion: X=0.207 Y=-0.088 Z=0.711 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0001 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004280.510166176] [policy_node]: [IA] Accion: X=0.234 Y=-0.112 Z=0.696 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0003 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004281.561714912] [policy_node]: [IA] Accion: X=0.262 Y=-0.136 Z=0.680 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0008 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004282.609161600] [policy_node]: [IA] Accion: X=0.287 Y=-0.154 Z=0.661 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0007 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004283.659882592] [policy_node]: [IA] Accion: X=0.314 Y=-0.170 Z=0.638 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0010 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004284.709099872] [policy_node]: [IA] Accion: X=0.341 Y=-0.184 Z=0.613 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0006 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004285.760015968] [policy_node]: [IA] Accion: X=0.370 Y=-0.196 Z=0.585 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0010 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004286.809612192] [policy_node]: [IA] Accion: X=0.401 Y=-0.206 Z=0.553 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0007 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004287.861072000] [policy_node]: [IA] Accion: X=0.422 Y=-0.209 Z=0.514 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0006 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004288.910149472] [policy_node]: [IA] Accion: X=0.432 Y=-0.208 Z=0.480 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0006 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004289.961580800] [policy_node]: [IA] Accion: X=0.445 Y=-0.217 Z=0.453 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0008 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004291.010329568] [policy_node]: [IA] Accion: X=0.457 Y=-0.226 Z=0.425 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0006 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004292.059770592] [policy_node]: [IA] Accion: X=0.470 Y=-0.232 Z=0.400 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0011 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004293.113651712] [policy_node]: [IA] Accion: X=0.482 Y=-0.242 Z=0.378 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0010 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004294.160389344] [policy_node]: [IA] Accion: X=0.484 Y=-0.247 Z=0.356 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0008 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004295.210765984] [policy_node]: [IA] Accion: X=0.486 Y=-0.244 Z=0.338 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.0006 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004296.258427904] [policy_node]: [IA] Accion: X=0.488 Y=-0.246 Z=0.327 | Gripper: 0.0000000 (ABIERTO) | Dim 9 (Done): 0.2078 [Umbral: 0.60 -> No alcanzado]
+[INFO] [0000004296.709850848] [policy_node]: ¡Auto-Stop Neuronal Activado! La red predijo FIN DE TAREA (Valor de 9na dimensión: 0.9972 >= umbral: 0.60).
+[INFO] [0000004296.714321984] [policy_node]: Tarea completada (Auto-Stop) (Neuronal: 9na dim = 0.9972 >= umbral 0.60). Manteniendo posición fija.
+[INFO] [0000004298.730232416] [policy_node]: Tarea completada (Auto-Stop) (Neuronal: 9na dim = 0.9972 >= umbral 0.60). Manteniendo posición fija.
+Traceback (most recent call last):
+  File "/ros_ws/install/visuomotor_ros2/lib/visuomotor_ros2/policy_node", line 33, in <module>
+    sys.exit(load_entry_point('visuomotor-ros2', 'console_scripts', 'policy_node')())
+  File "/ros_ws/build/visuomotor_ros2/visuomotor_ros2/policy_node.py", line 535, in main
+    rclpy.spin(node)
+  File "/opt/ros/humble/install/lib/python3.8/site-packages/rclpy/__init__.py", line 222, in spin
+    executor.spin_once()
+  File "/opt/ros/humble/install/lib/python3.8/site-packages/rclpy/executors.py", line 705, in spin_once
+    handler, entity, node = self.wait_for_ready_callbacks(timeout_sec=timeout_sec)
+  File "/opt/ros/humble/install/lib/python3.8/site-packages/rclpy/executors.py", line 691, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+  File "/opt/ros/humble/install/lib/python3.8/site-packages/rclpy/executors.py", line 592, in _wait_for_ready_callbacks
+    raise ExternalShutdownException()
+rclpy.executors.ExternalShutdownException
