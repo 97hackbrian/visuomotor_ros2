@@ -264,9 +264,13 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Modelo entregado:* `deploy/jetson/model/` = época 200 de `visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300` (300 épocas). Validación (8 episodios): ADE 11.6 mm, ADE ejecutado 7.6 mm (línea base 11.0), FDE 18.5 mm, 1.74°, F1 done 0.70, progreso 1.00. Auto-stop calibrado 0.60 x 5 pasos (100% paradas, 0 prematuras, ~8 mm). Lazo cerrado ROS 2 simulado: coseno 0.99, 0 rechazos.
     - *Selección de checkpoints:* los criterios de parada basados en la pérdida (punto 14) recomendaban la época ~8; las métricas de comportamiento mejoraron hasta ~200. En DP se elige con métricas de muestreo completo y reproducción de la ruta de despliegue, no con la pérdida.
     - *Líneas base exigentes (obligatorio):* "quedarse quieto" es una vara baja. `evaluate_sampling` reporta además "velocidad constante" (`cv_ade_mm`, `cv_ade_exec_mm`, `cv_fde_mm`; desfase acción/estado estimado del dataset). Época 200 en validación: la política pierde con la velocidad constante en los 3 pasos ejecutados (3.6 vs 1.3 mm) y gana desde ~0.53 s (FDE 18.5 vs 21.3 mm). Ablación visual (`tools/diagnose_policy_baselines.py`): con imágenes de otro episodio el FDE sube a 29.2 mm (la política sí usa la imagen); desde el reposo acierta la dirección en el 64 % frente al 55 % de "ir siempre hacia la dirección media" (n = 22): los datos v7 apenas obligan a usar la visión.
-    - *Estado (2026-11-23):* **evaluado en el xArm5 físico: 6/7 éxitos (86 %, IC de Wilson al 95 %: 49–97 %).**
-      - 7/7 paradas automáticas; centro, izquierda y derecha extrema 2/2 cada una.
-      - Falla con las tijeras giradas ~75° en yaw (falta variedad de orientación en v7).
+    - *Estado (2026-11-23):* **evaluado en el xArm5 físico (8 intentos, 5 cm/s).**
+      - 8/8 llegaron y se detuvieron solos sobre la herramienta (IC de Wilson al 95 %: 68–100 %).
+      - 6/8 terminaron con la vista de las demos (IC 41–93 %).
+      - Los 2 restantes (tijeras giradas ~75° en yaw, y tijeras junto a la base) pararon ~20 % más cerca y descentrados:
+        faltan variedad de orientación y de posiciones cercanas en v7.
+      - No usar la altura de las demos vecinas como criterio: la altura de parada humana sobre un mismo lugar varía
+        ±7 cm.
       - Resultados en `experiments/xarm5_real_trials/2026-11-23/`, herramienta `tools/xarm5/real_trials/run_trial.sh`; detalle en `context.md`, lección 45.
     - *Memoria Modular:* `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
 
@@ -359,7 +363,8 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_charuco_
 
 # 25. Ensayo en el xArm5 real desde el PC (brazo en HOME3, puente lanzado por el usuario, usuario en la parada de emergencia)
 tools/xarm5/real_trials/run_trial.sh --dry-run                # etapa B (puente en dry-run; no mueve)
-tools/xarm5/real_trials/run_trial.sh 8 "derecha-lejos"        # etapa C, intento 8 (modo real), con métricas
+tools/xarm5/real_trials/run_trial.sh 9 "derecha-lejos"        # etapa C, intento 9 (modo real), con métricas y gráfica
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/plot_real_trial.py experiments/xarm5_real_trials/2026-11-23/trial_008   # gráfica de control
 
 # 24. Calibración cámara-brida con el xArm5 y el tablero (capture: ROS 2 con cámara + TF del robot; solve: sin ROS, no edita YAML)
 python3 tools/xarm5/calibrate_hand_eye.py capture --out-dir datasets/hand_eye/<fecha>

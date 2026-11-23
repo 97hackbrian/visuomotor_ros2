@@ -5,6 +5,7 @@ import argparse, json, time
 import numpy as np, rclpy, cv2
 from rclpy.node import Node
 from std_msgs.msg import Float32
+from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
 from rcl_interfaces.msg import Log
 from std_srvs.srv import Trigger
@@ -17,6 +18,11 @@ a = ap.parse_args()
 rclpy.init(); n = Node("stageC_monitor")
 buf = tf2_ros.Buffer(); tf2_ros.TransformListener(buf, n)
 done, warns, imgs = [], [], {}
+series = {"target_raw": [], "target": [], "preview": []}   # serie temporal completa para la gráfica de control
+P = lambda m: (time.time(), m.pose.position.x, m.pose.position.y, m.pose.position.z)  # noqa: E731
+for key, topic in (("target_raw", "/target_frame_raw"), ("target", "/target_frame"),
+                   ("preview", "/xarm5_bridge/command_preview")):
+    n.create_subscription(PoseStamped, topic, lambda m, k=key: series[k].append(P(m)), 100)
 n.create_subscription(Float32, "/policy/metrics/done_flag", lambda m: done.append((time.time(), float(m.data))), 50)
 def log_cb(m):
     if m.level >= 30 and m.name in ("xarm5_bridge", "ufactory_driver", "policy_node", "pose_smoother"):
@@ -88,6 +94,11 @@ for w in warns:
     seen[(w[2], w[3][:90])] = seen.get((w[2], w[3][:90]), 0) + 1
 res["warnings"] = [f"{k[0]} x{c}: {k[1]}" for k, c in list(seen.items())[:8]]
 np.save("/tmp/vtrials/tcp.npy", T)
+# Serie temporal para tools/xarm5/plot_real_trial.py (tiempo relativo al inicio de la inferencia)
+rel = lambda rows: (np.array(rows, dtype=float) - np.array([t0] + [0.0] * (len(rows[0]) - 1))) if rows else np.zeros((0, 4))  # noqa: E731
+np.savez("/tmp/vtrials/timeseries.npz", tcp=T if len(T) else np.zeros((0, 4)), target_raw=rel(series["target_raw"]),
+         target=rel(series["target"]), preview=rel(series["preview"]),
+         done=(np.array(done, dtype=float) - np.array([t0, 0.0])) if done else np.zeros((0, 2)))
 print(json.dumps(res, ensure_ascii=False))
 open("/tmp/vtrials/monitor.json", "w").write(json.dumps(res, ensure_ascii=False))
 n.destroy_node(); rclpy.shutdown()

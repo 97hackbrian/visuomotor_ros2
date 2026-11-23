@@ -33,6 +33,6 @@ timeout 60 $J "$DX python3 /tmp/vtrials/grab_home3.py >/dev/null 2>&1; docker cp
 play "$BEEP/inicio.wav"; date "+INICIO intento $N %H:%M:%S"
 timeout 240 $J "$DX bash /tmp/vtrials/run_attempt.sh" 2>&1 | grep -E "arm:|vigilante|ABORTO|forzando|publicadores|armed=|Auto-Stop|ERROR" | cut -c1-180
 date "+FIN intento $N %H:%M:%S"; play "$BEEP/fin.wav"
-for f in final.png tcp.npy policy.log monitor.json; do
+for f in final.png tcp.npy policy.log monitor.json timeseries.npz; do
   $J "docker cp $CONTAINER:/tmp/vtrials/$f /tmp/vtrials_$f" && scp -q -o BatchMode=yes "$JETSON:/tmp/vtrials_$f" "$T/$f"; done
-docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "python3 tools/xarm5/real_trial_metrics.py --session '${SESSION#$REPO/}' --trial $N --label '$LABEL' 2>&1 | tail -2"
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "python3 tools/xarm5/real_trial_metrics.py --session '${SESSION#$REPO/}' --trial $N --label '$LABEL' 2>&1 | tail -2 && python3 tools/xarm5/plot_real_trial.py '${T#$REPO/}'"

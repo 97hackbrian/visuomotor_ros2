@@ -471,7 +471,17 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       `home3_reference_view.png`, etapa B (dry-run) y etapa C (5 cm/s), siempre con orden explícita del usuario para
       cada movimiento.
 
-45. **Primera evaluación en el xArm5 físico (2026-11-23): 6/7 éxitos (86 %, IC de Wilson al 95 %: 49–97 %):**
+45. **Primera evaluación en el xArm5 físico (2026-11-23, 8 intentos): 8/8 sobre la herramienta y 6/8 con la vista de
+    las demos:**
+    - *Medidas de éxito:* "llegó y se detuvo sobre la herramienta" (parada automática + centro de la imagen sobre las
+      tijeras; es el criterio del usuario) y "terminó como en las demos" (vista final estricta).
+    - *Criterio descartado:* "altura a ≤ 5 cm de las demos vecinas". La altura de parada humana sobre un mismo lugar
+      de la mesa varía ±7 cm (0,188–0,340 m), así que la mediana de las demos vecinas no define un punto de
+      aproximación.
+    - *El intento 8* (tijeras junto a la base, a la derecha) paró sobre la herramienta, ~20 % más cerca que las demos.
+    - *Gráfica de control por intento:* `tools/xarm5/plot_real_trial.py`. El TCP sigue al comando de la política; la
+      velocidad satura a 5 cm/s en el tramo medio; el done sube en los últimos segundos.
+    - *Detalle de los primeros 7 intentos:*
     - *Preparación:*
       - HOME3 medido: (0,15005, −0,00004, 0,75001) m y las mismas juntas previstas.
       - La vista en HOME3, en el espacio de la política, coincide con las demos: similitud 0,84 con la mediana (las

@@ -1,8 +1,9 @@
-trial,label,success_auto,success_user,autostop,autostop_s,reason,final_view_ok,final_view_z,final_scale_vs_demo_median,tcp_end,path_mm,z_min,speed_p95_mm_s,done_max
-trial_001,centro (igual a la vista HOME3),True,,True,20.57114185599994,parada automática de la política,True,"[-1.78, -0.92]",0.85,"[0.5118, -0.0555, 0.342]",617.9,0.342,54.5,0.636
-trial_002,centro (repetición),True,,True,23.51420892799979,parada automática de la política,True,"[-1.29, -1.03]",0.88,"[0.5081, -0.0501, 0.3342]",621.6,0.3342,53.0,0.799
-trial_003,izquierda,True,,True,30.18712300800007,parada automática de la política,True,"[-2.06, -0.06]",1.06,"[0.4507, 0.1625, 0.3193]",604.7,0.3193,53.1,0.704
-trial_004,izquierda (repetición),True,,True,28.68324121600017,parada automática de la política,True,"[-2.13, -0.23]",1.07,"[0.4674, 0.1678, 0.3196]",642.0,0.3196,52.6,0.877
-trial_005,derecha (extremo),True,,True,20.82130208000035,parada automática de la política,True,"[-0.24, 0.62]",1.01,"[0.4877, -0.2458, 0.3244]",653.0,0.3244,52.7,0.997
-trial_006,"derecha (extremo, repetición)",True,,True,19.94384227199953,parada automática de la política,True,"[0.14, -0.02]",0.93,"[0.4877, -0.244, 0.3299]",636.9,0.3299,54.1,0.803
-trial_007,"centro-lejos, girada en yaw",False,,True,29.07125452800028,parada automática de la política,False,"[3.62, 0.91]",1.49,"[0.6023, -0.0373, 0.2573]",720.5,0.2573,52.6,0.984
+trial,label,success_over_tool,success_auto,success_user,autostop,autostop_s,camera_over_tool,demo_height_range_m,approach_height_ref_m,reason,final_view_ok,final_view_z,final_scale_vs_demo_median,tcp_end,path_mm,z_min,speed_p95_mm_s,done_max
+trial_001,centro (igual a la vista HOME3),True,True,,True,20.57114185599994,True,"[0.188, 0.29]",0.242,parada automática de la política,True,"[-1.78, -0.92]",0.85,"[0.5118, -0.0555, 0.342]",617.9,0.342,54.5,0.636
+trial_002,centro (repetición),True,True,,True,23.51420892799979,True,"[0.188, 0.29]",0.242,parada automática de la política,True,"[-1.29, -1.03]",0.88,"[0.5081, -0.0501, 0.3342]",621.6,0.3342,53.0,0.799
+trial_003,izquierda,True,True,,True,30.18712300800007,True,"[0.24, 0.404]",0.298,parada automática de la política,True,"[-2.06, -0.06]",1.06,"[0.4507, 0.1625, 0.3193]",604.7,0.3193,53.1,0.704
+trial_004,izquierda (repetición),True,True,,True,28.68324121600017,True,"[0.24, 0.404]",0.298,parada automática de la política,True,"[-2.13, -0.23]",1.07,"[0.4674, 0.1678, 0.3196]",642.0,0.3196,52.6,0.877
+trial_005,derecha (extremo),True,True,,True,20.82130208000035,True,"[0.164, 0.337]",0.193,parada automática de la política,True,"[-0.24, 0.62]",1.01,"[0.4877, -0.2458, 0.3244]",653.0,0.3244,52.7,0.997
+trial_006,"derecha (extremo, repetición)",True,True,,True,19.94384227199953,True,"[0.164, 0.337]",0.193,parada automática de la política,True,"[0.14, -0.02]",0.93,"[0.4877, -0.244, 0.3299]",636.9,0.3299,54.1,0.803
+trial_007,"centro-lejos, girada en yaw",True,False,True,True,29.07125452800028,True,"[0.16, 0.335]",0.298,parada automática de la política,False,"[3.62, 0.91]",1.49,"[0.6023, -0.0373, 0.2573]",720.5,0.2573,52.6,0.984
+trial_008,"abajo-derecha (extremo, cerca de la base)",True,False,,True,28.188855680000415,True,"[0.257, 0.329]",0.284,parada automática de la política,False,"[3.74, -2.3]",1.61,"[0.431, -0.2625, 0.239]",739.1,0.239,52.3,0.991

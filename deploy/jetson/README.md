@@ -354,15 +354,43 @@ Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quater
 - **Registrar:** distancia final, tiempo, paradas prematuras, recortes del puente y un rosbag de `/policy/metrics`.
 - **Estimación previa:** ~40 % (30-55 %) si la vista en HOME3 coincide con la referencia. Con 20 intentos, el
   intervalo de confianza al 95 % es de unos ±20 puntos (Wilson: 10/20 → 30-70 %); con 10, de unos ±30.
-- **Resultados del 2026-11-23:** 6/7 éxitos (86 %, IC 49–97 %).
-  - 7/7 paradas automáticas, 0 errores del puente.
-  - Falla con las tijeras giradas ~75° en yaw.
+- **Resultados del 2026-11-23 (8 intentos):**
+  - **8/8 llegaron y se detuvieron solos sobre la herramienta** (IC 68–100 %).
+  - **6/8 terminaron con la vista de las demos** (encuadre y distancia; IC 41–93 %).
+  - Los 2 restantes, tijeras giradas ~75° y tijeras junto a la base a la derecha, pararon ~20 % más cerca que en las
+    demos y descentrados.
+  - 0 errores del puente.
   - Detalle en `experiments/xarm5_real_trials/2026-11-23/summary.md`.
 - **Orquestador desde el PC:** `tools/xarm5/real_trials/run_trial.sh N "posición"`.
   - Hace chequeo previo de solo lectura (si falla, aborta sin armar), suena un pitido al empezar y otro al terminar,
     y corre un vigilante que desarma ante z < 0,15 m, errores o 45 s.
   - Desarma sin poner frenos y verifica que no quede ninguna política publicando.
   - Las métricas las calcula `tools/xarm5/real_trial_metrics.py`.
+- **Gráfica de control por intento:** `tools/xarm5/plot_real_trial.py experiments/xarm5_real_trials/<fecha>/trial_NNN`
+  genera `control.png/.pdf` con:
+  - x/y/z del comando de la política, del objetivo filtrado y del comando del puente, frente al TCP medido;
+  - la velocidad frente al límite;
+  - done frente al umbral;
+  - la vista desde arriba con los finales de las demos.
+  `run_trial.sh` la genera al terminar cada intento.
+- **Inferencia manual, sin el orquestador ni su vigilante:** con el brazo en HOME3, el puente en modo real y la cámara
+  corriendo, en una terminal de la Jetson:
+  ```bash
+  docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh ros2 service call /xarm5_bridge/arm std_srvs/srv/Trigger
+  docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh \
+    ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
+  # Al terminar o para detener: PRIMERO desarmar (Disarm en RViz2 o el servicio) y DESPUÉS Ctrl+C en la inferencia
+  docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh ros2 service call /xarm5_bridge/disarm std_srvs/srv/Trigger
+  ```
+  Tras la parada automática la política sostiene la pose final, pero el puente sigue armado hasta que se desarme.
+- **Gráfica en tiempo real (PC con RViz2, dominio 42):** los tópicos `/policy/metrics/*` son livianos y pueden ir por
+  Wi-Fi.
+  ```bash
+  ros2 run rqt_plot rqt_plot /policy/metrics/done_flag/data /policy/metrics/done_threshold/data \
+      /policy/metrics/tcp_speed_m_s/data /policy/metrics/tracking_error_xyz/data
+  ros2 run rqt_plot rqt_plot /policy/metrics/tcp_cmd_xyz/point/z /policy/metrics/tcp_actual_xyz/point/z \
+      /policy/metrics/tcp_cmd_xyz/point/x /policy/metrics/tcp_actual_xyz/point/x
+  ```
 - **Diagnóstico por síntoma:**
   - Dirección equivocada desde el arranque: montaje o vista.
   - Arranca bien y se desvía: error que se acumula en lazo cerrado; hacen falta más datos o correcciones grabadas
