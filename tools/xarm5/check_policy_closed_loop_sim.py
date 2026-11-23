@@ -67,6 +67,7 @@ def main(argv=None):
                ROS_AUTOMATIC_DISCOVERY_RANGE="LOCALHOST", PYTHONUNBUFFERED="1")
     os.environ.update({k: env[k] for k in ("ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "ROS_AUTOMATIC_DISCOVERY_RANGE")})
     procs = []
+    t_video_start = float("inf")
     logs = {n: open(out / f"{n}.log", "w") for n in ("bringup", "policy")}
     procs.append(subprocess.Popen(
         ["ros2", "launch", "visuomotor_bringup", "xarm5_real.launch.py", f"params_file:={bridge_yaml}",
@@ -87,9 +88,18 @@ def main(argv=None):
         tf_buf = tf2_ros.Buffer()
         tf2_ros.TransformListener(tf_buf, node)
         raw_cmds = []
-        node.create_subscription(PoseStamped, "target_frame_raw", lambda m: raw_cmds.append(
+        # Los comandos se escuchan en un nodo y un hilo propios que giran sin pausa. El bucle principal procesa un
+        # solo callback cada ~45 ms (spin_once + sleep), compartido con el TF a ~100 Hz: medía su propio ritmo
+        # (16 Hz en el PC, 7 Hz en la Jetson) y perdía mensajes, no el ritmo real de la política.
+        import threading
+        from rclpy.executors import SingleThreadedExecutor
+        cmd_node = Node("closed_loop_cmd_monitor")
+        cmd_node.create_subscription(PoseStamped, "target_frame_raw", lambda m: raw_cmds.append(
             (time.time(), m.pose.position.x, m.pose.position.y, m.pose.position.z, m.pose.orientation.x,
-             m.pose.orientation.y, m.pose.orientation.z, m.pose.orientation.w)), 10)
+             m.pose.orientation.y, m.pose.orientation.z, m.pose.orientation.w)), 100)
+        cmd_exec = SingleThreadedExecutor()
+        cmd_exec.add_node(cmd_node)
+        threading.Thread(target=cmd_exec.spin, daemon=True).start()
 
         root = zarr.open_group(args.dataset, mode="r")
         images = np.asarray(root[args.episode]["image"])
@@ -138,6 +148,7 @@ def main(argv=None):
         # 3) Reproducir el video de la demostración a 20 Hz y registrar la TCP del robot simulado
         tcp = []
         t_start = time.time()
+        t_video_start = t_start
         n = len(images)
         while True:
             k = int((time.time() - t_start) * 20.0)
@@ -167,6 +178,11 @@ def main(argv=None):
                 except ProcessLookupError:
                     pass
         try:
+            cmd_exec.shutdown(timeout_sec=1.0)
+            cmd_node.destroy_node()
+        except Exception:
+            pass
+        try:
             node.destroy_node()
             rclpy.shutdown()
         except Exception:
@@ -186,12 +202,20 @@ def main(argv=None):
     demo_disp = demo[-1, :3]
     cos = float(disp @ demo_disp / max(1e-9, np.linalg.norm(disp) * np.linalg.norm(demo_disp)))
     qn = np.linalg.norm(tcp[:, 4:8], axis=1) if len(tcp) else np.array([1.0])
+    # Ritmo real del lazo de la política mientras corre el video (hasta su último comando = auto-stop): con
+    # inferencia síncrona cada n_action_steps ticks, una inferencia más lenta que el período salta ticks.
+    cmd_t = np.array([c[0] for c in raw_cmds if c[0] >= t_video_start])
+    gaps = np.diff(cmd_t) * 1000.0 if len(cmd_t) > 2 else np.zeros(0)
+    timing = {"policy_command_rate_hz": float((len(cmd_t) - 1) / (cmd_t[-1] - cmd_t[0])) if len(cmd_t) > 2 else 0.0,
+              "command_gap_ms_median": float(np.median(gaps)) if len(gaps) else None,
+              "command_gap_ms_p95": float(np.percentile(gaps, 95)) if len(gaps) else None,
+              "command_gap_ms_max": float(gaps.max()) if len(gaps) else None}
     res = {"episode": args.episode, "checkpoint": args.checkpoint, "arm": arm_msg,
            "tcp_samples": int(len(tcp)), "policy_commands": len(raw_cmds),
            "robot_displacement_m": disp.tolist(), "demo_displacement_m": demo_disp.tolist(),
            "displacement_cosine_similarity": cos, "robot_path_m": float(np.linalg.norm(np.diff(tcp[:, 1:4], axis=0), axis=1).sum()) if len(tcp) > 1 else 0.0,
            "neural_autostop": stopped, "bridge_rejections": rejected, "policy_errors": errors,
-           "tcp_quat_norm_min": float(qn.min())}
+           "tcp_quat_norm_min": float(qn.min()), **timing}
     (out / "closed_loop_check.json").write_text(json.dumps(res, indent=2))
     np.save(out / "tcp_trace.npy", tcp)
     print(json.dumps(res, indent=2))
@@ -212,7 +236,8 @@ def main(argv=None):
         ax.set_ylabel(f"{lab} (m)")
         ax.set_aspect("equal", adjustable="datalim")
         ax.grid(True, color="#d9d8d4", lw=0.6)
-        ax.spines[["top", "right"]].set_visible(False)
+        for side in ("top", "right"):                   # compatible con matplotlib < 3.4 (Jetson)
+            ax.spines[side].set_visible(False)
         ax.legend(frameon=False, fontsize=9)
     plt.tight_layout()
     fig.savefig(out / "closed_loop_check.png", dpi=200, bbox_inches="tight")

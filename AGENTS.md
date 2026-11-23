@@ -222,6 +222,11 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Límites articulares:* el puente no arma con una junta a < `joint_limit_margin_rad` de su límite y se detiene antes del C23; J1 en ±2π se corrige solo con `~/unwind_j1` (manual, giro de base de 360°). Rangos del Hardware Manual v2.7.1 para XF1305 (`bio/xarm5_ufactory_XF1305/`): J1 ±360°, J2 -117°..116°, J3 -219°..10°, J4 -97°..180°, J5 ±360° (más estrechos que la URDF/manual V2.3.0 usados hasta el 2026-11-22).
    - *Alcance vs. caja:* alcance nominal 700 mm (rango cartesiano X/Y ±700 mm) = radio máximo alrededor del eje de J1 a la altura del hombro (J2, 0.267 m); a la altura de aproximación de las demostraciones (brida ~0.28 m, garra vertical) el alcance lateral cinemático es ±0.47 m a la profundidad de los objetos. La caja `|y| <= 0.30 m` del puente es una decisión de seguridad de la celda (conservadora, ampliable tras medirla), no un límite del brazo. Herramienta: `tools/xarm5/analyze_xarm5_workspace.py`.
    - *Driver:* `xarm_ros2` rama `humble` fijado por commit y compilado en `/opt/xarm_ws` dentro de `deploy/jetson/Dockerfile.jetson`. `xarm_msgs` no es dependencia rosdep (no se declara en `package.xml`).
+   - *Cámara e inferencia en la Jetson (2026-11-23):*
+     - driver D435i en `Dockerfile.realsense_base` (librealsense 2.59.1, realsense-ros 4.59.1, RSUSB), activado con `docker-compose.realsense.yml`; cámara con `d435i_camera.launch.py`;
+     - inferencia con CUDA Graph y 5 pasos DDIM: 69 ms medidos (205 ms con 10 pasos sin grafo) y 20 Hz de comandos;
+     - `benchmark_jetson.py` y `check_policy_closed_loop_sim.py` miden lo que hace `policy_node`;
+     - detalle en `context.md`, lección 44.
    - *Memoria Modular:* `.agents/knowledge/16_xarm5_real_hardware_bringup.md`.
 19. **Unificación de Coordenadas Relativas (Modo SOTA UMI / Delta-Home):**
    - *Invariante Arquitectónica:* Para eliminar la dependencia de marcos globales arbitrarios o de la cota del piso en RTAB-Map (`Odom/AlignWithGround: false`), todo episodio arranca en el origen estricto: $\mathbf{p}_{\text{rel}} = (0.0, 0.0, 0.0)$ en el paso $t=0$.

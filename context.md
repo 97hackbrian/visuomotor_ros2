@@ -446,6 +446,31 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Pendiente con hardware:* driver de la RealSense en la imagen de la Jetson (no está en `Dockerfile.jetson`),
       imprimir y medir el tablero, calibrar con el xArm5, medir la odometría contra el robot y elegir el estimador.
 
+44. **Jetson lista para la prueba física (2026-11-23), Fase 1 sin brazo ni cámara montada:**
+    - *Driver de la cámara:* la imagen de la Jetson no lo traía. `Dockerfile.realsense_base` compila librealsense
+      2.59.1 y realsense-ros 4.59.1 (las versiones de la recolección), con backend RSUSB.
+      - El repositorio apt de ROS de la imagen dustynv tiene la clave vencida: `libusb` se instala solo desde Ubuntu.
+      - Se usa con `docker compose -f docker-compose.yml -f docker-compose.realsense.yml up -d`; un `docker compose up -d`
+        a secas vuelve a la imagen sin driver.
+      - `d435i_camera.launch.py` publica color a 29,6 Hz y 640x480 dentro del contenedor.
+    - *Latencia real:* el README prometía 25–35 ms, pero nunca se había medido. La inferencia completa tardaba 205 ms
+      (10 pasos DDIM), el ciclo de 20 Hz se habría caído y las observaciones habrían quedado espaciadas de forma
+      irregular. La U-Net está limitada por el lanzamiento de kernels desde la CPU de la Orin (18 ms por paso) y FP16
+      es más lento.
+      - Solución: `DiffusionModel.enable_cuda_graph()` (mismo resultado, diferencia 0) y 5 pasos DDIM, que no degradan
+        la validación (11,5 frente a 11,6 mm). Queda en 69 ms por inferencia y 20,0 Hz de comandos (el timer de rcl
+        conserva la fase si el atraso es menor de un período).
+    - *Medir bien:* `check_policy_closed_loop_sim.py` medía su propio bucle (`spin_once` + `sleep` comparten el
+      callback con el TF): daba 7 Hz en la Jetson y 16 Hz en el PC. Ahora escucha los comandos en un hilo propio.
+    - *Verificado en la Jetson:*
+      - lazo cerrado con imágenes de validación: coseno 0,985–0,987, parada automática y 0 rechazos;
+      - etapa A con la cámara en vivo: 20,01 Hz y 80 % de CPU libre;
+      - contenedor principal recreado con la imagen nueva (registros previos respaldados en
+        `/home/jetson/respaldo_contenedor_20261123`).
+    - *Siguiente (requiere brazo y montaje):* montar la cámara, HOME3 medido, comparación con
+      `home3_reference_view.png`, etapa B (dry-run) y etapa C (5 cm/s), siempre con orden explícita del usuario para
+      cada movimiento.
+
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 1. **Eje 1 (Demostrador Experto para Datasets):** Comparación empírica de datasets generados por PID cartesiano vs. SOTA MPC vs. SOTA Impedancia Cartesiana.

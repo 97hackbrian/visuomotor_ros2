@@ -307,11 +307,21 @@ Requisitos previos:
 3. **Escena:** tijeras de podar sobre la misma mesa (mantel blanco y los dos ArUco), dentro de |y| <= 0.30 m (caja de
    seguridad configurada del puente; el brazo alcanza ±0.47 m a esa profundidad) y entre ~0.35 y 0.60 m delante de la
    base, como en los datos.
-4. **Latencia en la Orin:** correr el benchmark de la sección 4 con este modelo; DDIM de 10 pasos debe sostener 20 Hz.
+4. **Latencia en la Orin (medida el 2026-11-23, sección 4):** la inferencia completa tarda 69 ms con 5 pasos DDIM y
+   CUDA Graph (`num_inference_steps: 5`, `use_cuda_graph: true`); con 10 pasos sin grafo tardaba 205 ms.
+   `policy_node` infiere cada 3 ticks, y el timer de 20 Hz conserva la fase. Resultado: 20,0 Hz de comandos, con un
+   hueco de unos 120 ms por inferencia que absorbe el filtro de 1,5 Hz.
+   Verificado en la Jetson sin brazo (2026-11-23):
+   - lazo cerrado con imágenes de validación (`check_policy_closed_loop_sim.py`, episodios 45 y 7): coseno 0,985–0,987,
+     parada automática, 0 rechazos y 20,07 Hz;
+   - etapa A con la cámara en vivo: 20,01 Hz y 80 % de CPU libre.
 
 Puesta en marcha (cada etapa solo si la anterior se comporta como se describe):
 ```bash
-# A) Sin brazo: robot simulado + política (debe bajar hacia delante y auto-detenerse)
+# 0) Contenedor con el driver de la cámara (desde deploy/jetson) y la cámara en una terminal propia
+docker compose -f docker-compose.yml -f docker-compose.realsense.yml up -d
+docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh ros2 launch visuomotor_bringup d435i_camera.launch.py
+# A) Sin brazo: robot simulado + política (con la cámara montada y en HOME3: debe bajar hacia delante y auto-detenerse)
 ros2 launch visuomotor_bringup xarm5_real.launch.py simulate_robot_state:=true
 ros2 service call /xarm5_bridge/arm std_srvs/srv/Trigger
 ros2 launch visuomotor_ros2 inference.launch.py checkpoint_path:=/ros_ws/model
@@ -355,16 +365,25 @@ Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quater
 Para verificar cuántos milisegundos toma la inferencia y cuánta memoria consume en la Jetson Orin Nano antes de conectar los motores físicos del robot:
 
 ```bash
-# Abrir una terminal interactiva dentro del contenedor en ejecución
-docker exec -it visuomotor_orin_inference /ros_ws/entrypoint.sh bash
-
-# Ejecutar el benchmark automatizado (evalúa FP32 vs FP16)
-python3 /ros_ws/src/visuomotor_ros2/deploy/jetson/scripts/benchmark_jetson.py --model_path /ros_ws/model
+# El script no está dentro de la imagen: correrlo en un contenedor temporal con el repo montado (desde la raíz del repo)
+docker run --rm -v "$PWD":/repo:ro -v "$PWD"/deploy/jetson/model:/ros_ws/model:ro visuomotor_jetson:realsense \
+    python3 /repo/deploy/jetson/scripts/benchmark_jetson.py --model_path /ros_ws/model --steps 5
+# Compara la ejecución normal con el CUDA Graph usando predict_chunk, la misma llamada que hace policy_node
 ```
 
-### Resultados Esperados en Jetson Orin Nano (15W):
-* **DDIM (10 pasos, FP16 con Tensor Cores):** $\approx 25 - 35\text{ ms}$ ($\mathbf{\approx 30\text{ Hz}}$, superando con holgura los 20 Hz requeridos).
-* **Consumo VRAM pico:** $\approx 1.8\text{ GB}$ (dejando más de 5 GB libres en la Jetson).
+### Resultados medidos en la Jetson Orin Nano (15 W, `jetson_clocks`, 2026-11-23; `predict_chunk` completo)
+| Pasos DDIM | Normal | CUDA Graph |
+|---|---|---|
+| 10 | 205 ms | 119 ms |
+| **5 (configuración actual)** | 111 ms | **69 ms** |
+
+* La U-Net cuesta unos 18 ms por paso en modo normal y 9 ms en grafo: está limitada por el lanzamiento de kernels
+  desde la CPU. FP16 (autocast) es MÁS lento y no se usa.
+* VRAM pico: 150–265 MB. Las cifras anteriores (25–35 ms con FP16) nunca se habían medido.
+* Con 5 pasos la calidad no cambia: en validación (`replay_policy_offline.py`, 8 episodios), el error del comando es
+  11,5 mm frente a 11,6 mm con 10 pasos.
+* Después de un reinicio hay que volver a fijar los relojes con `sudo jetson_clocks` (también lo hace
+  `scripts/setup_host.sh`).
 
 ---
 
