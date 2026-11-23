@@ -2,11 +2,11 @@
 
 Modelo: época 200 de `train_real_v7x5v2_relative_ee_e300` (`deploy/jetson/model`), 5 pasos DDIM + CUDA Graph, puente a 5 cm/s. Referencia: últimos frames de 76 demos.
 
-* **Llegó y se detuvo sobre la herramienta (parada automática + cámara sobre las tijeras): 8/12 = 67 %** (IC Wilson 95 %: 39–86 %).
-* **Terminó como en las demos (criterio estricto de vista final: encuadre y distancia): 6/12 = 50 %** (IC 95 %: 25–75 %).
+* **Llegó y se detuvo sobre la herramienta (parada automática + cámara sobre las tijeras): 9/13 = 69 %** (IC Wilson 95 %: 42–87 %).
+* **Terminó como en las demos (criterio estricto de vista final: encuadre y distancia): 7/13 = 54 %** (IC 95 %: 29–77 %).
 * La altura frente a las demos del mismo lugar es solo informativa: en las demos la altura de parada sobre un mismo lugar varía ±7 cm.
 * Confirmada por el usuario: 1/1.
-* Parada automática: 8/12; tiempo hasta la parada: mediana 25.9 s (demos: 15.3 s de grabación).
+* Parada automática: 9/13; tiempo hasta la parada: mediana 23.5 s (demos: 15.3 s de grabación).
 
 | Intento | Posición | Sobre la herramienta | Como en las demos | Usuario | Parada (s) | Altura final / rango de las demos vecinas (m) | Vista final (z u, z v; escala) | Final TCP (m) |
 |---|---|---|---|---|---|---|---|---|
@@ -22,3 +22,4 @@ Modelo: época 200 de `train_real_v7x5v2_relative_ee_e300` (`deploy/jetson/model
 | trial_010 | izquierda, diagonal (repetición del 9) | no | no | — | None | 0.149 / [0.16, 0.335] | None; None | [0.6061, -0.0794, 0.149] |
 | trial_011 | centro, junto al borde frente a la base | no | no | — | None | 0.1498 / [0.21, 0.459] | [3.91, -5.24]; 1.79 | [0.4654, -0.0707, 0.1498] |
 | trial_012 | centro entre los ArUco, vertical | no | no | — | None | 0.1496 / [0.16, 0.296] | [3.37, -3.64]; 5.09 | [0.5638, -0.1071, 0.1496] |
+| trial_013 | centro-derecha junto al ArUco derecho, en diagonal | sí | sí | — | 20.9 | 0.2981 / [0.188, 0.296] | [-0.76, -1.12]; 1.08 | [0.533, -0.0761, 0.2981] |
