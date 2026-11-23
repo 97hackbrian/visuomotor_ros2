@@ -1,5 +1,12 @@
 # 15. Odometría Visual con RTAB-Map y RealSense D415 para Demostraciones Reales de Approaching
 
+> [!WARNING]
+> **Revisión crítica del 2026-11-23 (ver §0 al final del módulo y `context.md`, lección 43).** Las cifras de "precisión
+> certificada" de este módulo (§6, §9, §10.D y §F) se midieron en reposo o son el mejor de varios intentos, y nunca
+> contra una referencia. 2.307 mm fue el mejor de 9 retornos (mediana 21.6 mm). Además, la configuración D435i no es
+> un VIO: el IMU solo alinea el marco inicial con la gravedad. No usar estas cifras como precisión de las
+> demostraciones. Plan de mejora: `docs/plans/plan_d435i_herramienta_demostraciones.md`.
+
 Este módulo documenta la arquitectura técnica, integración de hardware y software, parámetros algorítmicos, validación experimental rigurosa y protocolo de captura de demostraciones expertas reales de aproximación (*approaching*) mediante **Odometría Visual (VO)** sobre **ROS 2 Jazzy** en un contenedor Docker con aceleración de hardware.
 
 ---
@@ -111,8 +118,13 @@ En ensayos controlados sobre la D415 en reposo sobre la mesa de trabajo a $\sim 
 | **Jitter Posición 3D ($\sigma_{\text{pos}}$)** | **0.3943 mm** ($< 0.4\text{ mm}$) | $N/A$ | **Precisión submilimétrica real** ($X=0.19, Y=0.23, Z=0.25\text{ mm}$). |
 | **Jitter Angular 3D ($\sigma_{\text{rot}}$)** | **0.0467°** ($< 0.05^\circ$) | $N/A$ | **Orientación ultra-estable** sin vibraciones. |
 
-### Justificación Física del Resultado
+### Justificación Física del Resultado (hipótesis NO verificada; ver §0)
 La RealSense D415 proyecta un patrón de micropuntos láser infrarrojos (laser speckle) de alta frecuencia espacial. Los detectores de esquinas locales (GFTT/FAST) se anclan directamente a estos puntos singulares ($1\text{--}2\text{ px}$), generando cientos de inliers 3D. En cambio, SIFT aplica pirámides de diferencias de gaussianas (DoG) que atenúan los detalles microscópicos, resultando en menos candidatos sobre mesas homogéneas.
+
+> **Corrección (2026-11-23):** nadie comprobó que el patrón IR se vea en la imagen RGB, que es la que usa el rastreo.
+> Si los puntos se anclaran a él, sería un defecto y no una ventaja: el proyector va fijo a la cámara, así que el
+> patrón se mueve con ella y sesga el movimiento estimado hacia cero. Además, el jitter en reposo mide estabilidad,
+> no exactitud.
 
 ---
 
@@ -152,7 +164,7 @@ El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSen
 * **IMU Integrado:** Chip Bosch BMI085 (Acelerómetro a 200 Hz y Giroscopio a 200 Hz).
 * **Obturador Estéreo:** Global Shutter en los sensores infrarrojos (elimina distorsión por escaneo rápido de líneas).
 * **Filtro Madgwick:** Nodo `imu_filter_madgwick` (`use_mag: false`, `world_frame: 'enu'`) calcula el cuaternión de orientación estabilizado en `/imu/data`.
-* **Alineación con la Gravedad (Gravity Alignment):** El acelerómetro mide el vector de gravedad terrestre ($[0, 0, -9.81]\text{ m/s}^2$), garantizando que el eje $Z$ del sistema de odometría sea **estrictamente vertical y perpendicular a la mesa** (`Odom/AlignWithGround: "true"`, `wait_imu_to_init: true`). Esto desacopla el cabeceo (pitch) y alabeo (roll) del ángulo en que el operador sostenga la cámara al inicio.
+* **Alineación con la Gravedad (Gravity Alignment):** el acelerómetro mide la gravedad y `wait_imu_to_init: true` alinea con ella el marco de odometría **solo al inicializar**. La configuración activa usa `Odom/AlignWithGround: "false"`: una versión anterior de este párrafo decía `true`, lo que contradecía el punto 6 de abajo. Con `OdomF2M/BundleAdjustment: 0` no actúa ninguna restricción de gravedad después del inicio, y en v7 la vertical de odom derivó 50–60° dentro de una sesión (módulo 17 §1). **No es un VIO acoplado:** la pose sale de la imagen y la profundidad.
 
 ### Arquitectura de Archivos D435i (Desacoplada y Coexistente con D415)
 * **Parámetros de Cámara:** [visuomotor_bringup/config/realsense/d435i_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d435i_camera_params.yaml) (`unite_imu_method: 2`, `accel_fps: 200`, `gyro_fps: 200`).
@@ -173,6 +185,12 @@ El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSen
   4. `Vis/PnPReprojError: "2.0"` y `Vis/MaxFeatures: "1200"`: Densidad ampliada sobre el FOV gran angular ($86^\circ$) con tolerancia RANSAC balanceada contra el ruido estéreo.
   5. `Odom/FilteringStrategy: "1"`: Filtro Kalman de odometría activo para suavizado inter-cuadro continuo.
   6. `Odom/AlignWithGround: "false"`: Inicia estrictamente en el centro focal del lente de la cámara $(0, 0, 0)$, eliminando traslaciones heurísticas hacia el piso.
+* **Correcciones (2026-11-23) a la lista anterior:**
+  - El subpíxel activo es 5×5 con 15 iteraciones (§10.D), no 3×3 con 10.
+  - `GuessMotion` es un modelo de velocidad constante: no tiene relación con la deriva de yaw del filtro Madgwick.
+  - Que el ajuste de haces "deforme la escala" en RGB-D es una hipótesis que se apoya en 1 o 2 corridas por
+    configuración, con trayectorias distintas. Se decidirá midiendo contra referencia.
+  - Las cifras de cómputo, jitter y 0 % de pérdidas se tomaron con la cámara en reposo.
 * **Compatibilidad Inversa:** La cámara D415 conserva sus launch files dedicados (`realsense_d415_vo.launch.py` y `realsense_d415_vo_collection.launch.py`), permitiendo alternar entre ambos sensores sin conflicto.
 
 ---
@@ -195,6 +213,8 @@ El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSen
   - `GuessMotion` asumía velocidad constante e inyectaba el desvío de rumbo del giroscopio.
 * **Causa Raíz del Jitter:** Detección de esquinas a nivel de píxel entero sin refinamiento subpíxel (`SubPixIterations: 0`) o desactivación del filtro de Kalman (`FilteringStrategy: 0`).
 * **Estado Calibrado y Verificado:** Con SubPix (10 iter, ventana 3x3), Kalman activado (1), Bundle Adjustment desactivado (0), GuessMotion desactivado (false) y AlignWithGround desactivado (false), la deriva estática en reposo es de apenas **$1.10\text{ mm}$ en 5 segundos** ($0.22\text{ mm/s}$), iniciando rígidamente en $(0,0,0)$ en el lente.
+* **Corrección (2026-11-23):** las "causas raíz" de arriba son hipótesis. Se compararon configuraciones con 1 o 2
+  corridas y trayectorias distintas, sin referencia, y la deriva en reposo no mide la deriva en movimiento.
 
 ### C. Hoja de Ruta Inmediata para Evaluación y Benchmarking de Poses VIO
 Para certificar cuantitativamente la fidelidad cinemática de las demostraciones manuales antes de la recolección masiva:
@@ -205,9 +225,16 @@ Para certificar cuantitativamente la fidelidad cinemática de las demostraciones
      * **Dispersión Estática (Jitter $\sigma_{\text{pos}}$ y $\sigma_{\text{rot}}$):** En posición y cuaternión durante la fase estática inicial y final.
      * **Consistencia de Inliers y FPS:** Tasa sostenida de cálculo y rechazo de falsas correspondencias.
 
-### D. Certificación Empírica de VIO Grado UMI (`conf 4` — SOTA UMI Final Fusion)
-El 19 de noviembre de 2026 se completó la campaña metrológica de calibración comparativa entre 5 configuraciones para la RealSense D435i:
-* **Hito Alcanzado:** La configuración `conf 4 (SOTA UMI Final Fusion)` superó con éxito el criterio de aceptación de cierre de lazo ($\le 3.00\text{ mm}$):
+### D. Campaña de retorno a la marca (`conf 4`): mejor caso, NO certificación
+El 19 de noviembre de 2026 se compararon 5 configuraciones con 1 o 2 corridas cada una (la conf 4 con 9). Las trayectorias no fueron iguales entre corridas.
+
+> **Corrección (2026-11-23):** los 9 retornos dinámicos de la conf 4 en `experiments/vio_benchmark_history.json`
+> fueron 2.3 / 14.4 / 16.2 / 16.9 / 21.6 / 28.3 / 39.3 / 59.0 / 59.7 mm: mediana 21.6 mm, y solo 1 de 9 cumple el
+> criterio ≤ 3 mm (la trayectoria más corta, 279 cm). El jitter en reposo tiene mediana 3.0 mm (1.6–6.1). El error de
+> retorno tampoco mide la trayectoria ni la escala: un factor de escala deja el punto de retorno donde está, y F2M con
+> `OdomF2M/MaxSize: 5000` se relocaliza contra los puntos de t=0. Lo que sigue describe el mejor intento.
+
+* **Mejor intento (no representativo):** la corrida de `conf 4` que cumplió el criterio de cierre de lazo ($\le 3.00\text{ mm}$):
   - **Error de Retorno (Loop Closure):** **$2.307\text{ mm}$** tras una excursión máxima de **$54.56\text{ cm}$** y un recorrido total de **$2.79\text{ metros}$**.
   - **Desglose Cartesiano Milimétrico:** $\Delta X = -0.828\text{ mm}$, $\Delta Y = -0.064\text{ mm}$, $\Delta Z = +2.153\text{ mm}$.
   - **Jitter Estático en Reposo:** **$1.6144\text{ mm}$** (reducción del $89\%$ respecto al baseline descalibrado de $14.89\text{ mm}$).
@@ -224,7 +251,7 @@ El 19 de noviembre de 2026 se completó la campaña metrológica de calibración
 ---
 
 ## 11. Recolección Masiva de Demostraciones Expertas Reales (`demonstrations_real_v3.zarr`)
-Con el sistema VIO formalmente certificado por debajo de $2.5\text{ mm}$ de precisión de retorno y anclado gravitacionalmente mediante la IMU, el pipeline está listo para la captura interactiva a 20.0 Hz.
+~~Con el sistema VIO formalmente certificado por debajo de $2.5\text{ mm}$ de precisión de retorno y anclado gravitacionalmente mediante la IMU, el pipeline está listo para la captura interactiva a 20.0 Hz.~~ Corregido el 2026-11-23: el sistema no estaba certificado (§10.D y §0).
 
 ---
 
@@ -275,7 +302,7 @@ El nodo y los archivos launch aceptan el parámetro `dataset_path`:
   - Solución obligatoria inyectada en `run_vo_container.sh`, `run_benchmark.sh` y `run_data_collection.sh`:
     `ROS_LOCALHOST_ONLY=1` y `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` junto a `ROS_DOMAIN_ID=0`.
   - Esto blinda la máquina al 100%: ningún paquete sale hacia la Wi-Fi/LAN y ningún equipo externo puede interferir.
-* **Resultado Certificado:** Cero saturación de Wi-Fi, inmunidad ante otros nodos ROS 2 en la red, latencia interna óptima ($13.98 \pm 0.65\text{ ms}$ por cuadro), $0.0\%$ de pérdida de tracking y muestreo canónico a 20.0 Hz sostenidos.
+* **Resultado:** sin saturación de Wi-Fi e inmune a otros nodos ROS 2 de la red, con $13.98 \pm 0.65\text{ ms}$ de cómputo por cuadro. El "0 % de pérdida de rastreo y 20.0 Hz sostenidos" no se cumplió en v7: hubo poses nulas, y sin sellos de tiempo el muestreo no se puede verificar (§0).
 
 ### 2. Régimen de Conexión Remota con Robot Real (Jetson Orin Nano)
 * **Desacoplamiento de Carga:** Cuando se ejecute la inferencia o teleoperación remota con el xArm5 físico conectado a la Jetson Orin Nano en la misma red de laboratorio:
@@ -285,3 +312,40 @@ El nodo y los archivos launch aceptan el parámetro `dataset_path`:
 * **Separación de Responsabilidades:**
   - Scripts de recolección local (`run_data_collection.sh`, `vo_collector`): operan autónomos y aislados con la cámara conectada directamente por USB.
   - Scripts de puente e inferencia (`run_remote_rviz.sh`, `xarm5_bridge.py`, `policy_node.py`): operan sobre la red distribuida hacia la Jetson Orin sin interferencias de streams de video pesado.
+
+---
+
+## 0. Revisión crítica y evidencia (2026-11-23)
+
+Herramienta: `tools/xarm5/analyze_vio_dataset_quality.py --raw-diagnostics` (salida en
+`datasets/evaluations_real_v7_xarm5_v2/raw_diagnostics.{json,md}` y `fig4_raw_recording_diagnostics.{png,pdf}`).
+Pruebas: `tests/test_vio_raw_diagnostics.py`.
+
+| Afirmación anterior | Evidencia | Estado |
+|---|---|---|
+| "Certificación grado UMI: retorno 2.307 mm" | 9 corridas dinámicas de la conf 4: mediana 21.6 mm, máx. 59.7 mm, 1/9 ≤ 3 mm (la más corta) | Mejor caso, no certificación |
+| El retorno a la marca mide precisión | No es sensible a la escala, y F2M se relocaliza contra los puntos de t=0 | Criterio inválido; hace falta ATE/RPE/escala contra referencia |
+| "VIO; Z estrictamente vertical" | El IMU solo inicializa la gravedad; no hay restricción inercial con BA = 0; la vertical derivó 50–60° | Odometría RGB-D con marco inicial alineado a la gravedad |
+| "0 % de pérdida de rastreo" | v7: 4 frames con pose NULA (ep. 23 y 24) guardados como identidad y -pose inicial (salto de 0.51 m) | Falso en la toma real |
+| "Ruido VIO ~8.8 mm RMS" (módulo 17) | 926 saltos > 3 cm entre frames; 784 discontinuidades persistentes > 2 cm (mediana 33 mm, p90 55 mm) en 71/83 episodios | Saltos discretos, no ruido gaussiano; el filtro de 1.5 Hz los suaviza como movimiento falso |
+| "20 Hz canónicos sincrónicos" | Sin sellos de tiempo por frame; `verify_dataset_frequency.py` asume dt = 0.05; el timer toma la última imagen y la última pose por separado | No verificable (4 estados y 0 imágenes consecutivas duplicadas) |
+| "Piso de done garantizado" | 72/83 episodios tienen done solo en el piso forzado de 40 frames; 21 % de esos frames > 2 cm/s (filtrado; el ruido filtrado ronda 1 cm/s) | Etiquetas con ruido |
+| `min_inliers_tracking: 10` | Se declara y no se usa en `vo_collector_node.py` | Sin control de rastreo al grabar |
+| "GFTT/ORB se ancla a la trama IR" | Sin verificar; el rastreo usa la imagen RGB (rolling shutter) | Hipótesis; si fuera cierta, sería un defecto |
+
+### Herramientas de la mejora (2026-11-23)
+* Diagnóstico de grabaciones crudas: `analyze_vio_dataset_quality.py --raw-diagnostics` (`tests/test_vio_raw_diagnostics.py`).
+* Métricas contra referencia: `visuomotor_core/analysis/trajectory_metrics.py`
+  (`tests/test_trajectory_metrics.py`). Calcula:
+  - ATE anclado al primer frame, ATE SE(3)/Sim(3) con el error de escala, RPE a 0.25/0.5/1 s y el desfase temporal;
+  - `summarize_runs`, que da mediana, p90, máximo y n, nunca el mejor intento.
+  Una prueba demuestra que el retorno a la marca no ve un 5 % de error de escala.
+* Tablero ChArUco: `visuomotor_bringup/charuco.py` + `config/realsense/charuco_board.yaml` +
+  `tools/hardware/make_charuco_board.py` (`tests/test_charuco.py`, con una vista sintética de pose conocida).
+* Calibración cámara-brida: `tools/xarm5/calibrate_hand_eye.py` (`tests/test_hand_eye.py`). Mide la rotación y la
+  traslación; hasta ahora la traslación se suponía [0, 0, 0].
+* Recolector v2: `vo_collector_node.py` + `vo_episode_logic.py` + `vo_raw_recorder.py` (`tests/test_vo_episode_logic.py`,
+  `tests/test_vo_collector_node_sim.py` con cámara y odometría simuladas en ROS 2).
+
+Regla: una cifra de precisión de la herramienta se reporta como distribución (mediana, p90, máximo, n) medida contra
+una referencia (xArm5 o tablero ChArUco), nunca como el mejor intento. Plan: `docs/plans/plan_d435i_herramienta_demostraciones.md`.

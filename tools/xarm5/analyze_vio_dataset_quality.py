@@ -11,9 +11,21 @@ Reproduce la auditoría que llevó a ``demonstrations_real_v7_xarm5_v2`` (2026-1
 
 Solo lectura sobre los datasets. Salida: PNG (300 DPI) + PDF, ``quality_summary.json`` y ``quality_report.md``.
 
+Con ``--raw-diagnostics`` solo se audita la GRABACIÓN cruda (sin ``--old``/``--new``) y se escriben
+``raw_diagnostics.json``, ``raw_diagnostics.md`` y ``fig4_raw_recording_diagnostics``:
+  * poses nulas: la odometría nula que RTAB-Map publica al perder el rastreo, que el recolector v1 guardaba como
+    cuaternión identidad y posición = -pose inicial;
+  * estados e imágenes consecutivos idénticos (muestreo de 30 a 20 Hz sin sellos de tiempo);
+  * saltos entre frames y su discontinuidad persistente (recta antes frente a recta después del salto);
+  * frames con done = 1 en movimiento (velocidad de la trayectoria filtrada) y episodios con done solo en el piso
+    forzado;
+  * opcional (``--aruco-marker-m``): distancia final cámara-marcador frente a ``Vis/MinDepth`` de RTAB-Map.
+
 Uso (contenedor):
     python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v7.zarr \
         --old datasets/demonstrations_real_v7_xarm5.zarr --new datasets/demonstrations_real_v7_xarm5_v2.zarr \
+        --out-dir datasets/evaluations_real_v7_xarm5_v2
+    python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v7.zarr --raw-diagnostics \
         --out-dir datasets/evaluations_real_v7_xarm5_v2
 """
 
@@ -101,27 +113,304 @@ def aruco_axis_tilt(images, fx, fy, max_frames=8):
     return None
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Diagnóstico de la grabación cruda (--raw-diagnostics)
+# ---------------------------------------------------------------------------------------------------------------------
+DEFAULT_COLLECTOR_PARAMS = REPO / "visuomotor_data_collection" / "config" / "vo_data_collection_params.yaml"
+DEFAULT_RTABMAP_PARAMS = REPO / "visuomotor_bringup" / "config" / "realsense" / "rtabmap_vio_params.yaml"
+_IDENTITY_Q = np.array([0.0, 0.0, 0.0, 1.0])
+
+
+def null_pose_mask(state: np.ndarray, initial_pos, atol: float = 1e-4) -> np.ndarray:
+    """Frames grabados con la odometría nula que RTAB-Map publica al perder el rastreo.
+
+    El recolector v1 convertía el cuaternión nulo en la identidad y restaba la pose inicial a la posición 0: el frame
+    queda con q = (0, 0, 0, 1) exacto y p = -pose inicial. Sin ``initial_pos`` solo se usa el cuaternión.
+    """
+    q = np.asarray(state[:, 3:7], dtype=np.float64)
+    ident = np.all(np.abs(q - _IDENTITY_Q) < 1e-7, axis=1)
+    if initial_pos is None or not np.all(np.isfinite(np.asarray(initial_pos, dtype=np.float64))):
+        return ident
+    p = np.asarray(state[:, :3], dtype=np.float64)
+    return ident & (np.linalg.norm(p + np.asarray(initial_pos, dtype=np.float64), axis=1) < atol)
+
+
+def fill_masked(p: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Reemplaza las filas marcadas por interpolación lineal de las válidas (extremos: valor más cercano)."""
+    p = np.asarray(p, dtype=np.float64).copy()
+    if not mask.any() or mask.all():
+        return p
+    t = np.arange(len(p))
+    for j in range(p.shape[1]):
+        p[mask, j] = np.interp(t[mask], t[~mask], p[~mask, j])
+    return p
+
+
+def step_discontinuities(p: np.ndarray, jump_m: float, window: int):
+    """Saltos entre frames consecutivos mayores que ``jump_m`` y su discontinuidad persistente.
+
+    Para cada salto (entre los frames i e i+1) se ajusta una recta a los ``window`` frames anteriores y otra a los
+    ``window`` posteriores; la discontinuidad es la distancia entre ambas rectas en t = i + 0.5. Un movimiento real
+    rápido pero continuo da una discontinuidad pequeña; un salto de la odometría, una del orden del salto.
+    Devuelve una lista de (i, salto_m, discontinuidad_m); los saltos sin ``window`` frames a cada lado se omiten.
+    """
+    p = np.asarray(p, dtype=np.float64)
+    steps = np.linalg.norm(np.diff(p, axis=0), axis=1)
+    out = []
+    t0 = np.arange(-window + 1, 1, dtype=np.float64)
+    t1 = np.arange(1, window + 1, dtype=np.float64)
+    a0 = np.c_[np.ones(window), t0]
+    a1 = np.c_[np.ones(window), t1]
+    for i in np.where(steps > jump_m)[0]:
+        if i - window + 1 < 0 or i + 1 + window > len(p):
+            continue
+        c0 = np.linalg.lstsq(a0, p[i - window + 1:i + 1], rcond=None)[0]
+        c1 = np.linalg.lstsq(a1, p[i + 1:i + 1 + window], rcond=None)[0]
+        gap = float(np.linalg.norm((c1[0] + 0.5 * c1[1]) - (c0[0] + 0.5 * c0[1])))
+        out.append((int(i), float(steps[i]), gap))
+    return out
+
+
+def frame_speeds(p: np.ndarray, rate_hz: float) -> np.ndarray:
+    """Velocidad por frame (m/s) con diferencias centradas (hacia delante/atrás en los extremos)."""
+    p = np.asarray(p, dtype=np.float64)
+    if len(p) < 2:
+        return np.zeros(len(p))
+    return np.linalg.norm(np.gradient(p, axis=0), axis=1) * rate_hz
+
+
+def aruco_marker_distance(image: np.ndarray, fx: float, fy: float, marker_m: float):
+    """Distancia (m) de la cámara al marcador ArUco 4x4 más cercano de la imagen, o None si no hay ninguno."""
+    import cv2
+    k = np.array([[fx, 0, image.shape[1] / 2.0], [0, fy, image.shape[0] / 2.0], [0, 0, 1.0]])
+    d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    corners, ids, _ = cv2.aruco.detectMarkers(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), d,
+                                              parameters=cv2.aruco.DetectorParameters_create())
+    if ids is None:
+        return None
+    h = marker_m / 2.0
+    obj = np.array([[-h, h, 0], [h, h, 0], [h, -h, 0], [-h, -h, 0]], dtype=np.float64)
+    dists = []
+    for c in corners:
+        ok, _, tvec = cv2.solvePnP(obj, c.reshape(4, 2).astype(np.float64), k, np.zeros(5),
+                                   flags=cv2.SOLVEPNP_IPPE_SQUARE)
+        if ok:
+            dists.append(float(np.linalg.norm(tvec)))
+    return min(dists) if dists else None
+
+
+def run_raw_diagnostics(args, raw, fcfg) -> int:
+    """Audita la grabación cruda y escribe raw_diagnostics.json/.md y fig4_raw_recording_diagnostics."""
+    collector = yaml.safe_load(open(args.collector_params))["vo_collector_node"]["ros__parameters"]
+    rtab = yaml.safe_load(open(args.rtabmap_params))["/**"]["ros__parameters"]
+    rate = float(collector.get("sampling_rate_hz", 20.0))
+    floor_frames = int(round(rate * float(collector.get("min_hold_duration_s", 2.0))))
+    min_depth = float(rtab.get("Vis/MinDepth", "nan"))
+    out = Path(args.out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    keys = episode_keys(raw)
+    rows, all_gaps, done_speeds, null_example = [], [], [], None
+    has_stamps = False
+    for k in keys:
+        ep = raw[k]
+        has_stamps = has_stamps or any(n in ep.array_keys() for n in ("timestamp", "stamp", "t"))
+        st = np.asarray(ep["state"], dtype=np.float64)
+        act = np.asarray(ep["action"], dtype=np.float64)
+        attrs = dict(ep.attrs)
+        ip = [attrs.get(f"initial_pos_{a}", np.nan) for a in "xyz"]
+        null = null_pose_mask(st, ip)
+        p = fill_masked(st[:, :3], null)
+        jumps = step_discontinuities(p, args.jump_m, args.fit_window)
+        gaps = [g for _, _, g in jumps]
+        all_gaps += gaps
+        pf = lowpass_zero_phase(hampel(p, fcfg.hampel_half_window, fcfg.hampel_n_sigma)[0], rate,
+                                fcfg.lowpass_cutoff_hz, fcfg.lowpass_order)
+        v = frame_speeds(pf, rate)
+        done = act[:, 8] > 0.5 if act.shape[1] > 8 else np.zeros(len(act), bool)
+        done_speeds.append(v[done])
+        dup_img = None
+        if not args.skip_image_duplicates:
+            img = np.asarray(ep["image"])
+            dup_img = int(np.all(img[1:] == img[:-1], axis=(1, 2, 3)).sum())
+        final_dist = None
+        if args.aruco_marker_m:
+            last = np.asarray(ep["image"][-1])
+            final_dist = aruco_marker_distance(last, args.fx * last.shape[1] / args.src_width,
+                                               args.fx * last.shape[0] / args.src_height, args.aruco_marker_m)
+        if null.any() and null_example is None:
+            null_example = (k, st[:, :3].copy(), np.where(null)[0], float(np.linalg.norm(ip)))
+        rows.append({
+            "episode": k, "frames": int(len(st)), "null_pose_frames": int(null.sum()),
+            "initial_pos_norm_m": float(np.linalg.norm(ip)) if np.all(np.isfinite(ip)) else None,
+            "duplicate_states": int(np.all(np.diff(st, axis=0) == 0, axis=1).sum()), "duplicate_images": dup_img,
+            "jumps": len(jumps), "discontinuities": int(sum(g > args.discontinuity_m for g in gaps)),
+            "done_frames": int(done.sum()),
+            "done_moving_fraction": float((v[done] > args.static_speed_m_s).mean()) if done.any() else None,
+            "final_marker_distance_m": final_dist,
+        })
+    gaps = np.array(all_gaps)
+    dsp = np.concatenate(done_speeds) if done_speeds else np.zeros(0)
+    n_frames = sum(r["frames"] for r in rows)
+    done_counts = np.array([r["done_frames"] for r in rows])
+    moving = [r for r in rows if r["done_moving_fraction"] is not None and r["done_moving_fraction"] > 0.25]
+    dists = [r["final_marker_distance_m"] for r in rows if r["final_marker_distance_m"] is not None]
+    summary = {
+        "dataset": Path(args.raw).name, "episodes": len(keys), "frames": n_frames,
+        "per_frame_timestamps_recorded": bool(has_stamps),
+        "null_poses": {"frames": int(sum(r["null_pose_frames"] for r in rows)),
+                       "episodes": {r["episode"]: r["null_pose_frames"] for r in rows if r["null_pose_frames"]},
+                       "jump_equals_initial_pose_m": {r["episode"]: r["initial_pos_norm_m"] for r in rows
+                                                      if r["null_pose_frames"]}},
+        "duplicate_consecutive_states": int(sum(r["duplicate_states"] for r in rows)),
+        "duplicate_consecutive_images": None if args.skip_image_duplicates else
+        int(sum(r["duplicate_images"] for r in rows)),
+        "jumps": {"threshold_m": args.jump_m, "count": int(sum(r["jumps"] for r in rows)),
+                  "discontinuity_threshold_m": args.discontinuity_m, "fit_window_frames": args.fit_window,
+                  "discontinuities": int((gaps > args.discontinuity_m).sum()),
+                  "episodes_with_discontinuities": int(sum(r["discontinuities"] > 0 for r in rows)),
+                  "discontinuity_median_mm": float(np.median(gaps) * 1000) if len(gaps) else None,
+                  "discontinuity_p90_mm": float(np.percentile(gaps, 90) * 1000) if len(gaps) else None},
+        "done": {"floor_frames": floor_frames, "frames_per_episode_min": int(done_counts.min()),
+                 "frames_per_episode_median": float(np.median(done_counts)),
+                 "frames_per_episode_max": int(done_counts.max()),
+                 "episodes_at_floor_only": int((done_counts == floor_frames).sum()),
+                 "static_speed_threshold_m_s": args.static_speed_m_s,
+                 "moving_fraction": float((dsp > args.static_speed_m_s).mean()) if len(dsp) else None,
+                 "episodes_over_25pct_moving": len(moving)},
+        "final_marker_distance": None if not args.aruco_marker_m else {
+            "marker_side_m": args.aruco_marker_m, "n": len(dists),
+            "min_m": float(min(dists)) if dists else None, "median_m": float(np.median(dists)) if dists else None,
+            "rtabmap_min_depth_m": min_depth, "episodes_below_min_depth": int(sum(d < min_depth for d in dists))},
+        "episodes_detail": rows,
+    }
+    (out / "raw_diagnostics.json").write_text(json.dumps(summary, indent=2))
+
+    # ---------------- Figura 4 ----------------
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10.5))
+    fig.suptitle(f"Raw handheld recording diagnostics ({Path(args.raw).stem}, {len(keys)} episodes, "
+                 f"{n_frames} frames)", fontsize=14, fontweight="bold")
+    ax = axs[0, 0]
+    x = np.arange(len(rows))
+    disc = np.array([r["discontinuities"] for r in rows])
+    has_null = np.array([r["null_pose_frames"] > 0 for r in rows])
+    ax.bar(x[~has_null], disc[~has_null], color=C1, width=0.8, label="Episodes without null poses")
+    ax.bar(x[has_null], disc[has_null], color=C2, width=0.8, label="Episodes with null poses (tracking lost)")
+    ax.set_title(f"A) Odometry discontinuities > {args.discontinuity_m * 1000:.0f} mm per episode", fontweight="bold")
+    ax.set_xlabel("Episode index (recording order)")
+    ax.set_ylabel("Count")
+    ax.grid(True, axis="y")
+    ax.legend(fontsize=8.5)
+
+    ax = axs[0, 1]
+    if len(gaps):
+        ax.hist(gaps * 1000, bins=np.linspace(0, max(100.0, float(np.percentile(gaps, 99)) * 1000), 50), color=C1,
+                edgecolor="white", linewidth=1.0, label=f"Jumps > {args.jump_m * 1000:.0f} mm between frames "
+                                                        f"(n = {len(gaps)})")
+    ax.axvline(args.discontinuity_m * 1000, color=GRAY, ls="--", lw=1.2, label="Discontinuity threshold")
+    ax.set_title("B) Persistent offset at each jump (line fit before vs after)", fontweight="bold")
+    ax.set_xlabel("Discontinuity (mm)")
+    ax.set_ylabel("Jumps")
+    ax.grid(True, axis="y")
+    ax.legend(fontsize=8.5)
+
+    ax = axs[1, 0]
+    if len(dsp):
+        bins = np.logspace(-3, -0.5, 45)
+        ax.hist(np.clip(dsp, 1e-3, 10 ** -0.5), bins=bins, color=C1, edgecolor="white", linewidth=1.0,
+                label=f"done = 1 frames (n = {len(dsp)}); {100 * summary['done']['moving_fraction']:.1f}% moving")
+    ax.axvline(args.static_speed_m_s, color=GRAY, ls="--", lw=1.2,
+               label=f"Static threshold ({args.static_speed_m_s * 100:.0f} cm/s)")
+    ax.set_xscale("log")
+    ax.set_title(f"C) Filtered camera speed on done-labelled frames ({summary['done']['episodes_at_floor_only']}/"
+                 f"{len(rows)} episodes only at the {floor_frames}-frame floor)", fontweight="bold", fontsize=10.5)
+    ax.set_xlabel("Speed (m/s, log)")
+    ax.set_ylabel("Frames")
+    ax.grid(True, axis="y")
+    ax.legend(fontsize=8.5)
+
+    ax = axs[1, 1]
+    if null_example is not None:
+        k, pos, idx, ipn = null_example
+        steps = np.linalg.norm(np.diff(pos, axis=0), axis=1) * 1000
+        t = np.arange(1, len(pos)) / rate
+        ax.semilogy(t, np.clip(steps, 0.01, None), color=C1, lw=1.0, label="Recorded step between frames")
+        hit = sorted({int(i) - 1 for i in idx if i >= 1} | {int(i) for i in idx if i < len(steps)})
+        ax.scatter(t[hit], steps[hit], s=60, color=C2, zorder=4,
+                   label=f"Steps into/out of a null pose (|initial pose| = {ipn * 1000:.0f} mm)")
+        ax.axhline(args.jump_m * 1000, color=GRAY, ls="--", lw=1.2, label="Jump threshold")
+        ax.set_title(f"D) Tracking loss recorded as a pose ({k})", fontweight="bold")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Step (mm, log)")
+        ax.grid(True)
+        ax.legend(fontsize=8.5)
+    else:
+        ax.axis("off")
+        ax.text(0.5, 0.5, "No null poses found", ha="center", va="center", color=INK)
+    plt.tight_layout()
+    save(fig, out / "fig4_raw_recording_diagnostics")
+
+    md = [f"# Raw recording diagnostics: `{Path(args.raw).stem}`", "",
+          f"* Per-frame timestamps recorded: {'yes' if has_stamps else 'no (the 20 Hz sampling cannot be verified)'}.",
+          f"* Null poses (RTAB-Map tracking loss stored as identity orientation and -initial position): "
+          f"{summary['null_poses']['frames']} frames in {len(summary['null_poses']['episodes'])} episodes "
+          f"({', '.join(summary['null_poses']['episodes']) or 'none'}).",
+          f"* Duplicate consecutive samples: {summary['duplicate_consecutive_states']} states, "
+          f"{summary['duplicate_consecutive_images']} images.",
+          f"* Jumps > {args.jump_m * 1000:.0f} mm between frames: {summary['jumps']['count']}; persistent "
+          f"discontinuities > {args.discontinuity_m * 1000:.0f} mm: {summary['jumps']['discontinuities']} in "
+          f"{summary['jumps']['episodes_with_discontinuities']} episodes (median "
+          f"{summary['jumps']['discontinuity_median_mm']:.1f} mm, p90 {summary['jumps']['discontinuity_p90_mm']:.1f} mm).",
+          f"* done labels: {summary['done']['episodes_at_floor_only']}/{len(rows)} episodes have only the "
+          f"{floor_frames}-frame floor; {100 * summary['done']['moving_fraction']:.1f}% of done frames move faster than "
+          f"{args.static_speed_m_s * 100:.0f} cm/s (filtered); {len(moving)} episodes with > 25% moving done frames.", ""]
+    if summary["final_marker_distance"]:
+        fd = summary["final_marker_distance"]
+        md.insert(-1, f"* Final camera-marker distance: median {fd['median_m']:.3f} m, min {fd['min_m']:.3f} m "
+                      f"(n = {fd['n']}); {fd['episodes_below_min_depth']} episodes below Vis/MinDepth "
+                      f"{fd['rtabmap_min_depth_m']:.2f} m.")
+    md += ["![Raw diagnostics](fig4_raw_recording_diagnostics.png)", ""]
+    (out / "raw_diagnostics.md").write_text("\n".join(md))
+    print(json.dumps({k: v for k, v in summary.items() if k != "episodes_detail"}, indent=2))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", required=True)
-    ap.add_argument("--old", required=True, help="conversión anterior (referencia)")
-    ap.add_argument("--new", required=True, help="conversión curada")
+    ap.add_argument("--old", help="conversión anterior (referencia); obligatoria salvo con --raw-diagnostics")
+    ap.add_argument("--new", help="conversión curada; obligatoria salvo con --raw-diagnostics")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--example-episode", default="episode_0")
     ap.add_argument("--fx", type=float, default=605.0, help="focal nominal D435i color 640x480 (px)")
     ap.add_argument("--src-width", type=int, default=640)
     ap.add_argument("--src-height", type=int, default=480)
+    ap.add_argument("--raw-diagnostics", action="store_true",
+                    help="solo auditar la grabación cruda (poses nulas, duplicados, saltos, etiquetas done)")
+    ap.add_argument("--collector-params", default=str(DEFAULT_COLLECTOR_PARAMS))
+    ap.add_argument("--rtabmap-params", default=str(DEFAULT_RTABMAP_PARAMS))
+    ap.add_argument("--jump-m", type=float, default=0.03, help="salto entre frames a analizar (m)")
+    ap.add_argument("--discontinuity-m", type=float, default=0.02, help="discontinuidad persistente que cuenta (m)")
+    ap.add_argument("--fit-window", type=int, default=6, help="frames de cada recta antes/después del salto")
+    ap.add_argument("--static-speed-m-s", type=float, default=0.02, help="velocidad máxima de un frame 'quieto'")
+    ap.add_argument("--aruco-marker-m", type=float, default=None,
+                    help="lado medido de los ArUco de la mesa (m); activa la distancia final cámara-marcador")
+    ap.add_argument("--skip-image-duplicates", action="store_true", help="no leer todas las imágenes")
     args = ap.parse_args(argv)
     import zarr
+
+    align = yaml.safe_load(open(DEFAULT_ALIGNMENT))["xarm5_dataset_alignment"]
+    fcfg = TrajectoryFilterConfig.from_dict(align.get("trajectory_filter"))
+    raw = zarr.open_group(args.raw, mode="r")
+    if args.raw_diagnostics:
+        return run_raw_diagnostics(args, raw, fcfg)
+    if not args.old or not args.new:
+        ap.error("--old y --new son obligatorias sin --raw-diagnostics")
 
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     bridge = yaml.safe_load(open(DEFAULT_BRIDGE_PARAMS))["xarm5_bridge"]["ros__parameters"]
-    align = yaml.safe_load(open(DEFAULT_ALIGNMENT))["xarm5_dataset_alignment"]
     policy = yaml.safe_load(open(DEFAULT_POLICY_PARAMS))["policy_node"]["ros__parameters"]
     conv = Converter(bridge, align, policy)
-    fcfg = TrajectoryFilterConfig.from_dict(align.get("trajectory_filter"))
-    raw = zarr.open_group(args.raw, mode="r")
     old = zarr.open_group(args.old, mode="r")
     new = zarr.open_group(args.new, mode="r")
     raw_keys = episode_keys(raw)

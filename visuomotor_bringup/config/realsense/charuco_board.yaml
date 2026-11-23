@@ -1,0 +1,29 @@
+# Tablero ChArUco fijo de la celda: referencia física de la herramienta de demostraciones con la D435i
+# (plan: docs/plans/plan_d435i_herramienta_demostraciones.md, Fase 1).
+#
+# 1. Generar el PDF a escala 1:1:
+#      python3 tools/hardware/make_charuco_board.py
+# 2. Imprimir al 100 % (sin "ajustar a la página") y pegarlo sobre una placa rígida y plana.
+# 3. Medir con calibre el lado de varios cuadros y de varios marcadores, y escribir aquí la MEDIA en metros.
+#    Poner measured: true. Las herramientas de medición se niegan a usar medidas nominales.
+# 4. Fijar el tablero en la celda: visible desde HOME3 y durante la aproximación, sin que lo tapen los objetos.
+#    El tablero se queda también durante la inferencia en el robot, para que la escena sea la misma.
+#
+# Diccionario distinto del de los dos ArUco de la mesa (DICT_4X4_50) para no confundir marcadores.
+# Filas IMPARES: el patrón no cambia entre versiones de OpenCV (portátil y Jetson).
+charuco_board:
+  dictionary: "DICT_5X5_100"
+  squares_x: 7
+  squares_y: 5
+  square_length_m: 0.033        # NOMINAL (A4 apaisado): reemplazar por la medida con calibre
+  marker_length_m: 0.025        # NOMINAL: reemplazar por la medida con calibre
+  measured: false
+
+  # Las escribe tools/xarm5/calibrate_hand_eye.py SOLO tras revisar el residuo (null = sin calibrar).
+  # Pose del tablero en link_base del xArm5: p_base = R(q) p_board + xyz.
+  base_to_board_xyz_m: null
+  base_to_board_quat_xyzw: null
+  # Vista de referencia de HOME3: pose de la cámara en el marco del tablero con el brazo en HOME3.
+  # La usa la guía de inicio del recolector (empezar cada demostración en la vista de HOME3).
+  home3_board_to_camera_xyz_m: null
+  home3_board_to_camera_quat_xyzw: null

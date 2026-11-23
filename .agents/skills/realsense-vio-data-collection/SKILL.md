@@ -1,9 +1,9 @@
 ---
 name: realsense-vio-data-collection
-description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y RTAB-Map VIO (Grado UMI), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
+description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y odometría RGB-D de RTAB-Map (sin certificar: ver §2), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
 ---
 
-# Skill: RealSense VIO & UMI Handheld Data Collection (v1.3)
+# Skill: RealSense VIO & UMI Handheld Data Collection (v1.4)
 
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
@@ -12,7 +12,7 @@ Esta habilidad proporciona el procedimiento estandarizado para capturar demostra
 ## 1. Cuándo Activar esta Habilidad
 
 * Al capturar demostraciones expertas reales para entrenar o evaluar políticas visuomotoras (Diffusion Policy).
-* Al calibrar o verificar la precisión métrica del sistema de odometría (cierre de bucle $E_{\text{loop}} \le 3.00\text{ mm}$).
+* Al medir la precisión del sistema de odometría (contra una referencia: xArm5 o tablero ChArUco; el retorno a la marca solo es un chequeo rápido).
 * Al aumentar o continuar grabando episodios sobre un dataset Zarr existente (ej. `demonstrations_real_v5.zarr`).
 * Al configurar la topología de red para evitar interferencias con otros equipos ROS 2 o preparar el enlace remoto con la Jetson Orin.
 
@@ -20,13 +20,20 @@ Esta habilidad proporciona el procedimiento estandarizado para capturar demostra
 
 ## 2. Parámetros de Calidad y Criterios de Aceptación (Grado UMI)
 
-| Métrica | Umbral de Certificación | Valor Certificado (`conf 4`) | Estado |
+> [!CAUTION]
+> **Revisión del 2026-11-23:** la odometría de la D435i NO está certificada. Las cifras "certificadas" de versiones
+> anteriores eran el mejor de 9 intentos. La grabación v7 tiene poses nulas guardadas como poses, 784
+> discontinuidades > 2 cm y ningún sello de tiempo (`.agents/knowledge/15_visual_odometry_rtabmap_realsense.md` §0,
+> `context.md` lección 43). Plan de mejora: `docs/plans/plan_d435i_herramienta_demostraciones.md`.
+
+| Métrica | Criterio | Estado real (medido) | Estado |
 | :--- | :--- | :--- | :--- |
-| **Error de Retorno (Loop Closure)** | $\le 3.00\text{ mm}$ tras $> 50\text{ cm}$ de excursión | **$2.307\text{ mm}$** ($\Delta X=-0.83, \Delta Y=-0.06, \Delta Z=+2.15\text{ mm}$) | **PASA** |
-| **Jitter Estático en Reposo ($\sigma$)** | $\le 2.50\text{ mm}$ | **$1.6144\text{ mm}$** (reducción del 89.2% vs. baseline) | **PASA** |
-| **Pérdida de Tracking** | $0.0\%$ (cero fotogramas perdidos) | **$0.0\%$** ($258.8$ inliers promedio sostenidos) | **PASA** |
-| **Frecuencia de Muestreo** | $20.0\text{ Hz}$ canónicos sincrónicos | $20.0\text{ Hz}$ sincrónicos con timer de ROS 2 | **PASA** |
-| **Piso de Auto-Stop** | $\ge 2.0\text{ s}$ con `done=1.0` en destino | Garantizado mediante inyección forzada de 40 frames | **PASA** |
+| **Retorno a la marca** (`run_benchmark.sh`) | Solo chequeo rápido: no mide trayectoria ni escala | Conf 4, 9 corridas: mediana 21.6 mm, 1/9 ≤ 3 mm | **No sirve como certificación** |
+| **Jitter en reposo** | $\le 2.50\text{ mm}$ | Mediana 3.0 mm (1.6–6.1) en las 9 corridas | **No cumple en la mayoría** |
+| **Precisión en movimiento** (ATE/RPE/escala contra el xArm5 o un ChArUco) | Mediana ATE ≤ 5 mm, p90 ≤ 10 mm (propuesto) | Nunca medida | **Pendiente** |
+| **Pérdida de rastreo** | 0 frames perdidos o nulos en episodios guardados | v7: 4 poses nulas guardadas como poses (ep. 23 y 24) | **No cumple** |
+| **Frecuencia de muestreo** | Sello de tiempo por frame, 50 ± 2 ms | Sin sellos: no verificable | **No verificable** |
+| **Etiqueta done** | Frames done estáticos | 72/83 episodios solo con el piso forzado; ~21 % de frames done en movimiento | **No cumple** |
 | **Compatibilidad xArm5** (si el dataset se entrenará para el robot real) | 0 episodios marcados en `_conversion_report.json` (o excluidos con `--drop-flagged`) | `tools/xarm5/convert_vio_dataset_to_xarm5.py` | Obligatorio |
 | **Auditoría física** (dataset para el xArm5) | Gravedad del VIO vs. HOME3 < 20° en la mayoría de episodios con la extrínseca configurada; 0 saltos de signo del cuaternión; ruido eliminado por el filtro < 10 mm RMS | `tools/xarm5/analyze_vio_dataset_quality.py` (v7: 13.4° mediana, 0 saltos, 8.8 mm) | Obligatorio |
 | **Alcance del brazo** (dataset para el xArm5) | 0 frames fuera del alcance del puente (muñeca a ≤ `workspace_max_reach_m` del hombro) y 0 fuera de la caja configurada | `tools/xarm5/analyze_xarm5_workspace.py` (v7: 0.9 % y 1.4 %) | Obligatorio |
@@ -51,16 +58,18 @@ El lanzador confina el flujo de datos pesados de la cámara ($46\text{ MB/s}$) a
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=true
 ```
 
-### Paso 2: Verificación de Calibración / Benchmark Métrico (Terminal 2)
-Si se modificaron parámetros de cámara, iluminación o mesa de trabajo, verificar la precisión métrica antes de recolectar:
+### Paso 2: Chequeo rápido de la odometría (Terminal 2)
+Es un chequeo rápido, no una certificación: el retorno a la marca no mide la trayectoria ni la escala (ver la tabla
+de §2). Sirve para detectar una configuración rota antes de grabar:
 ```bash
-./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"
+./tools/hardware/run_benchmark.sh "conf 4"
 ```
 * **Protocolo:**
   1. Apoyar la cámara en la marca física de inicio y pulsar `[ENTER]`.
   2. Desplazar la cámara a mano alzada ($> 30\text{ cm}$) simulando la trayectoria.
   3. Regresar la cámara exactamente a la marca inicial y pulsar `[ENTER]`.
-  4. Certificar que el error de retorno sea $\le 3.00\text{ mm}$.
+  4. Comparar el error de retorno con la distribución de §2 (mediana ~22 mm). Un valor muy superior indica una
+     configuración rota; un valor bajo NO certifica la precisión.
 
 ### Paso 3: Recolección Interactiva de Demostraciones (Terminal 2)
 El script [`tools/hardware/run_data_collection.sh`](file:///home/hackbrian/Documents/gits/visuomotor_ros2/tools/hardware/run_data_collection.sh) gestiona automáticamente la ruta y la indexación:
@@ -133,24 +142,43 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
 
 ---
 
-## 4. Controles Durante la Recolección Interactiva
+## 4. Controles Durante la Recolección Interactiva (recolector v2, 2026-11-23)
 
-* **`[ESPACIO]` (START):** Fija el origen relativo del episodio en $(0.0, 0.0, 0.0)$. Mover la cámara hacia el objeto/destino.
-* **`[G]` (GRIPPER TOGGLE):** Alterna el estado de la pinza entre abierta (`0.0`) y cerrada (`-0.005`) para simular agarre manual a mano alzada. Si no se usa pinza física, dejar en `0.0` (por defecto).
-* **`[H]` (HOLD TARGET):** Presionar al llegar con éxito al objetivo. Inyecta `done = 1.0` en la 9ª dimensión mientras se sostiene la cámara en reposo durante 2 segundos.
-* **`[S]` (SAVE):** Guarda el episodio en el Zarr. El sistema garantiza un piso mínimo de 2.0 segundos de `done = 1.0` y confirma el índice del episodio guardado.
-* **`[D]` (DISCARD):** Descarta el episodio en caso de movimiento errático o caída de inliers.
-* **`[Q]` (QUIT):** Cierra la sesión de recolección limpiamente.
+Lógica en `visuomotor_data_collection/vo_episode_logic.py`, con pruebas en `tests/test_vo_episode_logic.py` y
+`tests/test_vo_collector_node_sim.py`. Parámetros en `vo_data_collection_params.yaml`.
 
----
+* **`[ESPACIO]` (START):**
+  - Con la cámara QUIETA en la pose de inicio, reinicia la odometría (`reset_odom`) y espera
+    `reset_settle_frames` poses válidas.
+  - Después empieza a grabar en una rejilla regular de 20 Hz con sellos de tiempo, y guarda la gravedad que mide el
+    IMU al inicio.
+* **`[H]` (HOLD):** al llegar al objetivo. done = 1 desde aquí; mantener la cámara quieta al menos
+  `min_hold_duration_s`. Ya no se fuerza done en frames en movimiento.
+* **`[S]` (SAVE):** guarda solo si el control de calidad pasa. Lo que bloquea el guardado:
+  - frames perdidos (odometría nula de RTAB-Map o sin imagen a ≤ 20 ms);
+  - imágenes repetidas;
+  - frames con menos de `min_inliers_tracking` inliers;
+  - un HOLD corto o en movimiento.
+* **`[F]` (FORZAR):** guarda pese a los problemas, que quedan en `qa_problems` y `qa_forced`. Solo para depurar.
+* **`[D]` (DISCARD):** descarta el episodio (y su grabación cruda, si está activa).
+* **`[1]`–`[9]`:** celda de la grilla donde está el objeto (atributo `object_cell`); **`[0]`** = ninguna.
+* **`[G]`:** gripper (0.0 / -0.005). **`[Q]`:** salir.
+* **Por episodio se guarda:**
+  - arrays `timestamp`, `image_stamp`, `pose_stamp`, `inliers` y `lost`;
+  - atributos `quality`, `qa_problems`, `odom_reset`, `start_gravity_mps2`, `git_commit`, `config_sha256` y
+    `collector_version: 2`.
+* **Middleware:** usar CycloneDDS, como `run_vo_container.sh`. En la simulación, con FastDDS el suscriptor de
+  imágenes en Python perdió ráfagas de ~300 ms; el control de calidad las marca, pero se pierden episodios.
 
 ## 5. Auditoría y Visualización Post-Recolección
 
 Una vez finalizada la sesión, verificar la integridad temporal y extraer la telemetría multimedia:
 
 ```bash
-# 1. Auditoría de frecuencia a 20 Hz (garantía de intervalo dt ~ 0.05s)
-docker exec -u 1000 visuomotor_ros2 python3 tools/verify_dataset_frequency.py --dataset datasets/demonstrations_real_v5.zarr
+# 1. Diagnóstico de la grabación cruda: poses nulas, duplicados, discontinuidades de la odometría, done en movimiento.
+#    (tools/verify_dataset_frequency.py NO verifica la frecuencia: asume dt = 0.05 porque no hay sellos de tiempo)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_vio_dataset_quality.py \
+    --raw datasets/demonstrations_real_v5.zarr --raw-diagnostics --out-dir datasets/evaluations_real_v5
 
 # 2. Extracción de videos MP4, trayectorias PNG y GIFs animados
 docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py \

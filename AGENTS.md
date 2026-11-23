@@ -199,9 +199,16 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Memoria Modular:* `.agents/knowledge/14_historical_convergence_and_noise_floor.md`.
 17. **Odometría Visual e Inercial con RTAB-Map, RealSense D415 (VO) y D435i (VIO):**
    - *Arquitectura Desacoplada:* Captura manual de aproximación (*approaching*) en hardware real. Soporta dos modalidades independientes y coexistentes:
-     - **D415 (VO puro):** [d415_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d415_camera_params.yaml) + [realsense_d415_vo.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo.launch.py). Tracking visual basado en patrón láser IR activo ($30.63\text{ Hz}$, jitter $0.394\text{ mm}$, $300.5\text{ inliers}$).
-     - **D435i (VIO con IMU Bosch BMI085):** [d435i_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d435i_camera_params.yaml) + [rtabmap_vio_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml) + `imu_filter_madgwick` + [realsense_d435i_vio.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio.launch.py). Calibración anti-deriva con `Odom/GuessMotion: false`, `OdomF2M/BundleAdjustment: 0` (preserva la escala métrica 3D nativa), refinamiento subpíxel ($3\times 3$, 10 iteraciones) y filtro Kalman para erradicar temblores discretos, iniciando en el lente de la cámara (`Odom/AlignWithGround: false`, $(0,0,0)$ estricto). Telemetría certificada: $13.98\text{ ms}$, jitter $< 0.65\text{ mm}$, angular $0.0186^\circ$, $0.0\%$ tracking loss y $390\text{--}450\text{ inliers}.
-   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` muestrea sincronizadamente a 20.0 Hz canónicos, redimensiona en RAM a $256 \times 256$ RGB, construye tensores (estado 8D sin fuga causal, acción 9D) y garantiza piso terminal de $\ge 2.0\text{ s}$ con `done=1.0` en destino. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
+     - **D415 (VO puro):** [d415_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d415_camera_params.yaml) + [realsense_d415_vo.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo.launch.py). Medido en reposo: $30.63\text{ Hz}$, jitter $0.394\text{ mm}$, $300.5\text{ inliers}$. Que los puntos se anclen al patrón IR no está verificado; si ocurriera, sería un defecto, porque el patrón se mueve con la cámara.
+     - **D435i (odometría RGB-D con el marco inicial alineado a la gravedad por el IMU BMI085):** [d435i_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d435i_camera_params.yaml) + [rtabmap_vio_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml) + `imu_filter_madgwick` + [realsense_d435i_vio.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio.launch.py). `rgbd_odometry` F2M (GFTT/ORB sobre la imagen RGB, PnP + RANSAC, subpíxel 5×5/15, Kalman), con `GuessMotion: false` y `BundleAdjustment: 0`. El IMU solo alinea el marco inicial con la gravedad (`wait_imu_to_init`): no es un VIO acoplado. Origen en la cámara (`Odom/AlignWithGround: false`). **Precisión sin medir contra referencia:** las cifras de jitter y 0 % de pérdidas se tomaron en reposo y no representan la toma real (ver §20 y `context.md` lección 43).
+   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` v2 (2026-11-23):
+     - rejilla regular de 20 Hz con sellos de tiempo, pose interpolada y la imagen de sello más cercano;
+     - la odometría nula de RTAB-Map se marca como perdida (nunca se guarda como pose);
+     - `reset_odom` al empezar cada episodio;
+     - done verificado (quieto y ≥ `min_hold_duration_s`, sin forzarlo en frames en movimiento);
+     - control de calidad que bloquea el guardado: [D] descartar o [F] forzar;
+     - metadatos de trazabilidad.
+     Imagen 256×256 RGB; estado 8D sin fuga causal; acción 9D. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
 18. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
@@ -221,8 +228,8 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Recolección Real e Isaac Sim:* Activado mediante `relative_coordinates: true` en `vo_data_collection_params.yaml` y `data_collection_params.yaml`. En simulación resta la pose inicial Home ($\mathbf{p}_t - \mathbf{p}_{\text{home}}$); en recolección manual resta la pose inicial del lente ($\mathbf{p}_t - \mathbf{p}_{\text{start}}$). Certificado en metadatos Zarr (`ep.attrs['relative_coordinates'] = True`) y auditado por `tools/verify_zarr_dataset.py`.
    - *Inferencia en Robot:* `policy_node.py` resta `home_pos` a `observation.state[0:3]` y suma `home_pos` a las trayectorias predichas en `action[0:3]` (soporta vectores 1D y chunks 2D) antes de publicarlas hacia `ActionChunk` / `xarm5_bridge`, manteniendo consistencia sim-to-real idéntica sin requerir tags en la mesa. Estabilización estricta de cuaternión en semiesfera superior ($q_w \ge 0$) y norma unitaria. Test suite: `tests/test_relative_coordinates.py` (15/15 passed).
 
-20. **Certificación VIO Grado UMI, Recolección con Auto-Incremento y Topología de Red Dual (Local vs. Jetson Orin):**
-    - *Certificación VIO:* Error de retorno métrico en bucle cerrado de $2.307\text{ mm}$ (criterio $\le 3.0\text{ mm}$), jitter $1.61\text{ mm}$ (criterio $\le 2.5\text{ mm}$) y $0.0\%$ de pérdida de tracking con $258.8$ inliers sostenidos.
+20. **Odometría de la D435i (sin certificar), Recolección con Auto-Incremento y Topología de Red Dual (Local vs. Jetson Orin):**
+    - *Odometría SIN certificar (revisión 2026-11-23):* 2.307 mm fue el mejor de 9 retornos a la marca de la conf 4: mediana 21.6 mm, máximo 59.7 mm, solo 1 de 9 ≤ 3 mm. El jitter en reposo tiene mediana 3.0 mm (1.6–6.1). El error de retorno no mide ni la trayectoria ni la escala. La grabación v7 tiene poses nulas guardadas como poses (ep. 23 y 24), 784 discontinuidades > 2 cm en 71/83 episodios y ningún sello de tiempo (`analyze_vio_dataset_quality.py --raw-diagnostics`). Toda cifra de precisión se reporta como distribución medida contra una referencia (xArm5 o tablero ChArUco), nunca como el mejor intento. Plan: `docs/plans/plan_d435i_herramienta_demostraciones.md`.
     - *Topología de Red Aislada (Zero-Latency Local):* Para recolección de demostraciones expertas a mano alzada en la estación de trabajo, el stream de video de $46\text{ MB/s}$ de la RealSense y la odometría se confinan a Memoria Compartida (SHM) / loopback local (`lo`) bajo `ROS_DOMAIN_ID=0` con aislamiento estricto `ROS_LOCALHOST_ONLY=1` y `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. Esto blinda la estación de trabajo para que ningún otro equipo con ROS 2 en la misma red Wi-Fi o laboratorio pueda ver o interferir con los tópicos, erradicando al 100% la saturación de red y garantizando frecuencia canónica a $20.0\text{ Hz}$ sin latencia interna.
     - *Topología de Red Remota (Jetson Orin xArm5):* El despliegue de inferencia y teleoperación remota con el manipulador xArm5 en la Jetson Orin opera bajo `ROS_DOMAIN_ID=42` vía CycloneDDS Unicast (`DDS_PEER=<ip_jetson>` o `deploy/jetson/config/cyclonedds.xml`), transmitiendo únicamente telemetría ligera de control (`ActionChunk`, `/target_frame`, `/policy/metrics` a $< 50\text{ KB/s}$) sin interferir con el bus de video local.
     - *Flexibilidad de Recolección Zarr:* `vo_collector_node` y `run_data_collection.sh` aceptan `dataset_path`:
@@ -310,17 +317,11 @@ touch visuomotor_core/outputs/train_v8_continuous_convergence/STOP
 docker exec -it -u 1000 visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
 docker exec -u 1000 visuomotor_ros2 python3 tools/visualize_dataset.py --dataset datasets/demonstrations_real_v2.zarr --out-dir datasets/visualizations_real_v2
 
-# 15. Benchmarking y Recolección Visual-Inercial Grado UMI (RealSense D435i + RTAB-Map VIO)
+# 15. Recolección con la D435i + RTAB-Map (odometría RGB-D; la prueba de retorno es solo un chequeo rápido, no mide precisión)
 ./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=false
-./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"   # Evalúa jitter y error de retorno métrico en bucle cerrado
+./tools/hardware/run_benchmark.sh "conf 4"                          # Chequeo rápido: jitter en reposo y retorno a la marca
 ./tools/hardware/run_data_collection.sh                              # Recolección AUTO (crea demonstrations_real_vX.zarr)
 ./tools/hardware/run_data_collection.sh demonstrations_real_v5       # Continuar aumentando dataset existente
-
-
-# 15. Benchmarking de VIO y Recolección Experta Real (RealSense D435i + RTAB-Map VIO SOTA UMI)
-./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=true
-./tools/hardware/run_benchmark.sh "conf 4 (SOTA UMI Final Fusion)"
-docker exec -it -u 1000 visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && export ROS_DOMAIN_ID=0 && ros2 run visuomotor_data_collection vo_collector"
 
 # 16. Dataset real -> xArm5 (conversor v2: auditoría, filtro, hemisferio) y diagnóstico físico con figuras
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v7.zarr --dst datasets/demonstrations_real_v7_xarm5_v2.zarr --drop-flagged
@@ -341,6 +342,16 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_xarm5_wo
 
 # 21. Referencia visual de HOME3 (primer frame de las demos) para comparar con la cámara montada antes de armar el brazo
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/export_home3_reference.py --dataset datasets/demonstrations_real_v7_xarm5_v2.zarr
+
+# 22. Diagnóstico de una grabación cruda de la D435i (poses nulas, duplicados, discontinuidades, done en movimiento)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v7.zarr --raw-diagnostics --out-dir datasets/evaluations_real_v7_xarm5_v2
+
+# 23. Tablero ChArUco de la celda (PDF a escala 1:1; medir con calibre y poner measured: true en charuco_board.yaml)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_charuco_board.py
+
+# 24. Calibración cámara-brida con el xArm5 y el tablero (capture: ROS 2 con cámara + TF del robot; solve: sin ROS, no edita YAML)
+python3 tools/xarm5/calibrate_hand_eye.py capture --out-dir datasets/hand_eye/<fecha>
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/calibrate_hand_eye.py solve --samples datasets/hand_eye/<fecha>
 ```
 
 ---

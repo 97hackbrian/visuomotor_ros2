@@ -12,10 +12,15 @@ class ZarrStorage:
         """Retorna el número total de episodios existentes en este almacenamiento Zarr."""
         return len([k for k in self.root.group_keys() if k.startswith("episode_")])
         
-    def append_episode(self, buffer, attrs=None):
+    def append_episode(self, buffer, attrs=None, extra_arrays=None, episode_chunks=False):
         """
         buffer: List of dicts with 'image', 'state', 'action'
         attrs: Optional dict of episode metadata attributes (object spawn, jitter, phase times, etc.)
+        extra_arrays: dict opcional nombre -> array [N, ...] (p. ej. 'timestamp', 'inliers', 'lost'), guardado en un
+            solo bloque por episodio.
+        episode_chunks: True guarda 'state' y 'action' en un solo bloque por episodio (menos archivos en disco; los
+            lectores leen el array completo con [:], así que es transparente). Las imágenes siguen en un bloque
+            por frame para el acceso aleatorio del DataLoader.
         """
         existing_indices = []
         for key in self.root.group_keys():
@@ -32,8 +37,14 @@ class ZarrStorage:
         actions = np.stack([step['action'] for step in buffer])
         
         episode_group.create_dataset('image', data=images, chunks=(1, *images.shape[1:]), dtype='uint8')
-        episode_group.create_dataset('state', data=states, chunks=(1, *states.shape[1:]), dtype='float32')
-        episode_group.create_dataset('action', data=actions, chunks=(1, *actions.shape[1:]), dtype='float32')
+        row_chunk = len(states) if episode_chunks else 1
+        episode_group.create_dataset('state', data=states, chunks=(row_chunk, *states.shape[1:]), dtype='float32')
+        episode_group.create_dataset('action', data=actions, chunks=(row_chunk, *actions.shape[1:]), dtype='float32')
+        for name, arr in (extra_arrays or {}).items():
+            arr = np.asarray(arr)
+            if len(arr) != len(states):
+                raise ValueError(f"extra_arrays['{name}'] tiene {len(arr)} filas y el episodio {len(states)}")
+            episode_group.create_dataset(name, data=arr, chunks=arr.shape, dtype=arr.dtype)
 
         if attrs and isinstance(attrs, dict):
             episode_group.attrs.update(attrs)

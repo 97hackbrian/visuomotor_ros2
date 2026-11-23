@@ -1,3 +1,7 @@
+# HISTÓRICO (revisión 2026-11-23): copia idéntica de rtabmap_vio_params.yaml del 2026-11-19. NO está certificada:
+# 2.307 mm fue la mejor de 9 corridas de retorno (mediana 21.6 mm, 1/9 <= 3 mm; experiments/vio_benchmark_history.json)
+# y el retorno a la marca no mide trayectoria ni escala. Se conserva solo porque la citan documentos históricos;
+# la configuración activa es rtabmap_vio_params.yaml. Ver .agents/knowledge/15_visual_odometry_rtabmap_realsense.md §0.
 # Configuración Certificada: Best UMI VIO (Intel RealSense D435i + RTAB-Map)
 # Resultado Benchmark Certificado:
 #   - Excursión máxima: 54.56 cm

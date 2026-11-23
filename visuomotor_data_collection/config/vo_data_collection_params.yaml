@@ -8,9 +8,49 @@ vo_collector_node:
     relative_coordinates: true
     camera_topic: "/camera/camera/color/image_raw"
     odom_topic: "/rtabmap/odom"
+    odom_info_topic: "/odom_info"          # rtabmap_msgs/OdomInfo de rgbd_odometry (inliers, lost)
+    imu_topic: "/camera/camera/imu"        # gravedad al inicio del episodio (atributo start_gravity_mps2)
     gripper_topic: "/visuomotor/gripper_joint_states"
     gripper_closed_val: -0.005
     image_size: 256
     min_hold_duration_s: 2.0
     record_done_flag: true
-    min_inliers_tracking: 10
+
+    # ---- Recolector v2 (plan docs/plans/plan_d435i_herramienta_demostraciones.md, Fase 4) ----
+    # Calidad de rastreo: frames con menos inliers cuentan como problema de QA (en v1 se declaraba y no se usaba).
+    min_inliers_tracking: 20
+    # Emparejamiento imagen-pose por sello: la imagen más cercana debe estar a <= max_image_dt_s del instante del
+    # frame (cámara a 30 Hz: 1/60 s + margen); si no, el frame queda marcado como perdido.
+    max_image_dt_s: 0.02
+    max_pose_gap_s: 0.10                   # hueco máximo entre poses de odometría para interpolar
+    image_wait_s: 0.05                     # espera máxima a una imagen atrasada antes de marcar el frame
+    # Reinicio de la odometría al empezar cada episodio (en v7 la vertical de odom derivó 50-60° en una sesión).
+    reset_odom_on_start: true
+    reset_odom_service: "/reset_odom"      # std_srvs/Empty de rgbd_odometry
+    reset_settle_frames: 10                # poses válidas tras el reinicio antes de empezar a grabar
+    reset_timeout_s: 3.0
+    # Etiqueta done: tramo final quieto (velocidad suavizada en static_window_s <= static_speed_m_s).
+    static_speed_m_s: 0.02
+    static_window_s: 0.5
+    auto_hold: false                       # true: si no se pulsó [H], detectar el tramo final quieto
+    # true: no se guarda un episodio con problemas de QA (descartar con [D] o forzar con [F]).
+    strict_qa: true
+    min_episode_frames: 20
+    # Grabación cruda por episodio (rosbag2 MCAP) para reprocesar la odometría offline. Requiere que existan los
+    # tópicos comprimidos (image_transport) o cambiar la lista por los crudos (~46 MB/s).
+    raw_bag_enabled: false
+    raw_bag_dir: "datasets/raw_bags"
+    raw_bag_topics:
+      - "/camera/camera/color/image_raw/compressed"
+      - "/camera/camera/aligned_depth_to_color/image_raw/compressedDepth"
+      - "/camera/camera/color/camera_info"
+      - "/camera/camera/imu"
+      - "/rtabmap/odom"
+      - "/odom_info"
+      - "/tf_static"
+    # Trazabilidad: raíz del repo (para el commit) y YAML cuyo sha256 se guarda en cada episodio.
+    repo_root: "."
+    config_files_to_hash:
+      - "visuomotor_bringup/config/realsense/d435i_camera_params.yaml"
+      - "visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml"
+      - "visuomotor_data_collection/config/vo_data_collection_params.yaml"

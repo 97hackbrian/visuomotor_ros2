@@ -9,7 +9,6 @@ def launch_setup(context, *args, **kwargs):
     pkg_share = get_package_share_directory('visuomotor_bringup')
     
     gui = context.perform_substitution(LaunchConfiguration('gui')).strip().lower() in ('true', '1')
-    use_ultra = context.perform_substitution(LaunchConfiguration('ultra_precision')).strip().lower() in ('true', '1')
     use_imu = context.perform_substitution(LaunchConfiguration('use_imu')).strip().lower() in ('true', '1')
     try:
         madgwick_gain = float(context.perform_substitution(LaunchConfiguration('madgwick_gain')))
@@ -101,12 +100,6 @@ def generate_launch_description():
         description='Lanzar visor gráfico RViz2 con vo_vis.rviz'
     )
     
-    ultra_precision_arg = DeclareLaunchArgument(
-        'ultra_precision',
-        default_value='false',
-        description='Modo ultra-precisión'
-    )
-
     use_imu_arg = DeclareLaunchArgument(
         'use_imu',
         default_value='true',
@@ -121,7 +114,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         gui_arg,
-        ultra_precision_arg,
         use_imu_arg,
         madgwick_gain_arg,
         OpaqueFunction(function=launch_setup)

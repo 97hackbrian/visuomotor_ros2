@@ -11,7 +11,6 @@ def generate_launch_description():
     data_coll_share = get_package_share_directory('visuomotor_data_collection')
     
     gui_arg = DeclareLaunchArgument('gui', default_value='false', description='Lanzar visor gráfico RViz2')
-    ultra_precision_arg = DeclareLaunchArgument('ultra_precision', default_value='false', description='Modo ultra-precisión')
     dataset_path_arg = DeclareLaunchArgument(
         'dataset_path',
         default_value='AUTO',
@@ -26,7 +25,6 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(vio_launch_path),
         launch_arguments={
             'gui': LaunchConfiguration('gui'),
-            'ultra_precision': LaunchConfiguration('ultra_precision')
         }.items()
     )
 
@@ -41,7 +39,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         gui_arg,
-        ultra_precision_arg,
         dataset_path_arg,
         vio_launch,
         collector_node
