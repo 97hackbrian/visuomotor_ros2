@@ -11,6 +11,8 @@ setsid ros2 run visuomotor_ros2 policy_node --ros-args \
     -p checkpoint_path:=/ros_ws/model > /tmp/vtrials/policy.log 2>&1 &
 PG=$!
 python3 /tmp/vtrials/monitor.py --max-s "${MAX_S:-45}" --z-min "${Z_MIN:-0.15}"
+# Desarme redundante (el vigilante ya desarma; esto cubre un fallo del vigilante). No pone frenos.
+timeout 10 ros2 service call /xarm5_bridge/disarm std_srvs/srv/Trigger 2>&1 | grep -E "message" | sed 's/^/desarme redundante: /'
 kill -TERM -- -$PG 2>/dev/null; for i in $(seq 1 20); do kill -0 -- -$PG 2>/dev/null || break; sleep 0.5; done
 kill -0 -- -$PG 2>/dev/null && { echo "forzando cierre de la política"; kill -KILL -- -$PG; }
 sleep 1

@@ -2,11 +2,11 @@
 
 Modelo: época 200 de `train_real_v7x5v2_relative_ee_e300` (`deploy/jetson/model`), 5 pasos DDIM + CUDA Graph, puente a 5 cm/s. Referencia: últimos frames de 76 demos.
 
-* **Llegó y se detuvo sobre la herramienta (parada automática + cámara sobre las tijeras): 8/8 = 100 %** (IC Wilson 95 %: 68–100 %).
-* **Terminó como en las demos (criterio estricto de vista final: encuadre y distancia): 6/8 = 75 %** (IC 95 %: 41–93 %).
+* **Llegó y se detuvo sobre la herramienta (parada automática + cámara sobre las tijeras): 8/11 = 73 %** (IC Wilson 95 %: 43–90 %).
+* **Terminó como en las demos (criterio estricto de vista final: encuadre y distancia): 6/11 = 55 %** (IC 95 %: 28–79 %).
 * La altura frente a las demos del mismo lugar es solo informativa: en las demos la altura de parada sobre un mismo lugar varía ±7 cm.
 * Confirmada por el usuario: 1/1.
-* Parada automática: 8/8; tiempo hasta la parada: mediana 25.9 s (demos: 15.3 s de grabación).
+* Parada automática: 8/11; tiempo hasta la parada: mediana 25.9 s (demos: 15.3 s de grabación).
 
 | Intento | Posición | Sobre la herramienta | Como en las demos | Usuario | Parada (s) | Altura final / rango de las demos vecinas (m) | Vista final (z u, z v; escala) | Final TCP (m) |
 |---|---|---|---|---|---|---|---|---|
@@ -18,3 +18,6 @@ Modelo: época 200 de `train_real_v7x5v2_relative_ee_e300` (`deploy/jetson/model
 | trial_006 | derecha (extremo, repetición) | sí | sí | — | 19.9 | 0.3299 / [0.164, 0.337] | [0.14, -0.02]; 0.93 | [0.4877, -0.244, 0.3299] |
 | trial_007 | centro-lejos, girada en yaw | sí | no | sí | 29.1 | 0.2573 / [0.16, 0.335] | [3.62, 0.91]; 1.49 | [0.6023, -0.0373, 0.2573] |
 | trial_008 | abajo-derecha (extremo, cerca de la base) | sí | no | — | 28.2 | 0.239 / [0.257, 0.329] | [3.74, -2.3]; 1.61 | [0.431, -0.2625, 0.239] |
+| trial_009 | izquierda, tijeras en diagonal | no | no | — | None | 0.2525 / [0.188, 0.335] | [-4.61, -5.1]; 2.0 | [0.5381, -0.0048, 0.2525] |
+| trial_010 | izquierda, diagonal (repetición del 9) | no | no | — | None | 0.149 / [0.16, 0.335] | None; None | [0.6061, -0.0794, 0.149] |
+| trial_011 | centro, junto al borde frente a la base | no | no | — | None | 0.1498 / [0.21, 0.459] | [3.91, -5.24]; 1.79 | [0.4654, -0.0707, 0.1498] |

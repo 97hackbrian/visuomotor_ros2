@@ -16,7 +16,8 @@ play() { paplay "$1" 2>/dev/null || aplay -q "$1" 2>/dev/null || printf '\a'; }
 # Scripts del lado de la Jetson al contenedor (sin reconstruir la imagen)
 scp -q -o BatchMode=yes "$HERE"/jetson/* "$JETSON":/tmp/ || { echo "sin conexión con $JETSON"; exit 1; }
 $J "docker exec $CONTAINER mkdir -p /tmp/vtrials && for f in preflight.py grab_home3.py monitor.py record_dry_run.py run_attempt.sh run_dry_run.sh; do docker cp /tmp/\$f $CONTAINER:/tmp/vtrials/\$f; done"
-DX="docker exec $CONTAINER /ros_ws/entrypoint.sh"
+# Límites del vigilante (tiempo máximo de inferencia y piso de la brida), configurables al lanzar
+DX="docker exec -e MAX_S=${MAX_S:-45} -e Z_MIN=${Z_MIN:-0.15} $CONTAINER /ros_ws/entrypoint.sh"
 if [ "${1:-}" = "--dry-run" ]; then
   play "$BEEP/inicio.wav"; timeout 240 $J "$DX bash /tmp/vtrials/run_dry_run.sh" 2>&1 | grep -vE "UserWarning|warn\(|^$"
   play "$BEEP/fin.wav"; exit 0
