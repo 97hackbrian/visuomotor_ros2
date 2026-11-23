@@ -30,8 +30,11 @@ ARG REALSENSE_ROS_VERSION=4.59.1
 ARG DIAGNOSTICS_COMMIT=a14e99f3e98249470943fe5b0cc6892df80dc950
 ARG BUILD_JOBS=4
 
-# 1. libusb para el backend RSUSB (libssl-dev, libudev-dev, pkg-config y eigen ya vienen en la imagen)
-RUN apt-get update && apt-get install -y --no-install-recommends libusb-1.0-0-dev && \
+# 1. libusb para el backend RSUSB (libssl-dev, libudev-dev, pkg-config y eigen ya vienen en la imagen).
+#    Solo desde los repositorios de Ubuntu (sources.list): la clave del repo apt de ROS de la imagen base expiró
+#    (EXPKEYSIG F42ED6FBAB17C654) y apt-get update fallaría; la imagen no usa paquetes ROS de apt.
+RUN apt-get update -o Dir::Etc::sourceparts=- && \
+    apt-get install -y --no-install-recommends -o Dir::Etc::sourceparts=- libusb-1.0-0-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. librealsense (sin ejemplos gráficos, sin Python, sin buscar actualizaciones en línea)
