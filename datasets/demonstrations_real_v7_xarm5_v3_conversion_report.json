@@ -1,0 +1,3559 @@
+{
+  "source": "demonstrations_real_v7.zarr",
+  "destination": "demonstrations_real_v7_xarm5_v3.zarr",
+  "timestamp": 1795564137.555616,
+  "orientation_mode": "arm_plane",
+  "pitch_limits_rad": [
+    -1.48,
+    1.48
+  ],
+  "yaw_limits_rad": [
+    -2.6,
+    2.6
+  ],
+  "home_xyz_m": [
+    0.15009,
+    0.0,
+    0.75
+  ],
+  "home_rpy_rad": [
+    3.10176,
+    -0.42961,
+    -0.01136
+  ],
+  "relative_coordinates": true,
+  "tcp_to_camera_xyz_m": [
+    0.06293,
+    -0.01626,
+    0.01849
+  ],
+  "tcp_to_camera_rpy_rad": [
+    3.13372,
+    -1.53072,
+    0.00445
+  ],
+  "extrinsic_calibrated": true,
+  "converter_version": 2,
+  "trajectory_filter": {
+    "enabled": true,
+    "hampel_half_window": 3,
+    "hampel_n_sigma": 3.0,
+    "lowpass_cutoff_hz": 1.5,
+    "lowpass_order": 4,
+    "filter_orientation": true
+  },
+  "quaternion_hemisphere": "home",
+  "quaternion_reference_xyzw": [
+    0.9767843438738162,
+    -0.009793285320933464,
+    0.21300068504196273,
+    0.02066749373474128
+  ],
+  "episodes": {
+    "episode_0": {
+      "frames": 246,
+      "raw_max_step_m": 0.05270778596641333,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 34,
+        "position_removed_rms_mm": 10.398339346377478,
+        "orientation_max_rel_angle_rad": 0.43330024006934176,
+        "orientation_spikes_replaced": 27,
+        "orientation_removed_rms_deg": 1.1527085519222022
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.019806410212909076,
+      "max_orientation_deviation_rad": 0.10701138985976719,
+      "mean_orientation_deviation_rad": 0.05601423796977776,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1254657001528632,
+      "max_angular_speed_rad_s": 0.18881412570461484,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.03176268560035231,
+        0.3993170461840537
+      ],
+      "tcp_xyz_max": [
+        0.44877800027889664,
+        0.021845210243597583,
+        0.7698064102129091
+      ],
+      "start_offset_from_home_m": 3.925231146709438e-17,
+      "flags": [],
+      "source_episode": "episode_0",
+      "written_as": "episode_0"
+    },
+    "episode_1": {
+      "frames": 255,
+      "raw_max_step_m": 0.05010369302704237,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 23,
+        "position_removed_rms_mm": 9.935663674393822,
+        "orientation_max_rel_angle_rad": 0.3931504070748968,
+        "orientation_spikes_replaced": 26,
+        "orientation_removed_rms_deg": 1.242219207970631
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.09803921568627451,
+      "workspace_max_clamp_m": 0.054084634122818664,
+      "max_orientation_deviation_rad": 0.14604128974961522,
+      "mean_orientation_deviation_rad": 0.08187859255095953,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 25,
+      "max_linear_speed_m_s": 0.12014681591784317,
+      "max_angular_speed_rad_s": 0.2941268859652817,
+      "tcp_xyz_min": [
+        0.15009000000000006,
+        -0.006340709066738521,
+        0.5094638279862383
+      ],
+      "tcp_xyz_max": [
+        0.46807473118498644,
+        0.03511148706108398,
+        0.7627901348410323
+      ],
+      "start_offset_from_home_m": 1.2413882881933434e-16,
+      "flags": [],
+      "source_episode": "episode_1",
+      "written_as": "episode_1"
+    },
+    "episode_2": {
+      "frames": 338,
+      "raw_max_step_m": 0.043812737434387995,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 33,
+        "position_removed_rms_mm": 8.814278344884102,
+        "orientation_max_rel_angle_rad": 0.523126589900015,
+        "orientation_spikes_replaced": 29,
+        "orientation_removed_rms_deg": 1.0518728363721968
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0036072258720401987,
+      "max_orientation_deviation_rad": 0.10098869707435891,
+      "mean_orientation_deviation_rad": 0.03828323566542261,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13283764158056297,
+      "max_angular_speed_rad_s": 0.23345100027142957,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.06362168079748766,
+        0.3790077350630784
+      ],
+      "tcp_xyz_max": [
+        0.5003952630497813,
+        0.02367482850485405,
+        0.7532002246072347
+      ],
+      "start_offset_from_home_m": 1.1211468303779313e-16,
+      "flags": [],
+      "source_episode": "episode_2",
+      "written_as": "episode_2"
+    },
+    "episode_3": {
+      "frames": 238,
+      "raw_max_step_m": 0.030158245699621136,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 23,
+        "position_removed_rms_mm": 6.815489273813664,
+        "orientation_max_rel_angle_rad": 0.3202758717334502,
+        "orientation_spikes_replaced": 28,
+        "orientation_removed_rms_deg": 1.0142573247224398
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.004361622154506528,
+      "max_orientation_deviation_rad": 0.11266793636860012,
+      "mean_orientation_deviation_rad": 0.07240114760147962,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.0875005024289282,
+      "max_angular_speed_rad_s": 0.11335632787676561,
+      "tcp_xyz_min": [
+        0.14971749667191495,
+        -0.031933617750589276,
+        0.519509748909252
+      ],
+      "tcp_xyz_max": [
+        0.4551100391709514,
+        0.011451665930791529,
+        0.7543616221545065
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [],
+      "source_episode": "episode_3",
+      "written_as": "episode_3"
+    },
+    "episode_4": {
+      "frames": 281,
+      "raw_max_step_m": 0.03420645402064564,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 8.051443693995404,
+        "orientation_max_rel_angle_rad": 1.438530547713936,
+        "orientation_spikes_replaced": 30,
+        "orientation_removed_rms_deg": 1.1864191470341305
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.005323653893384385,
+      "max_orientation_deviation_rad": 0.1416257304856795,
+      "mean_orientation_deviation_rad": 0.08871249612458426,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13192348079973537,
+      "max_angular_speed_rad_s": 0.4056894849587994,
+      "tcp_xyz_min": [
+        0.1446810506692588,
+        -0.10750628426495434,
+        0.4824203394874146
+      ],
+      "tcp_xyz_max": [
+        0.5383804861948746,
+        0.007716997211708952,
+        0.75
+      ],
+      "start_offset_from_home_m": 4.1777673608052095e-17,
+      "flags": [],
+      "source_episode": "episode_4",
+      "written_as": "episode_4"
+    },
+    "episode_5": {
+      "frames": 255,
+      "raw_max_step_m": 0.04350799655910312,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 24,
+        "position_removed_rms_mm": 8.491665717269246,
+        "orientation_max_rel_angle_rad": 1.4899249463313151,
+        "orientation_spikes_replaced": 23,
+        "orientation_removed_rms_deg": 1.393061232261739
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.00844885699939158,
+      "max_orientation_deviation_rad": 0.14213946069529398,
+      "mean_orientation_deviation_rad": 0.07405411158344712,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1154711851316029,
+      "max_angular_speed_rad_s": 0.5817273026465486,
+      "tcp_xyz_min": [
+        0.1415561289041231,
+        -0.15594230981982304,
+        0.5031173253474369
+      ],
+      "tcp_xyz_max": [
+        0.5270690905307891,
+        0.0005467534495024566,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.734723475976807e-17,
+      "flags": [],
+      "source_episode": "episode_5",
+      "written_as": "episode_5"
+    },
+    "episode_6": {
+      "frames": 338,
+      "raw_max_step_m": 0.0445049845521299,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 36,
+        "position_removed_rms_mm": 10.500997768871038,
+        "orientation_max_rel_angle_rad": 1.4577339359461294,
+        "orientation_spikes_replaced": 33,
+        "orientation_removed_rms_deg": 1.383767057721577
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0016165958971359196,
+      "max_orientation_deviation_rad": 0.11342206263786835,
+      "mean_orientation_deviation_rad": 0.04191483828481492,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12540542393333282,
+      "max_angular_speed_rad_s": 0.3993727348295045,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.10393234604858326,
+        0.3153936676802273
+      ],
+      "tcp_xyz_max": [
+        0.5743280317479342,
+        -1.214306433183765e-17,
+        0.7516165958971359
+      ],
+      "start_offset_from_home_m": 1.214306433183765e-17,
+      "flags": [],
+      "source_episode": "episode_6",
+      "written_as": "episode_6"
+    },
+    "episode_7": {
+      "frames": 406,
+      "raw_max_step_m": 0.05919229907169553,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 46,
+        "position_removed_rms_mm": 12.120494846995902,
+        "orientation_max_rel_angle_rad": 1.3657637671279104,
+        "orientation_spikes_replaced": 35,
+        "orientation_removed_rms_deg": 1.4055403626165641
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0008939381636440684,
+      "max_orientation_deviation_rad": 0.16112181821914376,
+      "mean_orientation_deviation_rad": 0.09146184651921507,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13624650461798937,
+      "max_angular_speed_rad_s": 0.653231531421516,
+      "tcp_xyz_min": [
+        0.14910634671935658,
+        -0.11959116829242195,
+        0.28360942824043894
+      ],
+      "tcp_xyz_max": [
+        0.553909473267052,
+        0.004512312210584858,
+        0.75
+      ],
+      "start_offset_from_home_m": 3.804545602077247e-17,
+      "flags": [],
+      "source_episode": "episode_7",
+      "written_as": "episode_7"
+    },
+    "episode_8": {
+      "frames": 307,
+      "raw_max_step_m": 0.03246450126197397,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 8.820956679528383,
+        "orientation_max_rel_angle_rad": 0.6156060069953314,
+        "orientation_spikes_replaced": 28,
+        "orientation_removed_rms_deg": 1.3363915305023597
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0014358235056155522,
+      "max_orientation_deviation_rad": 0.17070768471135053,
+      "mean_orientation_deviation_rad": 0.07757449428372358,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1180458304304919,
+      "max_angular_speed_rad_s": 0.17771919788234508,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.19074800049755572,
+        0.44685807943067873
+      ],
+      "tcp_xyz_max": [
+        0.4395380214981059,
+        0.0007918309824488188,
+        0.7514358235056156
+      ],
+      "start_offset_from_home_m": 1.1114420827879992e-16,
+      "flags": [],
+      "source_episode": "episode_8",
+      "written_as": "episode_8"
+    },
+    "episode_9": {
+      "frames": 226,
+      "raw_max_step_m": 0.04406463024406266,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 13,
+        "position_removed_rms_mm": 10.471996822025371,
+        "orientation_max_rel_angle_rad": 0.6650628660736122,
+        "orientation_spikes_replaced": 22,
+        "orientation_removed_rms_deg": 1.539898087173989
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.007115504139293792,
+      "max_orientation_deviation_rad": 0.15842011430561284,
+      "mean_orientation_deviation_rad": 0.0876295348118351,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1274608830525563,
+      "max_angular_speed_rad_s": 0.22221204728277905,
+      "tcp_xyz_min": [
+        0.14288852438340816,
+        -0.23665531054349234,
+        0.3943352546550351
+      ],
+      "tcp_xyz_max": [
+        0.40204118161498187,
+        -2.42861286636753e-17,
+        0.7501019355747943
+      ],
+      "start_offset_from_home_m": 2.42861286636753e-17,
+      "flags": [],
+      "source_episode": "episode_9",
+      "written_as": "episode_9"
+    },
+    "episode_10": {
+      "frames": 306,
+      "raw_max_step_m": 0.05541275176579723,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 28,
+        "position_removed_rms_mm": 8.795858339782992,
+        "orientation_max_rel_angle_rad": 0.47357926392193,
+        "orientation_spikes_replaced": 33,
+        "orientation_removed_rms_deg": 1.3384154887281665
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.016284655986036123,
+      "max_orientation_deviation_rad": 0.07752042856700732,
+      "mean_orientation_deviation_rad": 0.028908576983644182,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12112934512821487,
+      "max_angular_speed_rad_s": 0.2020688480009217,
+      "tcp_xyz_min": [
+        0.15009000000000003,
+        -0.3162846559860361,
+        0.24642707021146187
+      ],
+      "tcp_xyz_max": [
+        0.4827113883284946,
+        -1.5612511283791264e-17,
+        0.75
+      ],
+      "start_offset_from_home_m": 3.184528986116163e-17,
+      "flags": [],
+      "source_episode": "episode_10",
+      "written_as": "episode_10"
+    },
+    "episode_11": {
+      "frames": 227,
+      "raw_max_step_m": 0.05686678279407561,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 23,
+        "position_removed_rms_mm": 13.95809182981711,
+        "orientation_max_rel_angle_rad": 0.5286371132986454,
+        "orientation_spikes_replaced": 20,
+        "orientation_removed_rms_deg": 1.8732270141774992
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.004789942263893399,
+      "max_orientation_deviation_rad": 0.11062737739932384,
+      "mean_orientation_deviation_rad": 0.06431030141131491,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.14543580869848022,
+      "max_angular_speed_rad_s": 0.2806059640191285,
+      "tcp_xyz_min": [
+        0.14916604601900063,
+        -0.20382095013138615,
+        0.37069502157085643
+      ],
+      "tcp_xyz_max": [
+        0.405867384914689,
+        -2.6020852139652106e-17,
+        0.7547899422638934
+      ],
+      "start_offset_from_home_m": 2.6020852139652106e-17,
+      "flags": [],
+      "source_episode": "episode_11",
+      "written_as": "episode_11"
+    },
+    "episode_12": {
+      "frames": 240,
+      "raw_max_step_m": 0.05177055929958322,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 20,
+        "position_removed_rms_mm": 10.607197142709335,
+        "orientation_max_rel_angle_rad": 0.44436868166045895,
+        "orientation_spikes_replaced": 24,
+        "orientation_removed_rms_deg": 1.317230762259748
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.00418048095956336,
+      "max_orientation_deviation_rad": 0.07131445296945776,
+      "mean_orientation_deviation_rad": 0.02899839455748599,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11641059983678745,
+      "max_angular_speed_rad_s": 0.2558943061740708,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.19699038119460974,
+        0.3329375974113332
+      ],
+      "tcp_xyz_max": [
+        0.4034767411295834,
+        0.0005805133979940365,
+        0.7541804809595634
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [],
+      "source_episode": "episode_12",
+      "written_as": "episode_12"
+    },
+    "episode_13": {
+      "frames": 351,
+      "raw_max_step_m": 0.03421182662067561,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 30,
+        "position_removed_rms_mm": 8.23192327392065,
+        "orientation_max_rel_angle_rad": 0.614027975201603,
+        "orientation_spikes_replaced": 30,
+        "orientation_removed_rms_deg": 1.1751448935715847
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.02130892380611223,
+      "max_orientation_deviation_rad": 0.11465994030705592,
+      "mean_orientation_deviation_rad": 0.05891068993544492,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12787928796323883,
+      "max_angular_speed_rad_s": 0.21343164556179722,
+      "tcp_xyz_min": [
+        0.147599462694053,
+        -0.23951917669873937,
+        0.216392705469036
+      ],
+      "tcp_xyz_max": [
+        0.5339076453000686,
+        0.0037424095735153085,
+        0.75029869759184
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_13",
+      "written_as": "episode_13"
+    },
+    "episode_14": {
+      "frames": 250,
+      "raw_max_step_m": 0.08526503770476655,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 23,
+        "position_removed_rms_mm": 12.159948741023754,
+        "orientation_max_rel_angle_rad": 0.5901738034522016,
+        "orientation_spikes_replaced": 19,
+        "orientation_removed_rms_deg": 1.5545046643886997
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.068,
+      "workspace_max_clamp_m": 0.040008389229114094,
+      "max_orientation_deviation_rad": 0.10232029062742698,
+      "mean_orientation_deviation_rad": 0.04794661955356423,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 17,
+      "max_linear_speed_m_s": 0.17519036294225768,
+      "max_angular_speed_rad_s": 0.2148814692355721,
+      "tcp_xyz_min": [
+        0.15009000000000003,
+        -0.23755726628333373,
+        0.2483288322823679
+      ],
+      "tcp_xyz_max": [
+        0.5453378572912848,
+        0.0012161954788614503,
+        0.7900083892291141
+      ],
+      "start_offset_from_home_m": 2.8609792490763984e-17,
+      "flags": [],
+      "source_episode": "episode_14",
+      "written_as": "episode_14"
+    },
+    "episode_15": {
+      "frames": 443,
+      "raw_max_step_m": 0.024432404067897685,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 34,
+        "position_removed_rms_mm": 6.075978785882749,
+        "orientation_max_rel_angle_rad": 1.6674762132223948,
+        "orientation_spikes_replaced": 40,
+        "orientation_removed_rms_deg": 0.9089347709188603
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.23024830699774265,
+      "workspace_max_clamp_m": 0.08861538488255871,
+      "max_orientation_deviation_rad": 0.1854475666120543,
+      "mean_orientation_deviation_rad": 0.06432317789087419,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 102,
+      "max_linear_speed_m_s": 0.14000012380295007,
+      "max_angular_speed_rad_s": 0.4052102820009606,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.3220916247117509,
+        0.3702062887402722
+      ],
+      "tcp_xyz_max": [
+        0.5268112519830137,
+        -8.673617379884035e-18,
+        0.7640206405103509
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_15",
+      "written_as": "episode_15"
+    },
+    "episode_16": {
+      "frames": 346,
+      "raw_max_step_m": 0.03008129094407813,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 34,
+        "position_removed_rms_mm": 8.696929427116137,
+        "orientation_max_rel_angle_rad": 1.5349053592304591,
+        "orientation_spikes_replaced": 30,
+        "orientation_removed_rms_deg": 1.21192699224918
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.2543352601156069,
+      "workspace_max_clamp_m": 0.038144824293187274,
+      "max_orientation_deviation_rad": 0.12744460144780156,
+      "mean_orientation_deviation_rad": 0.040460046528446925,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 88,
+      "max_linear_speed_m_s": 0.1533779426393516,
+      "max_angular_speed_rad_s": 0.41191336615340446,
+      "tcp_xyz_min": [
+        0.1444157599067576,
+        -0.33814482429318726,
+        0.2988781439538723
+      ],
+      "tcp_xyz_max": [
+        0.5521835014362739,
+        0.0015353669894806552,
+        0.752002075487552
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [],
+      "source_episode": "episode_16",
+      "written_as": "episode_16"
+    },
+    "episode_17": {
+      "frames": 414,
+      "raw_max_step_m": 0.03380469718445432,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 38,
+        "position_removed_rms_mm": 5.702116421935084,
+        "orientation_max_rel_angle_rad": 1.5338523993503506,
+        "orientation_spikes_replaced": 36,
+        "orientation_removed_rms_deg": 0.8846986450839623
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.5917874396135265,
+      "workspace_max_clamp_m": 0.11627485885426961,
+      "max_orientation_deviation_rad": 0.16133677753488956,
+      "mean_orientation_deviation_rad": 0.07125895753278814,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 245,
+      "max_linear_speed_m_s": 0.14215405286182328,
+      "max_angular_speed_rad_s": 0.49825659032596226,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.4020376766562653,
+        0.29817115537463595
+      ],
+      "tcp_xyz_max": [
+        0.6009156036212187,
+        -1.5612511283791264e-17,
+        0.7500069474468108
+      ],
+      "start_offset_from_home_m": 3.184528986116163e-17,
+      "flags": [
+        "TCP fuera del volumen de trabajo o del alcance del brazo"
+      ],
+      "source_episode": "episode_17",
+      "written_as": null
+    },
+    "episode_18": {
+      "frames": 367,
+      "raw_max_step_m": 0.05971239062515076,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 40,
+        "position_removed_rms_mm": 10.602528849828841,
+        "orientation_max_rel_angle_rad": 1.700620609567036,
+        "orientation_spikes_replaced": 23,
+        "orientation_removed_rms_deg": 1.2798163227485142
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0060423017713996385,
+      "max_orientation_deviation_rad": 0.07024693689177709,
+      "mean_orientation_deviation_rad": 0.026306862318101188,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1399832198567336,
+      "max_angular_speed_rad_s": 0.32521058832805627,
+      "tcp_xyz_min": [
+        0.14988008171959816,
+        -0.21574933816656877,
+        0.29846838716439655
+      ],
+      "tcp_xyz_max": [
+        0.5100371472514857,
+        0.003544625090390708,
+        0.7560423017713996
+      ],
+      "start_offset_from_home_m": 1.734723475976807e-17,
+      "flags": [],
+      "source_episode": "episode_18",
+      "written_as": "episode_17"
+    },
+    "episode_19": {
+      "frames": 301,
+      "raw_max_step_m": 0.05946967389430619,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 29,
+        "position_removed_rms_mm": 12.808870568368516,
+        "orientation_max_rel_angle_rad": 1.7365521592540356,
+        "orientation_spikes_replaced": 35,
+        "orientation_removed_rms_deg": 1.653767743211178
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.00034806674351151035,
+      "max_orientation_deviation_rad": 0.13524535508925367,
+      "mean_orientation_deviation_rad": 0.05707865555621723,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1556016707951955,
+      "max_angular_speed_rad_s": 0.39864702479980363,
+      "tcp_xyz_min": [
+        0.15009000000000003,
+        -0.22031875008075746,
+        0.3348691064575782
+      ],
+      "tcp_xyz_max": [
+        0.5625805663217743,
+        0.004864070073781855,
+        0.7503480667435115
+      ],
+      "start_offset_from_home_m": 2.964296775167217e-17,
+      "flags": [],
+      "source_episode": "episode_19",
+      "written_as": "episode_18"
+    },
+    "episode_20": {
+      "frames": 351,
+      "raw_max_step_m": 0.07111288139621606,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 44,
+        "position_removed_rms_mm": 11.618985970309291,
+        "orientation_max_rel_angle_rad": 1.8822881568992418,
+        "orientation_spikes_replaced": 36,
+        "orientation_removed_rms_deg": 1.596779428771337
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.05982905982905983,
+      "workspace_max_clamp_m": 0.043901318244037535,
+      "max_orientation_deviation_rad": 0.17718435332901283,
+      "mean_orientation_deviation_rad": 0.10244020900689287,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 21,
+      "max_linear_speed_m_s": 0.14799695553632042,
+      "max_angular_speed_rad_s": 0.3575180659811577,
+      "tcp_xyz_min": [
+        0.14733117650666364,
+        -0.17539848646825262,
+        0.3805458191500242
+      ],
+      "tcp_xyz_max": [
+        0.581494875756121,
+        0.014438229969836349,
+        0.7781142766416
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [],
+      "source_episode": "episode_20",
+      "written_as": "episode_19"
+    },
+    "episode_21": {
+      "frames": 343,
+      "raw_max_step_m": 0.07136699034555578,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 9.419955634360523,
+        "orientation_max_rel_angle_rad": 1.6981551370667165,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 1.0887927632792238
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.009576699486234741,
+      "max_orientation_deviation_rad": 0.25441732042388443,
+      "mean_orientation_deviation_rad": 0.10630184120521179,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.17018520282362626,
+      "max_angular_speed_rad_s": 0.3389840259135806,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.17987715075456318,
+        0.25718638790499154
+      ],
+      "tcp_xyz_max": [
+        0.4103737079757036,
+        0.0028324009949602293,
+        0.7595766994862347
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [],
+      "source_episode": "episode_21",
+      "written_as": "episode_20"
+    },
+    "episode_22": {
+      "frames": 344,
+      "raw_max_step_m": 0.040802217365809156,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 7.673572872004077,
+        "orientation_max_rel_angle_rad": 1.6403998018076709,
+        "orientation_spikes_replaced": 22,
+        "orientation_removed_rms_deg": 0.9731350937423363
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0031303824133804836,
+      "max_orientation_deviation_rad": 0.14625304477632134,
+      "mean_orientation_deviation_rad": 0.06640257893482915,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12556236577092936,
+      "max_angular_speed_rad_s": 0.33565236253140374,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.2612296656822155,
+        0.21577476035037918
+      ],
+      "tcp_xyz_max": [
+        0.5782356996972937,
+        0.004435949848073278,
+        0.7531303824133805
+      ],
+      "start_offset_from_home_m": 1.734723475976807e-17,
+      "flags": [],
+      "source_episode": "episode_22",
+      "written_as": "episode_21"
+    },
+    "episode_23": {
+      "frames": 571,
+      "raw_max_step_m": 0.6822429687403038,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 62,
+        "position_removed_rms_mm": 30.0853614503196,
+        "orientation_max_rel_angle_rad": 3.4968245162131057,
+        "orientation_spikes_replaced": 50,
+        "orientation_removed_rms_deg": 10.028919722544009
+      },
+      "quaternion_sign_flips": 4,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.006518366789013019,
+      "max_orientation_deviation_rad": 0.5535110012545363,
+      "mean_orientation_deviation_rad": 0.21853026869237938,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.6942472800359583,
+      "max_angular_speed_rad_s": 14.70176675174097,
+      "tcp_xyz_min": [
+        0.1488164263168747,
+        -0.306518366789013,
+        0.2885039787665023
+      ],
+      "tcp_xyz_max": [
+        0.519377229903283,
+        0.007355485442773851,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.6020852139652106e-17,
+      "flags": [
+        "salto de tracking VIO 0.682 m > 0.150 m",
+        "velocidad lineal 0.694 > 0.300 m/s",
+        "velocidad angular 14.702 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_23",
+      "written_as": null
+    },
+    "episode_24": {
+      "frames": 600,
+      "raw_max_step_m": 0.4532267025039479,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 57,
+        "position_removed_rms_mm": 32.53567452393162,
+        "orientation_max_rel_angle_rad": 3.3768232826245503,
+        "orientation_spikes_replaced": 41,
+        "orientation_removed_rms_deg": 10.531528050073943
+      },
+      "quaternion_sign_flips": 1,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.006326383952342695,
+      "max_orientation_deviation_rad": 0.553117337659901,
+      "mean_orientation_deviation_rad": 0.21824573035024888,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11843935242972704,
+      "max_angular_speed_rad_s": 5.420745861412664,
+      "tcp_xyz_min": [
+        0.14367382034705292,
+        -0.2296001075886308,
+        0.2169936515308028
+      ],
+      "tcp_xyz_max": [
+        0.5860018758603773,
+        -2.0816681711721685e-17,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [
+        "salto de tracking VIO 0.453 m > 0.150 m",
+        "velocidad angular 5.421 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_24",
+      "written_as": null
+    },
+    "episode_25": {
+      "frames": 682,
+      "raw_max_step_m": 0.08157296929615582,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 69,
+        "position_removed_rms_mm": 9.681718152250808,
+        "orientation_max_rel_angle_rad": 3.3559627061867414,
+        "orientation_spikes_replaced": 56,
+        "orientation_removed_rms_deg": 1.551555993484866
+      },
+      "quaternion_sign_flips": 3,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.02044609652616347,
+      "max_orientation_deviation_rad": 0.5498019921788461,
+      "mean_orientation_deviation_rad": 0.229087039065657,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11912659846118832,
+      "max_angular_speed_rad_s": 5.422090815695061,
+      "tcp_xyz_min": [
+        0.14923328292279014,
+        -0.32044609652616346,
+        0.2525837883344273
+      ],
+      "tcp_xyz_max": [
+        0.5773081016759899,
+        -1.5612511283791264e-17,
+        0.7501052317138417
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [
+        "velocidad angular 5.422 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_25",
+      "written_as": null
+    },
+    "episode_26": {
+      "frames": 343,
+      "raw_max_step_m": 0.03595537312121758,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 32,
+        "position_removed_rms_mm": 8.45829245396506,
+        "orientation_max_rel_angle_rad": 1.6458974088865201,
+        "orientation_spikes_replaced": 35,
+        "orientation_removed_rms_deg": 1.2796247982009121
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0028521364697828844,
+      "max_orientation_deviation_rad": 0.1764609528913239,
+      "mean_orientation_deviation_rad": 0.07895948444420796,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.20025872776100853,
+      "max_angular_speed_rad_s": 0.4417405740829651,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.005583718958905373,
+        0.2507309540587991
+      ],
+      "tcp_xyz_max": [
+        0.6033683572202646,
+        0.040040215664054676,
+        0.7528521364697829
+      ],
+      "start_offset_from_home_m": 3.122502256758253e-17,
+      "flags": [],
+      "source_episode": "episode_26",
+      "written_as": "episode_22"
+    },
+    "episode_27": {
+      "frames": 318,
+      "raw_max_step_m": 0.060268399779046404,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 29,
+        "position_removed_rms_mm": 10.60784375943901,
+        "orientation_max_rel_angle_rad": 1.660573906001662,
+        "orientation_spikes_replaced": 40,
+        "orientation_removed_rms_deg": 1.6179642715305458
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.08490566037735849,
+      "workspace_max_clamp_m": 0.03759451866774175,
+      "max_orientation_deviation_rad": 0.22412923331754964,
+      "mean_orientation_deviation_rad": 0.1422155821173901,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 27,
+      "max_linear_speed_m_s": 0.15963322014126677,
+      "max_angular_speed_rad_s": 0.3905066371453209,
+      "tcp_xyz_min": [
+        0.14971499583378028,
+        -0.060572873537304374,
+        0.26460646735999827
+      ],
+      "tcp_xyz_max": [
+        0.6213349269693562,
+        0.03026251759954436,
+        0.75
+      ],
+      "start_offset_from_home_m": 6.938893903907228e-18,
+      "flags": [],
+      "source_episode": "episode_27",
+      "written_as": "episode_23"
+    },
+    "episode_28": {
+      "frames": 342,
+      "raw_max_step_m": 0.044504834250255094,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 30,
+        "position_removed_rms_mm": 10.78508409077435,
+        "orientation_max_rel_angle_rad": 1.70131252814222,
+        "orientation_spikes_replaced": 34,
+        "orientation_removed_rms_deg": 1.7298252127804663
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.005438586619874757,
+      "max_orientation_deviation_rad": 0.24667825422765255,
+      "mean_orientation_deviation_rad": 0.09468815453008461,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13578048137482898,
+      "max_angular_speed_rad_s": 0.41297414916961594,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.01969952330931414,
+        0.3485202831927857
+      ],
+      "tcp_xyz_max": [
+        0.6162818291104544,
+        0.04001406816057036,
+        0.7516014876354625
+      ],
+      "start_offset_from_home_m": 3.6880726988814706e-17,
+      "flags": [],
+      "source_episode": "episode_28",
+      "written_as": "episode_24"
+    },
+    "episode_29": {
+      "frames": 363,
+      "raw_max_step_m": 0.04968708409168357,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 46,
+        "position_removed_rms_mm": 10.49856335110171,
+        "orientation_max_rel_angle_rad": 1.738836157465003,
+        "orientation_spikes_replaced": 36,
+        "orientation_removed_rms_deg": 1.5224934357736557
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0014958730421431587,
+      "max_orientation_deviation_rad": 0.19743087096258813,
+      "mean_orientation_deviation_rad": 0.10497977088049473,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.110148049068333,
+      "max_angular_speed_rad_s": 0.3518124960090133,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.0032993626680410306,
+        0.35643107928075896
+      ],
+      "tcp_xyz_max": [
+        0.5328130634113867,
+        0.04719720128818146,
+        0.7514958730421432
+      ],
+      "start_offset_from_home_m": 2.2551405187698492e-17,
+      "flags": [],
+      "source_episode": "episode_29",
+      "written_as": "episode_25"
+    },
+    "episode_30": {
+      "frames": 449,
+      "raw_max_step_m": 0.05719361266259451,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 46,
+        "position_removed_rms_mm": 11.548292405197039,
+        "orientation_max_rel_angle_rad": 3.2275193915943863,
+        "orientation_spikes_replaced": 48,
+        "orientation_removed_rms_deg": 1.5908734340088326
+      },
+      "quaternion_sign_flips": 5,
+      "workspace_violation_fraction": 0.45879732739420936,
+      "workspace_max_clamp_m": 0.0999284058790477,
+      "max_orientation_deviation_rad": 0.5438227023507451,
+      "mean_orientation_deviation_rad": 0.2845838739486363,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 206,
+      "max_linear_speed_m_s": 0.18393273609542538,
+      "max_angular_speed_rad_s": 5.416559558858683,
+      "tcp_xyz_min": [
+        0.14406544408164584,
+        -0.09459183890100363,
+        0.4299707326825115
+      ],
+      "tcp_xyz_max": [
+        0.6380653577329806,
+        0.0285023639147545,
+        0.7564611747534317
+      ],
+      "start_offset_from_home_m": 4.5102810375396984e-17,
+      "flags": [
+        "velocidad angular 5.417 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_30",
+      "written_as": null
+    },
+    "episode_31": {
+      "frames": 685,
+      "raw_max_step_m": 0.05873789577341872,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 73,
+        "position_removed_rms_mm": 11.170842578189301,
+        "orientation_max_rel_angle_rad": 3.4221210497045584,
+        "orientation_spikes_replaced": 63,
+        "orientation_removed_rms_deg": 1.6333049321418864
+      },
+      "quaternion_sign_flips": 1,
+      "workspace_violation_fraction": 0.3445255474452555,
+      "workspace_max_clamp_m": 0.05822699141985848,
+      "max_orientation_deviation_rad": 0.5415976085163876,
+      "mean_orientation_deviation_rad": 0.22903407118675176,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 236,
+      "max_linear_speed_m_s": 0.16538457997568898,
+      "max_angular_speed_rad_s": 5.416579765697321,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.09085020489693564,
+        0.2716243147697255
+      ],
+      "tcp_xyz_max": [
+        0.7029979478334644,
+        0.013243612866168649,
+        0.75
+      ],
+      "start_offset_from_home_m": 3.2959746043559335e-17,
+      "flags": [
+        "velocidad angular 5.417 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_31",
+      "written_as": null
+    },
+    "episode_32": {
+      "frames": 728,
+      "raw_max_step_m": 0.04567664621500377,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 56,
+        "position_removed_rms_mm": 5.985580568655102,
+        "orientation_max_rel_angle_rad": 3.307566468746878,
+        "orientation_spikes_replaced": 58,
+        "orientation_removed_rms_deg": 1.2017021370735759
+      },
+      "quaternion_sign_flips": 9,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.5822275788786035,
+      "mean_orientation_deviation_rad": 0.2515520033281878,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.14956189173850504,
+      "max_angular_speed_rad_s": 5.425950410595308,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.009020927147283274,
+        0.36528592475430643
+      ],
+      "tcp_xyz_max": [
+        0.641309480070731,
+        0.05277151240212772,
+        0.7499999999999999
+      ],
+      "start_offset_from_home_m": 1.113606002252634e-16,
+      "flags": [
+        "velocidad angular 5.426 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_32",
+      "written_as": null
+    },
+    "episode_33": {
+      "frames": 346,
+      "raw_max_step_m": 0.06161803652899886,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 43,
+        "position_removed_rms_mm": 8.195661007158654,
+        "orientation_max_rel_angle_rad": 1.6125550038728513,
+        "orientation_spikes_replaced": 36,
+        "orientation_removed_rms_deg": 1.2336412110603316
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.30057803468208094,
+      "workspace_max_clamp_m": 0.04081358607418584,
+      "max_orientation_deviation_rad": 0.2436320909427802,
+      "mean_orientation_deviation_rad": 0.10057138651151676,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 104,
+      "max_linear_speed_m_s": 0.15898222540523416,
+      "max_angular_speed_rad_s": 0.6144077860612245,
+      "tcp_xyz_min": [
+        0.149934123496129,
+        -0.006408194218082081,
+        0.33642349134275085
+      ],
+      "tcp_xyz_max": [
+        0.5549116530024821,
+        0.3408135860741858,
+        0.750808338812182
+      ],
+      "start_offset_from_home_m": 1.9081958235744878e-17,
+      "flags": [],
+      "source_episode": "episode_33",
+      "written_as": "episode_26"
+    },
+    "episode_34": {
+      "frames": 365,
+      "raw_max_step_m": 0.06059511004712987,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 35,
+        "position_removed_rms_mm": 6.519496928078758,
+        "orientation_max_rel_angle_rad": 1.5800477354987583,
+        "orientation_spikes_replaced": 24,
+        "orientation_removed_rms_deg": 0.9683287173609375
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.038356164383561646,
+      "workspace_max_clamp_m": 0.03977765152982226,
+      "max_orientation_deviation_rad": 0.26622508569119563,
+      "mean_orientation_deviation_rad": 0.11268634486581575,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 14,
+      "max_linear_speed_m_s": 0.14990878595693385,
+      "max_angular_speed_rad_s": 0.7855374245701284,
+      "tcp_xyz_min": [
+        0.15009,
+        -2.0816681711721685e-17,
+        0.306083937155146
+      ],
+      "tcp_xyz_max": [
+        0.6427543987471228,
+        0.2182299944344735,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [],
+      "source_episode": "episode_34",
+      "written_as": "episode_27"
+    },
+    "episode_35": {
+      "frames": 593,
+      "raw_max_step_m": 0.06329752419185286,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 45,
+        "position_removed_rms_mm": 6.695027445230665,
+        "orientation_max_rel_angle_rad": 3.26404094090354,
+        "orientation_spikes_replaced": 38,
+        "orientation_removed_rms_deg": 0.9317333974384685
+      },
+      "quaternion_sign_flips": 1,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.004481313161770534,
+      "max_orientation_deviation_rad": 0.610101925782542,
+      "mean_orientation_deviation_rad": 0.2982045132230817,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.16013415226096145,
+      "max_angular_speed_rad_s": 5.416416832927457,
+      "tcp_xyz_min": [
+        0.14699511564059023,
+        -6.938893903907228e-18,
+        0.36250205052515644
+      ],
+      "tcp_xyz_max": [
+        0.6111991476262024,
+        0.3035565518847593,
+        0.75
+      ],
+      "start_offset_from_home_m": 6.938893903907228e-18,
+      "flags": [
+        "velocidad angular 5.416 > 3.000 rad/s"
+      ],
+      "source_episode": "episode_35",
+      "written_as": null
+    },
+    "episode_36": {
+      "frames": 347,
+      "raw_max_step_m": 0.032084483327878305,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 22,
+        "position_removed_rms_mm": 6.8570502975498595,
+        "orientation_max_rel_angle_rad": 0.49668174748625815,
+        "orientation_spikes_replaced": 33,
+        "orientation_removed_rms_deg": 0.9116237563424028
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0004967458314721236,
+      "max_orientation_deviation_rad": 0.2452185374092929,
+      "mean_orientation_deviation_rad": 0.09721445132369601,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11584276713691959,
+      "max_angular_speed_rad_s": 0.19936331330720827,
+      "tcp_xyz_min": [
+        0.14950328290905301,
+        -1.734723475976807e-17,
+        0.3638522498102674
+      ],
+      "tcp_xyz_max": [
+        0.36436518123372214,
+        0.20341605418110814,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.734723475976807e-17,
+      "flags": [],
+      "source_episode": "episode_36",
+      "written_as": "episode_28"
+    },
+    "episode_37": {
+      "frames": 372,
+      "raw_max_step_m": 0.019464248220694338,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 21,
+        "position_removed_rms_mm": 3.8973822476485496,
+        "orientation_max_rel_angle_rad": 0.45998505747166146,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 0.6123437376955448
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.002017927257112584,
+      "max_orientation_deviation_rad": 0.200751971822581,
+      "mean_orientation_deviation_rad": 0.0982731979780632,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.06408324893885137,
+      "max_angular_speed_rad_s": 0.10062169287519007,
+      "tcp_xyz_min": [
+        0.14976891226318256,
+        -0.00018660840598930424,
+        0.3203002733230068
+      ],
+      "tcp_xyz_max": [
+        0.4096476178535479,
+        0.1606507806120192,
+        0.7520179272571126
+      ],
+      "start_offset_from_home_m": 2.9079264368403834e-17,
+      "flags": [],
+      "source_episode": "episode_37",
+      "written_as": "episode_29"
+    },
+    "episode_38": {
+      "frames": 309,
+      "raw_max_step_m": 0.0223788474159349,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 21,
+        "position_removed_rms_mm": 4.4794339739681535,
+        "orientation_max_rel_angle_rad": 0.49639239616644454,
+        "orientation_spikes_replaced": 27,
+        "orientation_removed_rms_deg": 0.7795209847330797
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0009988889995352634,
+      "max_orientation_deviation_rad": 0.3130458082962957,
+      "mean_orientation_deviation_rad": 0.11010553778696773,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10199017423567971,
+      "max_angular_speed_rad_s": 0.15787075970865536,
+      "tcp_xyz_min": [
+        0.15007728669071296,
+        -0.001668465275571884,
+        0.280427287933087
+      ],
+      "tcp_xyz_max": [
+        0.4659220407037271,
+        0.18097344641451735,
+        0.7509988889995353
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_38",
+      "written_as": "episode_30"
+    },
+    "episode_39": {
+      "frames": 303,
+      "raw_max_step_m": 0.031976583457995374,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 7.01279159730663,
+        "orientation_max_rel_angle_rad": 0.5635732256066572,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 1.22053770474271
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 7.847843495989437e-05,
+      "max_orientation_deviation_rad": 0.20948605414916913,
+      "mean_orientation_deviation_rad": 0.06797801930174205,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11566795459153582,
+      "max_angular_speed_rad_s": 0.16083991320753777,
+      "tcp_xyz_min": [
+        0.15009,
+        -2.6020852139652106e-17,
+        0.3873735555107022
+      ],
+      "tcp_xyz_max": [
+        0.4336326357822031,
+        0.18917993315849874,
+        0.7500784784349599
+      ],
+      "start_offset_from_home_m": 2.6020852139652106e-17,
+      "flags": [],
+      "source_episode": "episode_39",
+      "written_as": "episode_31"
+    },
+    "episode_40": {
+      "frames": 269,
+      "raw_max_step_m": 0.0323682316255855,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 19,
+        "position_removed_rms_mm": 7.249896092971445,
+        "orientation_max_rel_angle_rad": 0.6695996086537768,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 1.0346981256639098
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.00139216427489941,
+      "max_orientation_deviation_rad": 0.13789198392683552,
+      "mean_orientation_deviation_rad": 0.07363198726239858,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1150478784009897,
+      "max_angular_speed_rad_s": 0.23907972744966116,
+      "tcp_xyz_min": [
+        0.15009,
+        -8.657309893262896e-05,
+        0.4509648182503809
+      ],
+      "tcp_xyz_max": [
+        0.42116443972672063,
+        0.1320606118817352,
+        0.7513921642748994
+      ],
+      "start_offset_from_home_m": 3.642919299551295e-17,
+      "flags": [],
+      "source_episode": "episode_40",
+      "written_as": "episode_32"
+    },
+    "episode_41": {
+      "frames": 394,
+      "raw_max_step_m": 0.026272360351405906,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 36,
+        "position_removed_rms_mm": 7.4774619067622075,
+        "orientation_max_rel_angle_rad": 0.5371753630348857,
+        "orientation_spikes_replaced": 31,
+        "orientation_removed_rms_deg": 1.2955288903283113
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0002557045707396455,
+      "max_orientation_deviation_rad": 0.19901402034568053,
+      "mean_orientation_deviation_rad": 0.0756691734696382,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.08038351065949206,
+      "max_angular_speed_rad_s": 0.15090798794546914,
+      "tcp_xyz_min": [
+        0.15009,
+        -3.122502256758253e-17,
+        0.32006476252861116
+      ],
+      "tcp_xyz_max": [
+        0.4931592046041674,
+        0.07538752959060195,
+        0.7502557045707396
+      ],
+      "start_offset_from_home_m": 3.122502256758253e-17,
+      "flags": [],
+      "source_episode": "episode_41",
+      "written_as": "episode_33"
+    },
+    "episode_42": {
+      "frames": 268,
+      "raw_max_step_m": 0.04124541732106209,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 25,
+        "position_removed_rms_mm": 8.785851906099518,
+        "orientation_max_rel_angle_rad": 0.5301287149252208,
+        "orientation_spikes_replaced": 30,
+        "orientation_removed_rms_deg": 1.3438959205444823
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.1961356985667288,
+      "mean_orientation_deviation_rad": 0.06877077194078217,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10108390972763241,
+      "max_angular_speed_rad_s": 0.1529752762811836,
+      "tcp_xyz_min": [
+        0.15002321641996552,
+        -3.469446951953614e-18,
+        0.34150825551633435
+      ],
+      "tcp_xyz_max": [
+        0.5045702785499184,
+        0.0916590399768363,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.797157557069881e-17,
+      "flags": [],
+      "source_episode": "episode_42",
+      "written_as": "episode_34"
+    },
+    "episode_43": {
+      "frames": 256,
+      "raw_max_step_m": 0.03168557860053314,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 15,
+        "position_removed_rms_mm": 6.583000568792651,
+        "orientation_max_rel_angle_rad": 0.43548000014011967,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 1.0852570945430058
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0004126252161613664,
+      "max_orientation_deviation_rad": 0.2529190922476761,
+      "mean_orientation_deviation_rad": 0.10943770969746558,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13568404375048349,
+      "max_angular_speed_rad_s": 0.17511507258796893,
+      "tcp_xyz_min": [
+        0.15009,
+        -1.214306433183765e-17,
+        0.33188657855614495
+      ],
+      "tcp_xyz_max": [
+        0.4525190389963827,
+        0.13024220347463372,
+        0.7504126252161614
+      ],
+      "start_offset_from_home_m": 1.214306433183765e-17,
+      "flags": [],
+      "source_episode": "episode_43",
+      "written_as": "episode_35"
+    },
+    "episode_44": {
+      "frames": 281,
+      "raw_max_step_m": 0.01979621391527202,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 24,
+        "position_removed_rms_mm": 5.441436385565172,
+        "orientation_max_rel_angle_rad": 0.5106153799867147,
+        "orientation_spikes_replaced": 23,
+        "orientation_removed_rms_deg": 0.8817267518046263
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 3.032246554279805e-05,
+      "max_orientation_deviation_rad": 0.15875219204980193,
+      "mean_orientation_deviation_rad": 0.07895522570581143,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10222817257086686,
+      "max_angular_speed_rad_s": 0.21901257245549988,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.053867195923818556,
+        0.24845319988374995
+      ],
+      "tcp_xyz_max": [
+        0.531112840891719,
+        0.053108904659174845,
+        0.7500303224655428
+      ],
+      "start_offset_from_home_m": 4.1777673608052095e-17,
+      "flags": [],
+      "source_episode": "episode_44",
+      "written_as": "episode_36"
+    },
+    "episode_45": {
+      "frames": 369,
+      "raw_max_step_m": 0.0281169901608869,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 46,
+        "position_removed_rms_mm": 5.9923930382752815,
+        "orientation_max_rel_angle_rad": 0.46793320745483763,
+        "orientation_spikes_replaced": 39,
+        "orientation_removed_rms_deg": 1.0080647766673576
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0021548674617798817,
+      "max_orientation_deviation_rad": 0.08878370309226528,
+      "mean_orientation_deviation_rad": 0.039724595607661124,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.09407295515714639,
+      "max_angular_speed_rad_s": 0.1668133867238354,
+      "tcp_xyz_min": [
+        0.1478451788117976,
+        -0.12745530792317228,
+        0.2601936993250218
+      ],
+      "tcp_xyz_max": [
+        0.4846128087141348,
+        0.006694339281469862,
+        0.75
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_45",
+      "written_as": "episode_37"
+    },
+    "episode_46": {
+      "frames": 324,
+      "raw_max_step_m": 0.05963054698312439,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 29,
+        "position_removed_rms_mm": 8.809904170190835,
+        "orientation_max_rel_angle_rad": 0.6338350727054477,
+        "orientation_spikes_replaced": 27,
+        "orientation_removed_rms_deg": 1.2965731953856994
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0013081768767278794,
+      "max_orientation_deviation_rad": 0.0754187337704427,
+      "mean_orientation_deviation_rad": 0.03636203917641003,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1067815319942805,
+      "max_angular_speed_rad_s": 0.17920952037972,
+      "tcp_xyz_min": [
+        0.14869182972174433,
+        -0.02678668388205583,
+        0.23874464598957956
+      ],
+      "tcp_xyz_max": [
+        0.5453895283164909,
+        0.03969972979719708,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.9081958235744878e-17,
+      "flags": [],
+      "source_episode": "episode_46",
+      "written_as": "episode_38"
+    },
+    "episode_47": {
+      "frames": 360,
+      "raw_max_step_m": 0.028661974288341708,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 7.447966264910455,
+        "orientation_max_rel_angle_rad": 0.5001610305415853,
+        "orientation_spikes_replaced": 34,
+        "orientation_removed_rms_deg": 1.2265379581264708
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0009056075528289798,
+      "max_orientation_deviation_rad": 0.09316066944389689,
+      "mean_orientation_deviation_rad": 0.052240100384937975,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.08974788336372799,
+      "max_angular_speed_rad_s": 0.16489630469957034,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.14705593515557,
+        0.25081741176070377
+      ],
+      "tcp_xyz_max": [
+        0.4991396623672879,
+        0.001245919193790565,
+        0.750905607552829
+      ],
+      "start_offset_from_home_m": 3.925231146709438e-17,
+      "flags": [],
+      "source_episode": "episode_47",
+      "written_as": "episode_39"
+    },
+    "episode_48": {
+      "frames": 387,
+      "raw_max_step_m": 0.04904566323034268,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 44,
+        "position_removed_rms_mm": 8.742308178240993,
+        "orientation_max_rel_angle_rad": 0.5027086706889393,
+        "orientation_spikes_replaced": 32,
+        "orientation_removed_rms_deg": 1.1985624808842514
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0011997686667635232,
+      "max_orientation_deviation_rad": 0.1737577574327582,
+      "mean_orientation_deviation_rad": 0.06552078181710029,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10446522825749341,
+      "max_angular_speed_rad_s": 0.15987815269933625,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.15449137260974624,
+        0.2239217941819555
+      ],
+      "tcp_xyz_max": [
+        0.5125277508361538,
+        0.01294652547549726,
+        0.7511997686667635
+      ],
+      "start_offset_from_home_m": 4.718958039861916e-17,
+      "flags": [],
+      "source_episode": "episode_48",
+      "written_as": "episode_40"
+    },
+    "episode_49": {
+      "frames": 261,
+      "raw_max_step_m": 0.05716913437975868,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 16,
+        "position_removed_rms_mm": 11.19400873741802,
+        "orientation_max_rel_angle_rad": 0.47496483282500096,
+        "orientation_spikes_replaced": 23,
+        "orientation_removed_rms_deg": 1.3508708480536376
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.10150781773157781,
+      "mean_orientation_deviation_rad": 0.03481827520623183,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.151998118619412,
+      "max_angular_speed_rad_s": 0.17324683255678508,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.1797992629014794,
+        0.23458678777662945
+      ],
+      "tcp_xyz_max": [
+        0.5107675991823772,
+        0.004585963679473181,
+        0.75
+      ],
+      "start_offset_from_home_m": 4.579801393138379e-17,
+      "flags": [],
+      "source_episode": "episode_49",
+      "written_as": "episode_41"
+    },
+    "episode_50": {
+      "frames": 270,
+      "raw_max_step_m": 0.029326564885790787,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 11,
+        "position_removed_rms_mm": 7.301310833572948,
+        "orientation_max_rel_angle_rad": 0.43364276123077505,
+        "orientation_spikes_replaced": 15,
+        "orientation_removed_rms_deg": 1.1175879645133522
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 1.5428736013234357e-05,
+      "max_orientation_deviation_rad": 0.06348225120857415,
+      "mean_orientation_deviation_rad": 0.023965338889893127,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12327164224648376,
+      "max_angular_speed_rad_s": 0.14621830630368374,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.11158601076432006,
+        0.22528486262579134
+      ],
+      "tcp_xyz_max": [
+        0.5324437752075498,
+        -2.2551405187698492e-17,
+        0.7500154287360132
+      ],
+      "start_offset_from_home_m": 2.2551405187698492e-17,
+      "flags": [],
+      "source_episode": "episode_50",
+      "written_as": "episode_42"
+    },
+    "episode_51": {
+      "frames": 281,
+      "raw_max_step_m": 0.040483092632438336,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 26,
+        "position_removed_rms_mm": 9.692935953117475,
+        "orientation_max_rel_angle_rad": 0.5556740504139572,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 1.2674491848268867
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0007978612976323854,
+      "max_orientation_deviation_rad": 0.12291375028964587,
+      "mean_orientation_deviation_rad": 0.07392686657003764,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.14815258245507354,
+      "max_angular_speed_rad_s": 0.25492389662944087,
+      "tcp_xyz_min": [
+        0.1495743359743275,
+        -0.20318136932175554,
+        0.32583908317736177
+      ],
+      "tcp_xyz_max": [
+        0.4727974142337701,
+        -3.469446951953614e-17,
+        0.7506748009942433
+      ],
+      "start_offset_from_home_m": 4.443059973708341e-17,
+      "flags": [],
+      "source_episode": "episode_51",
+      "written_as": "episode_43"
+    },
+    "episode_52": {
+      "frames": 318,
+      "raw_max_step_m": 0.04844703702130888,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 43,
+        "position_removed_rms_mm": 10.037028007446,
+        "orientation_max_rel_angle_rad": 0.3698996762951627,
+        "orientation_spikes_replaced": 28,
+        "orientation_removed_rms_deg": 1.245211406485113
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0008436109551406279,
+      "max_orientation_deviation_rad": 0.06451769823577902,
+      "mean_orientation_deviation_rad": 0.034678048647251304,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10770512736540923,
+      "max_angular_speed_rad_s": 0.14735687534323613,
+      "tcp_xyz_min": [
+        0.14951205886790048,
+        -0.25626747309122927,
+        0.22517437433356918
+      ],
+      "tcp_xyz_max": [
+        0.5167661725463011,
+        -1.3877787807814457e-17,
+        0.7508436109551406
+      ],
+      "start_offset_from_home_m": 1.3877787807814457e-17,
+      "flags": [],
+      "source_episode": "episode_52",
+      "written_as": "episode_44"
+    },
+    "episode_53": {
+      "frames": 246,
+      "raw_max_step_m": 0.047575521041442595,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 14,
+        "position_removed_rms_mm": 8.25601090416955,
+        "orientation_max_rel_angle_rad": 0.5299828190137078,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 1.1764544856170318
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0009115908441565956,
+      "max_orientation_deviation_rad": 0.06247297858685347,
+      "mean_orientation_deviation_rad": 0.01948839192933679,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.17206774846955136,
+      "max_angular_speed_rad_s": 0.24029170929203214,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.2744127515106363,
+        0.23181083411291567
+      ],
+      "tcp_xyz_max": [
+        0.5533109113550333,
+        -1.5612511283791264e-17,
+        0.7509115908441566
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [],
+      "source_episode": "episode_53",
+      "written_as": "episode_45"
+    },
+    "episode_54": {
+      "frames": 305,
+      "raw_max_step_m": 0.05099518220986765,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 28,
+        "position_removed_rms_mm": 8.39416258084503,
+        "orientation_max_rel_angle_rad": 0.5311629882540284,
+        "orientation_spikes_replaced": 33,
+        "orientation_removed_rms_deg": 1.1518437087189766
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0021893835005297735,
+      "max_orientation_deviation_rad": 0.1677801643038709,
+      "mean_orientation_deviation_rad": 0.09743857935181274,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.13093424875510676,
+      "max_angular_speed_rad_s": 0.1887810291905691,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.23778231891976037,
+        0.3097740998371018
+      ],
+      "tcp_xyz_max": [
+        0.5103828984837929,
+        0.0008487949892443288,
+        0.7521893835005298
+      ],
+      "start_offset_from_home_m": 1.0408340855860843e-17,
+      "flags": [],
+      "source_episode": "episode_54",
+      "written_as": "episode_46"
+    },
+    "episode_55": {
+      "frames": 316,
+      "raw_max_step_m": 0.05374494651454413,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 31,
+        "position_removed_rms_mm": 11.195172998600848,
+        "orientation_max_rel_angle_rad": 0.6030912648608875,
+        "orientation_spikes_replaced": 19,
+        "orientation_removed_rms_deg": 1.6967730976079094
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.21586983938195267,
+      "mean_orientation_deviation_rad": 0.11754479206387668,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1160362019295619,
+      "max_angular_speed_rad_s": 0.17245256157181185,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.20264818790424577,
+        0.3106100014501983
+      ],
+      "tcp_xyz_max": [
+        0.48882369416912436,
+        0.0043278556488876505,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.7755575615628914e-17,
+      "flags": [],
+      "source_episode": "episode_55",
+      "written_as": "episode_47"
+    },
+    "episode_56": {
+      "frames": 284,
+      "raw_max_step_m": 0.017679848180058702,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 18,
+        "position_removed_rms_mm": 3.5209369980360132,
+        "orientation_max_rel_angle_rad": 0.5539506553420829,
+        "orientation_spikes_replaced": 20,
+        "orientation_removed_rms_deg": 0.430768303254053
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.018718223212264407,
+      "max_orientation_deviation_rad": 0.19562676950954108,
+      "mean_orientation_deviation_rad": 0.1276970481999081,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10930333058305575,
+      "max_angular_speed_rad_s": 0.22599253907779943,
+      "tcp_xyz_min": [
+        0.14862783417182643,
+        -0.3187182232122644,
+        0.36089555447695837
+      ],
+      "tcp_xyz_max": [
+        0.44214070025819413,
+        -1.734723475976807e-17,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.734723475976807e-17,
+      "flags": [],
+      "source_episode": "episode_56",
+      "written_as": "episode_48"
+    },
+    "episode_57": {
+      "frames": 301,
+      "raw_max_step_m": 0.02022063969325534,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 18,
+        "position_removed_rms_mm": 3.909294366707853,
+        "orientation_max_rel_angle_rad": 0.45903116656084547,
+        "orientation_spikes_replaced": 22,
+        "orientation_removed_rms_deg": 0.45402664273328924
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.2159468438538206,
+      "workspace_max_clamp_m": 0.039518768787494385,
+      "max_orientation_deviation_rad": 0.12803353604461618,
+      "mean_orientation_deviation_rad": 0.04519412252864075,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 65,
+      "max_linear_speed_m_s": 0.1011582477499949,
+      "max_angular_speed_rad_s": 0.16321824049522562,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.3395187687874944,
+        0.2894761430792147
+      ],
+      "tcp_xyz_max": [
+        0.5009374208564987,
+        0.0018950524105684641,
+        0.7516788587810876
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_57",
+      "written_as": "episode_49"
+    },
+    "episode_58": {
+      "frames": 297,
+      "raw_max_step_m": 0.018228776618128006,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 11,
+        "position_removed_rms_mm": 3.4364177596996255,
+        "orientation_max_rel_angle_rad": 0.5213880621304171,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 0.43570385752135915
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0007813706697715419,
+      "max_orientation_deviation_rad": 0.17158216276995764,
+      "mean_orientation_deviation_rad": 0.09494558070874108,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.09492626054902899,
+      "max_angular_speed_rad_s": 0.19113786932901672,
+      "tcp_xyz_min": [
+        0.14921914866130068,
+        -0.2896748242963887,
+        0.3502465778668517
+      ],
+      "tcp_xyz_max": [
+        0.482148832093963,
+        0.0067935106216966985,
+        0.7505075855572433
+      ],
+      "start_offset_from_home_m": 1.2842812937341184e-16,
+      "flags": [],
+      "source_episode": "episode_58",
+      "written_as": "episode_50"
+    },
+    "episode_59": {
+      "frames": 268,
+      "raw_max_step_m": 0.05601798877153476,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 19,
+        "position_removed_rms_mm": 12.575112135223645,
+        "orientation_max_rel_angle_rad": 0.3701704639343776,
+        "orientation_spikes_replaced": 26,
+        "orientation_removed_rms_deg": 1.3469873957841045
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.020544957645797557,
+      "max_orientation_deviation_rad": 0.1845451637168623,
+      "mean_orientation_deviation_rad": 0.06977023974029938,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.14884240553359773,
+      "max_angular_speed_rad_s": 0.2578570593693416,
+      "tcp_xyz_min": [
+        0.1295731470850103,
+        -1.5612511283791264e-17,
+        0.4331256031437703
+      ],
+      "tcp_xyz_max": [
+        0.44142360356228616,
+        0.06977774248925696,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [],
+      "source_episode": "episode_59",
+      "written_as": "episode_51"
+    },
+    "episode_60": {
+      "frames": 290,
+      "raw_max_step_m": 0.0510041088054273,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 27,
+        "position_removed_rms_mm": 12.678240177675962,
+        "orientation_max_rel_angle_rad": 0.42497786176902996,
+        "orientation_spikes_replaced": 30,
+        "orientation_removed_rms_deg": 1.5138495098886917
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.1351987451500305,
+      "mean_orientation_deviation_rad": 0.0455593598767538,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12181110718220917,
+      "max_angular_speed_rad_s": 0.21057201593707786,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.017937579661986537,
+        0.3473777502014854
+      ],
+      "tcp_xyz_max": [
+        0.5499437155460989,
+        0.04220547607098017,
+        0.75
+      ],
+      "start_offset_from_home_m": 3.6880726988814706e-17,
+      "flags": [],
+      "source_episode": "episode_60",
+      "written_as": "episode_52"
+    },
+    "episode_61": {
+      "frames": 274,
+      "raw_max_step_m": 0.08578928689023413,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 36,
+        "position_removed_rms_mm": 12.49648698563436,
+        "orientation_max_rel_angle_rad": 0.3784496818083226,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 1.339030296023163
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.2137321407744772,
+      "mean_orientation_deviation_rad": 0.08640512345273142,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11756754112232994,
+      "max_angular_speed_rad_s": 0.19869469006504878,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.03776356361859035,
+        0.28872359028126093
+      ],
+      "tcp_xyz_max": [
+        0.5734632717930195,
+        0.04813892556994376,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.42861286636753e-17,
+      "flags": [],
+      "source_episode": "episode_61",
+      "written_as": "episode_53"
+    },
+    "episode_62": {
+      "frames": 301,
+      "raw_max_step_m": 0.08360217057682025,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 29,
+        "position_removed_rms_mm": 14.572608944035032,
+        "orientation_max_rel_angle_rad": 0.32824220390380315,
+        "orientation_spikes_replaced": 31,
+        "orientation_removed_rms_deg": 1.4602403472817662
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.20820757003499726,
+      "mean_orientation_deviation_rad": 0.0883075460657202,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1598235532359859,
+      "max_angular_speed_rad_s": 0.243117834864228,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.010153268225356914,
+        0.26048676561512585
+      ],
+      "tcp_xyz_max": [
+        0.5452136768079284,
+        0.08381577052533842,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.2551405187698492e-17,
+      "flags": [],
+      "source_episode": "episode_62",
+      "written_as": "episode_54"
+    },
+    "episode_63": {
+      "frames": 318,
+      "raw_max_step_m": 0.06379921752204194,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 33,
+        "position_removed_rms_mm": 13.259131301246896,
+        "orientation_max_rel_angle_rad": 0.40297037112420425,
+        "orientation_spikes_replaced": 31,
+        "orientation_removed_rms_deg": 1.3528102835704103
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.1331869257072053,
+      "mean_orientation_deviation_rad": 0.06923753688197036,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12327053883248279,
+      "max_angular_speed_rad_s": 0.1919866056116434,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.07536078202135559,
+        0.3249006047539488
+      ],
+      "tcp_xyz_max": [
+        0.539275700583819,
+        0.016117335741492694,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.42861286636753e-17,
+      "flags": [],
+      "source_episode": "episode_63",
+      "written_as": "episode_55"
+    },
+    "episode_64": {
+      "frames": 374,
+      "raw_max_step_m": 0.09051643050780256,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 33,
+        "position_removed_rms_mm": 9.762256967001113,
+        "orientation_max_rel_angle_rad": 0.5058800041749579,
+        "orientation_spikes_replaced": 41,
+        "orientation_removed_rms_deg": 1.082700928827409
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0006404487614255629,
+      "max_orientation_deviation_rad": 0.13657278029981917,
+      "mean_orientation_deviation_rad": 0.06487556223072616,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11842814536316068,
+      "max_angular_speed_rad_s": 0.19350509641918703,
+      "tcp_xyz_min": [
+        0.1496600353198476,
+        -0.12500906042095383,
+        0.29278228095511166
+      ],
+      "tcp_xyz_max": [
+        0.6268263650475591,
+        -1.9081958235744878e-17,
+        0.7505427665880824
+      ],
+      "start_offset_from_home_m": 3.3682237275240583e-17,
+      "flags": [],
+      "source_episode": "episode_64",
+      "written_as": "episode_56"
+    },
+    "episode_65": {
+      "frames": 344,
+      "raw_max_step_m": 0.08682814670801997,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 37,
+        "position_removed_rms_mm": 13.190759629499816,
+        "orientation_max_rel_angle_rad": 0.4646604964480656,
+        "orientation_spikes_replaced": 35,
+        "orientation_removed_rms_deg": 1.49012877788439
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0015809385332616198,
+      "max_orientation_deviation_rad": 0.20634176970174964,
+      "mean_orientation_deviation_rad": 0.0833187162743134,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12019024219431124,
+      "max_angular_speed_rad_s": 0.2006869875692684,
+      "tcp_xyz_min": [
+        0.1490835717115855,
+        -0.05978351268942936,
+        0.20265067158312763
+      ],
+      "tcp_xyz_max": [
+        0.6133876305250845,
+        0.01435164444306905,
+        0.7514409717555093
+      ],
+      "start_offset_from_home_m": 1.5612511283791264e-17,
+      "flags": [],
+      "source_episode": "episode_65",
+      "written_as": "episode_57"
+    },
+    "episode_66": {
+      "frames": 274,
+      "raw_max_step_m": 0.05934613104456782,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 31,
+        "position_removed_rms_mm": 14.410935846342376,
+        "orientation_max_rel_angle_rad": 0.5132155539529241,
+        "orientation_spikes_replaced": 33,
+        "orientation_removed_rms_deg": 1.46688635582643
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.002963249645511687,
+      "max_orientation_deviation_rad": 0.059700659971976856,
+      "mean_orientation_deviation_rad": 0.02706015677599319,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.20048151238701492,
+      "max_angular_speed_rad_s": 0.21571588932048585,
+      "tcp_xyz_min": [
+        0.1470367850729241,
+        -0.11556635758698769,
+        0.34431385309482054
+      ],
+      "tcp_xyz_max": [
+        0.5538484160450365,
+        0.004380518034162912,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.7755575615628914e-17,
+      "flags": [],
+      "source_episode": "episode_66",
+      "written_as": "episode_58"
+    },
+    "episode_67": {
+      "frames": 263,
+      "raw_max_step_m": 0.058032234003401593,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 34,
+        "position_removed_rms_mm": 12.951896989232727,
+        "orientation_max_rel_angle_rad": 0.4758055039090918,
+        "orientation_spikes_replaced": 45,
+        "orientation_removed_rms_deg": 1.4787667094952255
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0007010081951110762,
+      "max_orientation_deviation_rad": 0.09402299246559342,
+      "mean_orientation_deviation_rad": 0.05226522196432711,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.20533383112945958,
+      "max_angular_speed_rad_s": 0.21805107060513684,
+      "tcp_xyz_min": [
+        0.14929901712231544,
+        -0.17137583562667782,
+        0.25783323746157083
+      ],
+      "tcp_xyz_max": [
+        0.5729770534568612,
+        0.004652895006447234,
+        0.7500048430457189
+      ],
+      "start_offset_from_home_m": 1.214306433183765e-17,
+      "flags": [],
+      "source_episode": "episode_67",
+      "written_as": "episode_59"
+    },
+    "episode_68": {
+      "frames": 299,
+      "raw_max_step_m": 0.08036334539446474,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 30,
+        "position_removed_rms_mm": 14.211761266816305,
+        "orientation_max_rel_angle_rad": 0.5379660566760165,
+        "orientation_spikes_replaced": 32,
+        "orientation_removed_rms_deg": 1.5834822941125062
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0003713799630659362,
+      "max_orientation_deviation_rad": 0.07446121065573398,
+      "mean_orientation_deviation_rad": 0.026303927096651587,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.14337803780191566,
+      "max_angular_speed_rad_s": 0.19223807290310435,
+      "tcp_xyz_min": [
+        0.14962866102041167,
+        -0.17078613702455706,
+        0.2709448190641307
+      ],
+      "tcp_xyz_max": [
+        0.5639243519638245,
+        -2.7755575615628914e-17,
+        0.75
+      ],
+      "start_offset_from_home_m": 3.925231146709438e-17,
+      "flags": [],
+      "source_episode": "episode_68",
+      "written_as": "episode_60"
+    },
+    "episode_69": {
+      "frames": 343,
+      "raw_max_step_m": 0.05256501163316509,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 25,
+        "position_removed_rms_mm": 11.661212198138049,
+        "orientation_max_rel_angle_rad": 0.517172625096011,
+        "orientation_spikes_replaced": 28,
+        "orientation_removed_rms_deg": 1.372398638881394
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0006315356758755532,
+      "max_orientation_deviation_rad": 0.12395736998257961,
+      "mean_orientation_deviation_rad": 0.0648375455481419,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.15313784933825642,
+      "max_angular_speed_rad_s": 0.16673384651289894,
+      "tcp_xyz_min": [
+        0.1493684735449372,
+        -0.19743239807861596,
+        0.2738166679556334
+      ],
+      "tcp_xyz_max": [
+        0.5657865600669068,
+        0.0008209943327344548,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.949029909160572e-17,
+      "flags": [],
+      "source_episode": "episode_69",
+      "written_as": "episode_61"
+    },
+    "episode_70": {
+      "frames": 303,
+      "raw_max_step_m": 0.06814160874658079,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 34,
+        "position_removed_rms_mm": 13.922034620632829,
+        "orientation_max_rel_angle_rad": 0.546219336312522,
+        "orientation_spikes_replaced": 36,
+        "orientation_removed_rms_deg": 1.552063451792486
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0005496291371733797,
+      "max_orientation_deviation_rad": 0.10268482474161049,
+      "mean_orientation_deviation_rad": 0.05185551460100254,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.17907923183040336,
+      "max_angular_speed_rad_s": 0.22358867601178625,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.1723037091588073,
+        0.34939528983557677
+      ],
+      "tcp_xyz_max": [
+        0.5634325652140246,
+        -1.214306433183765e-17,
+        0.7505496291371734
+      ],
+      "start_offset_from_home_m": 1.214306433183765e-17,
+      "flags": [],
+      "source_episode": "episode_70",
+      "written_as": "episode_62"
+    },
+    "episode_71": {
+      "frames": 266,
+      "raw_max_step_m": 0.03254131227941441,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 24,
+        "position_removed_rms_mm": 7.094968332883624,
+        "orientation_max_rel_angle_rad": 0.4920987095931876,
+        "orientation_spikes_replaced": 20,
+        "orientation_removed_rms_deg": 0.8355403367503687
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 3.8039778067092877e-06,
+      "max_orientation_deviation_rad": 0.1860383446815642,
+      "mean_orientation_deviation_rad": 0.13516482549778638,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12387433556519789,
+      "max_angular_speed_rad_s": 0.2020637561625183,
+      "tcp_xyz_min": [
+        0.14999619602248745,
+        -0.004531328433596433,
+        0.2872577517478543
+      ],
+      "tcp_xyz_max": [
+        0.4064603815964599,
+        0.04782505136436532,
+        0.75
+      ],
+      "start_offset_from_home_m": 2.0816681711721685e-17,
+      "flags": [],
+      "source_episode": "episode_71",
+      "written_as": "episode_63"
+    },
+    "episode_72": {
+      "frames": 348,
+      "raw_max_step_m": 0.025945046593256114,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 14,
+        "position_removed_rms_mm": 6.04209142989344,
+        "orientation_max_rel_angle_rad": 0.4734913866705057,
+        "orientation_spikes_replaced": 31,
+        "orientation_removed_rms_deg": 0.8524638656461304
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.006524055187348443,
+      "max_orientation_deviation_rad": 0.21580267823324328,
+      "mean_orientation_deviation_rad": 0.1206957974638796,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.10393358554659246,
+      "max_angular_speed_rad_s": 0.21308369013506345,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.1160763137237713,
+        0.20069406615040855
+      ],
+      "tcp_xyz_max": [
+        0.48738774342113494,
+        0.00567047144565002,
+        0.7565240551873484
+      ],
+      "start_offset_from_home_m": 2.2551405187698492e-17,
+      "flags": [],
+      "source_episode": "episode_72",
+      "written_as": "episode_64"
+    },
+    "episode_73": {
+      "frames": 287,
+      "raw_max_step_m": 0.034006397383903805,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 21,
+        "position_removed_rms_mm": 6.684216105937341,
+        "orientation_max_rel_angle_rad": 0.40076281635781713,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 0.9936315700299658
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0006963132361441158,
+      "max_orientation_deviation_rad": 0.15060364276556532,
+      "mean_orientation_deviation_rad": 0.07741294794270913,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.09717296443010669,
+      "max_angular_speed_rad_s": 0.12783837596821107,
+      "tcp_xyz_min": [
+        0.14930369089654094,
+        -0.07299328802838702,
+        0.1935730364063261
+      ],
+      "tcp_xyz_max": [
+        0.43671496033766877,
+        0.006213202920998476,
+        0.75
+      ],
+      "start_offset_from_home_m": 6.13071990641655e-17,
+      "flags": [],
+      "source_episode": "episode_73",
+      "written_as": "episode_65"
+    },
+    "episode_74": {
+      "frames": 268,
+      "raw_max_step_m": 0.03079164645724987,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 23,
+        "position_removed_rms_mm": 7.611475339681802,
+        "orientation_max_rel_angle_rad": 0.44353807052830696,
+        "orientation_spikes_replaced": 27,
+        "orientation_removed_rms_deg": 1.1189378085253192
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0019324267745641417,
+      "max_orientation_deviation_rad": 0.09704614451965642,
+      "mean_orientation_deviation_rad": 0.06402978044460435,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.07637454948242656,
+      "max_angular_speed_rad_s": 0.137484807208619,
+      "tcp_xyz_min": [
+        0.14806758548880306,
+        -0.056010433732635354,
+        0.37459479878117874
+      ],
+      "tcp_xyz_max": [
+        0.3835307492071783,
+        0.0011338339289126177,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.9081958235744878e-17,
+      "flags": [],
+      "source_episode": "episode_74",
+      "written_as": "episode_66"
+    },
+    "episode_75": {
+      "frames": 274,
+      "raw_max_step_m": 0.050289595933776875,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 22,
+        "position_removed_rms_mm": 13.05216076792408,
+        "orientation_max_rel_angle_rad": 0.4662065193499548,
+        "orientation_spikes_replaced": 21,
+        "orientation_removed_rms_deg": 1.3327401405584622
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 7.200072085455922e-05,
+      "max_orientation_deviation_rad": 0.22661566189250462,
+      "mean_orientation_deviation_rad": 0.15093140883007142,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.12140262109176955,
+      "max_angular_speed_rad_s": 0.20796546059728072,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.03477156802472149,
+        0.36249781390576397
+      ],
+      "tcp_xyz_max": [
+        0.6165649000708172,
+        0.04820959082068323,
+        0.7500720007208546
+      ],
+      "start_offset_from_home_m": 1.0408340855860843e-17,
+      "flags": [],
+      "source_episode": "episode_75",
+      "written_as": "episode_67"
+    },
+    "episode_76": {
+      "frames": 282,
+      "raw_max_step_m": 0.05843811577158492,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 37,
+        "position_removed_rms_mm": 13.05764137924397,
+        "orientation_max_rel_angle_rad": 0.3988867033641462,
+        "orientation_spikes_replaced": 26,
+        "orientation_removed_rms_deg": 1.3687549539290371
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.002824392025278771,
+      "max_orientation_deviation_rad": 0.176442967293207,
+      "mean_orientation_deviation_rad": 0.12162240418916231,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1293955457367703,
+      "max_angular_speed_rad_s": 0.22379633512657604,
+      "tcp_xyz_min": [
+        0.1471770394944758,
+        -0.03801552060823593,
+        0.37540045391343213
+      ],
+      "tcp_xyz_max": [
+        0.5783142139935871,
+        0.0005432905305723778,
+        0.7500213089491196
+      ],
+      "start_offset_from_home_m": 5.204170427930421e-18,
+      "flags": [],
+      "source_episode": "episode_76",
+      "written_as": "episode_68"
+    },
+    "episode_77": {
+      "frames": 278,
+      "raw_max_step_m": 0.08823874918125854,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 29,
+        "position_removed_rms_mm": 14.101998657112416,
+        "orientation_max_rel_angle_rad": 0.5507362023305071,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 1.4371506546414516
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0230406715313705,
+      "max_orientation_deviation_rad": 0.1464261030225559,
+      "mean_orientation_deviation_rad": 0.09849223062148042,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.1412381825211728,
+      "max_angular_speed_rad_s": 0.24060663173966354,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.008022697512969072,
+        0.3499193777571589
+      ],
+      "tcp_xyz_max": [
+        0.5179932256143329,
+        0.05250129112276669,
+        0.7547459035896167
+      ],
+      "start_offset_from_home_m": 4.3089637234616164e-17,
+      "flags": [],
+      "source_episode": "episode_77",
+      "written_as": "episode_69"
+    },
+    "episode_78": {
+      "frames": 315,
+      "raw_max_step_m": 0.05713720709183772,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 24,
+        "position_removed_rms_mm": 10.357978341670526,
+        "orientation_max_rel_angle_rad": 0.4491078251218229,
+        "orientation_spikes_replaced": 28,
+        "orientation_removed_rms_deg": 1.030234533604242
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.007200883324434997,
+      "max_orientation_deviation_rad": 0.1303906601175198,
+      "mean_orientation_deviation_rad": 0.07381130590492332,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11895042660786345,
+      "max_angular_speed_rad_s": 0.16283250053722786,
+      "tcp_xyz_min": [
+        0.14280061172587039,
+        -0.04874534163986119,
+        0.3279618086818428
+      ],
+      "tcp_xyz_max": [
+        0.5419664609288595,
+        0.026982051629914745,
+        0.75
+      ],
+      "start_offset_from_home_m": 6.639709341020816e-17,
+      "flags": [],
+      "source_episode": "episode_78",
+      "written_as": "episode_70"
+    },
+    "episode_79": {
+      "frames": 259,
+      "raw_max_step_m": 0.0450062709520827,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 20,
+        "position_removed_rms_mm": 6.499088786327743,
+        "orientation_max_rel_angle_rad": 0.5360666607435427,
+        "orientation_spikes_replaced": 20,
+        "orientation_removed_rms_deg": 0.5795410301434853
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.138996138996139,
+      "workspace_max_clamp_m": 0.03817778731004226,
+      "max_orientation_deviation_rad": 0.14326562410404506,
+      "mean_orientation_deviation_rad": 0.06677153073921281,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 36,
+      "max_linear_speed_m_s": 0.13849248995505634,
+      "max_angular_speed_rad_s": 0.16628444227502442,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.2995520987154999,
+        0.37079529538973766
+      ],
+      "tcp_xyz_max": [
+        0.597650522750967,
+        0.00413186921671492,
+        0.7512657683566843
+      ],
+      "start_offset_from_home_m": 8.673617379884035e-18,
+      "flags": [],
+      "source_episode": "episode_79",
+      "written_as": "episode_71"
+    },
+    "episode_80": {
+      "frames": 349,
+      "raw_max_step_m": 0.06325754026205198,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 17,
+        "position_removed_rms_mm": 8.158388176156276,
+        "orientation_max_rel_angle_rad": 0.6428064152955664,
+        "orientation_spikes_replaced": 25,
+        "orientation_removed_rms_deg": 0.7885394132668638
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.018813588623782174,
+      "max_orientation_deviation_rad": 0.24922204416161672,
+      "mean_orientation_deviation_rad": 0.11532394548515885,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11590339243391937,
+      "max_angular_speed_rad_s": 0.18075428218953793,
+      "tcp_xyz_min": [
+        0.15008999999999997,
+        -0.001219091316188482,
+        0.33968412305591134
+      ],
+      "tcp_xyz_max": [
+        0.6028328321267925,
+        0.2575266341421309,
+        0.7510166092791896
+      ],
+      "start_offset_from_home_m": 3.804545602077247e-17,
+      "flags": [],
+      "source_episode": "episode_80",
+      "written_as": "episode_72"
+    },
+    "episode_81": {
+      "frames": 386,
+      "raw_max_step_m": 0.03593165144540074,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 33,
+        "position_removed_rms_mm": 8.015487268722508,
+        "orientation_max_rel_angle_rad": 0.9785213136605645,
+        "orientation_spikes_replaced": 34,
+        "orientation_removed_rms_deg": 1.0474310103572464
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0,
+      "max_orientation_deviation_rad": 0.06362709643691204,
+      "mean_orientation_deviation_rad": 0.02050977802861928,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.11160278025271293,
+      "max_angular_speed_rad_s": 0.36652116882354174,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.09027674381928288,
+        0.3523272411674734
+      ],
+      "tcp_xyz_max": [
+        0.5025593016461225,
+        1.3181767425051588e-05,
+        0.75
+      ],
+      "start_offset_from_home_m": 1.214306433183765e-17,
+      "flags": [],
+      "source_episode": "episode_81",
+      "written_as": "episode_73"
+    },
+    "episode_82": {
+      "frames": 400,
+      "raw_max_step_m": 0.05825554907498026,
+      "trajectory_filter": {
+        "filter": {
+          "enabled": true,
+          "hampel_half_window": 3,
+          "hampel_n_sigma": 3.0,
+          "lowpass_cutoff_hz": 1.5,
+          "lowpass_order": 4,
+          "filter_orientation": true
+        },
+        "position_spikes_replaced": 39,
+        "position_removed_rms_mm": 10.92681462074599,
+        "orientation_max_rel_angle_rad": 1.0314510325138797,
+        "orientation_spikes_replaced": 32,
+        "orientation_removed_rms_deg": 1.2775548816144469
+      },
+      "quaternion_sign_flips": 0,
+      "workspace_violation_fraction": 0.0,
+      "workspace_max_clamp_m": 0.0009034252340419657,
+      "max_orientation_deviation_rad": 0.10915284556589955,
+      "mean_orientation_deviation_rad": 0.055194501607323296,
+      "frames_over_deviation": 0,
+      "workspace_violation_frames": 0,
+      "max_linear_speed_m_s": 0.0847692833456115,
+      "max_angular_speed_rad_s": 0.23642018759564137,
+      "tcp_xyz_min": [
+        0.15009,
+        -0.10339123918520943,
+        0.24936953880060042
+      ],
+      "tcp_xyz_max": [
+        0.5234148774209657,
+        -3.469446951953614e-18,
+        0.750903425234042
+      ],
+      "start_offset_from_home_m": 3.469446951953614e-18,
+      "flags": [],
+      "source_episode": "episode_82",
+      "written_as": "episode_74"
+    }
+  }
+}
