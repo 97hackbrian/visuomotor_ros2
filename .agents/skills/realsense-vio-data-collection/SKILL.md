@@ -206,7 +206,9 @@ sintética, el A4 7×5 anterior tenía ~14 mm de error a la distancia de HOME3; 
 * **Dónde:** solo para las corridas de medición. Plano en el centro de la mesa, donde va la herramienta, sin tapar
   los dos ArUco. Las aproximaciones terminan sobre él.
 * **Comprobar:** con `tools/hardware/check_board_view.py`, desde la vista de HOME3 deben verse las 48 esquinas.
-* **Demos v8:** sin tablero, con la misma escena que v7 y los ensayos en el robot.
+* **Demos v8:** sin tablero, con la misma escena que v7 y los ensayos en el robot, incluida la base móvil del robot
+  (tipo Husky A200) frente a la mesa: en HOME3 se ven abajo su frente amarillo, la Kinect 360 y los salientes de las
+  ruedas.
 * **Grabación:** `record_vio_bag.sh` reinicia la odometría antes de grabar.
   - Usa `timeout --foreground` y `--disable-keyboard-controls`: sin eso, `ros2 bag record` quedaba detenido
     (estado T) y nunca terminaba.

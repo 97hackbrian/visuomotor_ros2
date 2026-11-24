@@ -102,6 +102,7 @@ Es una escena fácil: esto valida las herramientas, no la odometría real.
      menos del 10 %, se elige el más simple.
    - Pasar el ganador a `rtabmap_vio_params.yaml`.
 6. **Piloto v8 (10–15 demos):**
+   - Con la base móvil del robot estacionada frente a la mesa, como en v7 (ver "Riesgos nuevos").
    - Lanzar con `COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=<csv> -p
      raw_bag_enabled:=true" ./tools/hardware/run_data_collection.sh demonstrations_real_v8`.
    - Mirar la guía con `rqt_image_view` en `/vo_collector_node/start_guide`.
@@ -123,7 +124,8 @@ razones:
   - Así se ve desde la vista de HOME3 (~0,85 m) y también cerca al final.
   - Bien sujeto con cinta en las esquinas, que no se mueva durante la sesión.
   - Comprobar con `tools/hardware/check_board_view.py`: desde la vista de HOME3 deben verse las 48 esquinas.
-- **Demos v8:** sin tablero. La misma escena que en v7 y en los ensayos: mantel, los dos ArUco y la herramienta.
+- **Demos v8:** sin tablero. La misma escena que en v7 y en los ensayos: mantel, los dos ArUco, la herramienta y la
+  base móvil del robot frente a la mesa.
 - **Con el robot:** el tablero sirve para la calibración cámara-brida. Después se retira, y las trayectorias de
   referencia se miden con el robot sin tablero en la escena.
 
@@ -137,9 +139,21 @@ razones:
 - Escribir las medias en `charuco_board.yaml` con `measured: true`.
 
 ### Riesgos nuevos
-- **Vista de HOME3:** la referencia sale de imágenes tomadas con la cámara en el robot. Si se movieron la mesa o los
-  ArUco, o si el objeto amarillo y negro del borde inferior de la vista es parte del montaje del robot y ya no está,
-  hay que revisar la guía (o regenerar la referencia) antes de grabar.
+- **Vista de HOME3:** la referencia sale de imágenes tomadas con la cámara en el robot y usa solo los dos ArUco de la
+  mesa. No despegar ni mover los ArUco sobre el mantel. Cuando vuelva el robot, estacionarlo en el mismo lugar
+  respecto de la mesa: con el brazo en HOME3, `check_board_view.py` debe dar ALINEADA. Si no se puede, regenerar la
+  referencia con `make_home3_view_reference.py` e imágenes nuevas en HOME3.
+- **La base del robot en la imagen** (aclarado por el usuario, 2026-11-24): el xArm5 va montado sobre una base móvil
+  tipo Husky A200. En HOME3, la cámara de la brida ve abajo el frente amarillo de la base, una Kinect 360 encima y los
+  salientes de las ruedas, ~18 % de la imagen (`experiments/xarm5_real_trials/2026-11-23/trial_001/pre.png`).
+  - Sale en toda inferencia, porque es el propio robot, y en el primer frame de las demos v7, grabadas con la base
+    frente a la mesa.
+  - No sale en la vista final sobre la herramienta, ni siquiera junto a la base (ensayos 8 y 11). La guía de inicio
+    no la usa.
+  - Demos v8: grabarlas con la base en su lugar. Sin ella cambia la franja inferior de los primeros frames, justo
+    cuando la política decide hacia dónde ir. Si hay que grabar sin la base, entrenar con un aumento que tape o
+    reemplace esa franja.
+  - Las corridas de medición con el tablero no la necesitan.
 - **Medición optimista:** en las corridas de medición el tablero agrega textura, y la odometría rastrea mejor que en
   las demos (mantel blanco). Sirve para ordenar a los candidatos. La exactitud absoluta en la escena real se mide
   después con el robot como referencia (Fase 2.2), sin tablero en la escena.
