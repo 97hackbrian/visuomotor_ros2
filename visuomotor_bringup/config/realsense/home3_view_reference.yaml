@@ -10,42 +10,33 @@ home3_view_reference:
   - 480
   markers:
     12:
-    - - 447.72
-      - 204.5
-    - - 413.33
-      - 204.92
-    - - 409.96
-      - 176.76
-    - - 443.37
-      - 176.26
+    - - 463.74
+      - 203.54
+    - - 429.5
+      - 203.54
+    - - 425.78
+      - 175.58
+    - - 459.35
+      - 174.96
     14:
-    - - 209.16
-      - 177.43
-    - - 207.26
-      - 205.97
-    - - 171.51
-      - 206.28
-    - - 174.5
-      - 177.5
-  repeatability_px: 0.728
-  source: '14 imágenes: experiments/xarm5_real_trials/*/trial_*/pre.png'
-  n_images: 14
+    - - 225.28
+      - 174.78
+    - - 223.37
+      - 203.29
+    - - 188.01
+      - 203.15
+    - - 190.77
+      - 174.52
+  repeatability_px: 0.04
+  source: '5 imágenes: experiments/vio_gt/2026-11-24/home3_now/home3_*.png'
+  n_images: 5
   n_images_per_marker:
-    12: 12
-    14: 13
+    12: 5
+    14: 5
   created: '2026-11-24'
   files:
-  - experiments/xarm5_real_trials/2026-11-23/trial_001/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_002/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_003/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_004/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_005/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_006/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_007/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_008/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_009/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_010/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_011/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_012/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_013/pre.png
-  - experiments/xarm5_real_trials/2026-11-23/trial_014/pre.png
+  - experiments/vio_gt/2026-11-24/home3_now/home3_0.png
+  - experiments/vio_gt/2026-11-24/home3_now/home3_1.png
+  - experiments/vio_gt/2026-11-24/home3_now/home3_2.png
+  - experiments/vio_gt/2026-11-24/home3_now/home3_3.png
+  - experiments/vio_gt/2026-11-24/home3_now/home3_4.png

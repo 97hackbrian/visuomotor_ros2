@@ -27,9 +27,18 @@ xarm5_dataset_alignment:
   #     demostraciones (TCP "detrás de la base", x hasta -0.04 m). Conservado en el historial de git.
   #   * IMPLICACIÓN DE DESPLIEGUE: montar la D435i en la brida con la imagen derecha en HOME3 (arriba de la imagen =
   #     lejos de la base). Si se monta girada 180°, las imágenes del robot quedarían invertidas respecto al dataset.
-  # Traslación cámara-TCP sin medir (0): medirla y reconvertir afina las posiciones cuando la garra gira.
-  tcp_to_camera_xyz_m: [0.0, 0.0, 0.0]
-  tcp_to_camera_rpy_rad: [3.14159265, -1.5707963, 0.0]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)
+  #
+  # MEDIDA CON EL ROBOT (2026-11-24, tools/xarm5/vio_gt/evaluate_vio_gt.py, cv2.calibrateHandEye DANIILIDIS):
+  #   * 13 paradas del xArm5 mirando el tablero ChArUco, diversidad de giro 80°; residuo (dispersión del tablero en
+  #     la base) mediana 3.1 mm / 0.27°, máx 7.0 mm / 0.56°.
+  #   * Resultado: experiments/vio_gt/2026-11-24/runs/201446_static_board/hand_eye.json (T_tcp_camera_link).
+  #   * Traslación (62.9, -16.3, 18.5) mm = 67.6 mm desde el TCP; rotación a 2.3° de la nominal (pi, -pi/2, 0).
+  #   * v7_xarm5_v2 se convirtió con la traslación 0 y la rotación nominal: con un giro de 30° de la herramienta, la
+  #     palanca de 67.6 mm mueve el TCP convertido ~3.5 cm. demonstrations_real_v7_xarm5_v3.zarr usa estos valores.
+  #   * Vale mientras el soporte de la cámara en la brida sea el mismo: si se desmonta, volver a medir.
+  # Anterior (sin medir, hasta el 2026-11-24): xyz [0, 0, 0], rpy [3.14159265, -1.5707963, 0.0].
+  tcp_to_camera_xyz_m: [0.06293, -0.01626, 0.01849]
+  tcp_to_camera_rpy_rad: [3.13372, -1.53072, 0.00445]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)
   extrinsic_calibrated: true
 
   # Filtro de la trayectoria VIO antes de convertir (visuomotor_core/dataset/trajectory_filters.py).

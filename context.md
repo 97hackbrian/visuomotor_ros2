@@ -563,6 +563,34 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       2. Fijar la exposición.
       3. Medir con ≥ 10 corridas y elegir el estimador.
       4. Hacer el piloto v8.
+47. **Odometría de la D435i medida con el xArm5 como referencia (2026-11-24, `tools/xarm5/vio_gt/`):**
+    - *Método:*
+      - El robot ejecuta planes validados con la caja y el alcance del puente: paradas frente al tablero y 8
+        aproximaciones de v7 a 3,5 cm/s.
+      - El TCP se registra en la Jetson y la cámara graba en el PC.
+      - La odometría se compara en `camera_link` con métricas por pares y anclada al primer frame.
+    - *Relojes:* la Jetson no tiene NTP. Cada ssh nuevo gasta ~0,7 s en el saludo antes de ejecutar `date`, así que el
+      punto medio de la ida y vuelta tenía un sesgo de ~0,35 s. Se usa `b − j` y se refina con el giróscopo de la
+      cámara frente a la velocidad angular del robot (correlación 0,99). La odometría no sirve para sincronizar: su
+      ruido aplana la curva de error.
+    - *Cámara-brida medida (13 paradas, 80° de diversidad, residuo 3,1 mm / 0,27°):*
+      - La cámara está a 67,6 mm del TCP, (62,9, −16,3, 18,5) mm, y a 2,3° de la rotación nominal.
+      - v7_xarm5_v2 se convirtió con traslación 0. La reconversión `demonstrations_real_v7_xarm5_v3.zarr` mueve el
+        TCP una mediana de 52 mm por episodio (máx. 124 mm).
+      - El final queda una mediana de 44 mm MÁS ALTO que en v2: la política de v2 apuntaba bajo. Es coherente con los
+        ensayos que siguieron bajando hasta el piso del vigilante (hipótesis, no probada).
+      - El episodio 17 queda fuera del volumen del puente (59 % > 50 %) y se descarta: 75 episodios.
+    - *Tablero:* con la escala libre, la calibración ajusta cuadros de 35,1 mm (nominal 36; el usuario midió 3,5 cm y
+      la regla de 100 mm, 100). Falta medir los 9 cuadros: 316 mm = tablero chico; 324 mm = error de ~2,5 % en la focal
+      de fábrica.
+    - *Odometría en vivo (RTAB-Map actual, 8 aproximaciones, mediana entre corridas [peor]):*
+      - ATE anclada 21,7 mm [40], máximo por corrida 95 mm [149], error al volver a HOME3 55 mm [79].
+      - Escala 3,2 % [7,2], pérdidas 4,6 % [33], RPE a 0,5 s 10,8 mm.
+      - Ruido rápido de ±10 mm incluso quieta.
+      - Deriva y pérdidas al bajar, cuando la vista es casi toda mantel blanco. Las corridas terminan sobre el mantel
+        vacío, sin herramienta: peor que una demo real.
+    - *Guía de inicio:* la mesa se recentró, así que la referencia de HOME3 se regeneró con 5 imágenes del robot en
+      HOME3 (`experiments/vio_gt/2026-11-24/home3_now/`; repetibilidad 0,04 px). La anterior queda en git.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

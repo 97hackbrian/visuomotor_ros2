@@ -236,6 +236,8 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Teleop RViz2 remota:* Jetson corre `xarm5_real.launch.py` (driver + puente + `robot_state_publisher` + `xarm5_teleop_marker`); el otro equipo solo `xarm5_rviz.launch.py`. `ROS_DOMAIN_ID=42` + `rmw_cyclonedds_cpp` para el robot real (mismo dominio que la simulación: con el brazo conectado, simulación y políticas solo con `ROS_LOCALHOST_ONLY=1`); DDS por `wlan0` (`deploy/jetson/config/cyclonedds.xml`).
    - *Frenos:* tras habilitar motores, todos los ejes deben reportar freno liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) o no se envía movimiento; `~/check_brakes` solo lee. No usar `motion_enable` data=0 con el brazo en el aire (caída de ~5 cm medida).
    - *Base móvil:* el xArm5 va montado sobre una base móvil tipo Husky A200, con una Kinect 360 en el frente (este proyecto no la usa). En HOME3, la cámara de la brida ve abajo el frente amarillo de la base, la Kinect y los salientes de las ruedas (~18 % de la imagen); también salen en el primer frame de las demos v7, grabadas con la base frente a la mesa. Grabar las demos con la base en su lugar (`docs/plans/plan_d435i_herramienta_demostraciones.md`, "Riesgos nuevos").
+   - *Cámara en la brida, MEDIDA con el robot (2026-11-24):* calibración cámara-brida con el tablero (13 paradas, residuo 3,1 mm / 0,27°). `camera_link` está a (62,9, −16,3, 18,5) mm del TCP y a 2,3° de la rotación nominal, ya escrito en `xarm5_dataset_alignment.yaml`. Con traslación 0, v7_xarm5_v2 deja el final de las demos ~44 mm más bajo (mediana). Usar `demonstrations_real_v7_xarm5_v3.zarr` (75 episodios) para los próximos entrenamientos; el modelo desplegado se entrenó con v2. Si se desmonta el soporte de la cámara, volver a medir (`tools/xarm5/vio_gt/`, comandos 32–35).
+   - *Odometría medida contra el robot (2026-11-24, RTAB-Map actual, 8 aproximaciones de v7, mediana entre corridas [peor]):* ATE anclada 21,7 mm [40], máximo por corrida 95 mm [149], escala 3,2 % [7,2], pérdidas 4,6 % [33]. Deriva al bajar sobre el mantel blanco. Detalle en `context.md`, lección 47.
    - *HOME1/HOME2 (fabricante, modelo XF1305):* HOME1 = Zero Position [0,0,0,0,0] (pose de transporte UFACTORY), HOME2 = Initial Position por defecto del xArm 5 [0,0,0,-90°,0]; HOME3 = pose de trabajo del usuario (redefinida 2026-11-20: TCP (0.150, 0.005, 0.750) m, garra inclinada ~−24.6°; juntas leídas del brazo) y home de la política; servicios `~/go_home1`/`~/go_home2`/`~/go_home3` y menú RViz2 en inglés (doble clic). `unwind_j1` solo por terminal. El marcador ofrece X/Y/Z, giro y (con `arm_plane`) inclinación en el plano del brazo; volumen = caja (radio ≤ 0.65 m, z ≤ 0.75 m) ∩ alcance hombro–muñeca (`workspace_max_reach_m` 0.6086 = 95% del codo recto, `workspace_min_reach_m` 0.12), válido también con la garra inclinada; la altura máxima baja con el radio (0.75 m cerca de la base, 0.37 m a 0.65 m).
    - *Límites articulares:* el puente no arma con una junta a < `joint_limit_margin_rad` de su límite y se detiene antes del C23; J1 en ±2π se corrige solo con `~/unwind_j1` (manual, giro de base de 360°). Rangos del Hardware Manual v2.7.1 para XF1305 (`bio/xarm5_ufactory_XF1305/`): J1 ±360°, J2 -117°..116°, J3 -219°..10°, J4 -97°..180°, J5 ±360° (más estrechos que la URDF/manual V2.3.0 usados hasta el 2026-11-22).
    - *Alcance vs. caja:* alcance nominal 700 mm (rango cartesiano X/Y ±700 mm) = radio máximo alrededor del eje de J1 a la altura del hombro (J2, 0.267 m); a la altura de aproximación de las demostraciones (brida ~0.28 m, garra vertical) el alcance lateral cinemático es ±0.47 m a la profundidad de los objetos. La caja `|y| <= 0.30 m` del puente es una decisión de seguridad de la celda (conservadora, ampliable tras medirla), no un límite del brazo. Herramienta: `tools/xarm5/analyze_xarm5_workspace.py`.
@@ -411,8 +413,22 @@ docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup
 # 31. Colocar el tablero para medir: desde la vista de HOME3, guía de inicio + esquinas vistas, distancia y ángulo (imagen en /board_check/image)
 docker exec -it -u 1000 -w /ros visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/check_board_view.py"
 
-# 30. Regenerar la referencia de la vista de HOME3 (si cambian la cámara, su montaje, HOME3 o los ArUco de la mesa)
-docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_home3_view_reference.py --images "experiments/xarm5_real_trials/<fecha>/trial_*/pre.png"
+# 30. Regenerar la referencia de la vista de HOME3 (si cambian la cámara, su montaje, HOME3 o los ArUco de la mesa; la actual sale de imágenes del 2026-11-24, mesa recentrada)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_home3_view_reference.py --images "experiments/vio_gt/2026-11-24/home3_now/home3_*.png"
+
+# 32. Odometría contra el xArm5: planes validados con la caja y el alcance del puente (paradas frente al tablero + aproximaciones de v7)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/plan_vio_gt.py --board <board_plan.json> --home3 <home3_tcp.json> --out-dir experiments/vio_gt/<fecha>/plans
+
+# 33. Una corrida (cámara en este PC con la odometría corriendo, puente desarmado, brazo en HOME3, usuario en la parada de emergencia); --no-arm = solo chequeo previo
+tools/xarm5/vio_gt/run_vio_gt.sh static_board --no-arm
+tools/xarm5/vio_gt/run_vio_gt.sh static_board
+
+# 34. Calibración cámara-brida (corrida static) y odometría vs. robot (las demás corridas con --hand-eye); resumen entre corridas
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/vio_gt/evaluate_vio_gt.py --run experiments/vio_gt/<fecha>/runs/<static> --allow-nominal"
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/summarize_vio_gt.py --session experiments/vio_gt/<fecha> --labels live
+
+# 35. Candidatos de RTAB-Map reprocesados sobre los mismos bags y evaluados contra el robot (sin robot ni cámara; ~2,4 min por bag y candidato)
+tools/xarm5/vio_gt/replay_candidates_vs_robot.sh experiments/vio_gt/<fecha> <static_run> baseline,optical_flow,guess_motion <run1> <run2> ...
 ```
 
 ---
