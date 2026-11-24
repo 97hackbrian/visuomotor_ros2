@@ -114,3 +114,10 @@ datasets/visualizations_v8/last_20_episodes_891_910/*.gif
 deploy/jetson/model/*.safetensors
 # pitidos generados por tools/xarm5/real_trials/make_beeps.py
 tools/xarm5/real_trials/.beeps/
+
+# Bags MCAP de la cámara y odometrías reprocesadas (GB): se guardan en disco, no en git
+datasets/vio_bags/
+experiments/vio_gt/*/replay/
+*.mcap
+# Corridas de medición con el robot (JSON, npz y figuras pequeñas): sí van a git
+!experiments/vio_gt/*/runs/

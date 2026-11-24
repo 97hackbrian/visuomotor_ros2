@@ -1,0 +1,1 @@
+{"plan": "static_board", "reason": "plan completo", "disarm": "DISARMED", "t0_jetson": 933.272198624, "n_tcp": 2677, "completed": true, "last_index": 3383, "errors": [], "tcp_end": [0.1501, -0.0, 0.75], "z_min": 0.36, "track_p95_mm": 6.8}
