@@ -6,6 +6,9 @@ IMU, y ofrece ``/reset_odom``. Se comprueba que:
 * reinicia la odometría;
 * etiqueta done solo en el tramo quieto;
 * rechaza un episodio con poses nulas, salvo que se fuerce el guardado.
+v3 (segunda prueba): la cámara falsa muestra los ArUco de la mesa como en HOME3 (o corridos). Se comprueba que la
+guía de inicio no deja empezar con la vista corrida, que el inicio automático arranca con la vista alineada y quieta,
+que el guardado automático guarda al quedarse quieta, y que el episodio guarda ``start_view`` y la entrada del programa.
 Requiere ``source /opt/ros/jazzy/setup.bash && source install/setup.bash``; si no, se omite.
 """
 
@@ -42,7 +45,7 @@ except Exception:  # noqa: BLE001
 
 if HAVE_ROS:
     class FakeCamera(Node):
-        """Cámara + odometría falsas. Corre en OTRO proceso con un bucle de 30 Hz por plazos: un timer de Python en
+        """Cámara + odometría falsas. Corre en OTRO proceso (spawn) con un bucle de 30 Hz por plazos: un timer de Python en
         el mismo proceso que el recolector tenía huecos de hasta ~290 ms, y una D435i real es regular."""
 
         def __init__(self, flags):
@@ -53,6 +56,12 @@ if HAVE_ROS:
             self.pub_info = self.create_publisher(OdomInfo, "/odom_info", 50)
             self.pub_imu = self.create_publisher(Imu, "/camera/camera/imu", 50)
             self.create_service(Empty, "/reset_odom", self._reset)
+            self.views = None
+            if flags["img_mode"].value:                       # vista de HOME3 (1) o corrida 40 px (2), 640x480
+                from test_vo_start_guide import REF_YAML, _render, _transform
+                from visuomotor_data_collection.vo_start_guide import ViewReference
+                ref = ViewReference.load(REF_YAML)
+                self.views = {1: _render(ref.markers), 2: _render(_transform(ref.markers, t=(40.0, 0.0)))}
 
         def _reset(self, _req, res):
             self.f["x"].value = 0.0
@@ -64,8 +73,13 @@ if HAVE_ROS:
             stamp = self.get_clock().now().to_msg()
             img = Image()
             img.header.stamp, img.header.frame_id = stamp, "camera_color_optical_frame"
-            img.height, img.width, img.encoding, img.step = 48, 64, "rgb8", 64 * 3
-            img.data = bytes(np.full((48, 64, 3), int(f["x"].value * 1000) % 256, np.uint8).tobytes())
+            if self.views is not None:
+                im = self.views[f["img_mode"].value]
+                img.height, img.width, img.encoding, img.step = im.shape[0], im.shape[1], "rgb8", im.shape[1] * 3
+                img.data = im.tobytes()
+            else:
+                img.height, img.width, img.encoding, img.step = 48, 64, "rgb8", 64 * 3
+                img.data = bytes(np.full((48, 64, 3), int(f["x"].value * 1000) % 256, np.uint8).tobytes())
             self.pub_img.publish(img)
             if f["moving"].value:
                 f["x"].value += 0.05 / 30.0
@@ -106,15 +120,15 @@ class CollectorSimTest(unittest.TestCase):
     def test_record_reset_done_and_qa(self):
         import zarr
         import multiprocessing as mp
-        ctx = mp.get_context("fork")
-        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop")}
+        ctx = mp.get_context("spawn")   # fork tras usar DDS en el mismo proceso puede colgar al hijo
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
         flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
         proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
         proc.start()
         rclpy.init()
         tmp = tempfile.mkdtemp()
         try:
-            col = _make_collector(tmp)
+            col = _make_collector(tmp, ["-p", "start_guide_enabled:=false"])
             ex = MultiThreadedExecutor(num_threads=4)
             ex.add_node(col)
             th = threading.Thread(target=ex.spin, daemon=True)
@@ -167,7 +181,7 @@ class CollectorSimTest(unittest.TestCase):
             # done solo en frames quietos (el primer frame en HOLD puede incluir el último paso: latencia de 1 frame)
             self.assertLess(v[done[1:]][2:].max(), 0.005)
             a0 = dict(ep0.attrs)
-            self.assertEqual(a0["collector_version"], 2)
+            self.assertEqual(a0["collector_version"], 3)
             self.assertTrue(a0["odom_reset"])
             self.assertEqual(a0["qa_problems"], [])
             self.assertAlmostEqual(a0["start_gravity_mps2"][1], 9.81, places=3)
@@ -184,10 +198,79 @@ class CollectorSimTest(unittest.TestCase):
                 rclpy.shutdown()
 
 
-def _make_collector(tmp):
+@unittest.skipUnless(HAVE_ROS, "ROS 2 / rtabmap_msgs no disponibles (source install/setup.bash)")
+class CollectorV3GuideTest(unittest.TestCase):
+    def test_guide_auto_start_auto_save_schedule(self):
+        import zarr
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        from visuomotor_data_collection.vo_schedule import make_schedule, save_csv
+        ctx = mp.get_context("spawn")   # fork tras usar DDS en el mismo proceso puede colgar al hijo
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        flags["img_mode"].value = 2                                   # vista corrida
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        sched = Path(tmp) / "schedule.csv"
+        save_csv(make_schedule([1, 5], [0.0, 90.0], reps=1, seed=3), sched)
+        try:
+            col = _make_collector(tmp, ["-p", "auto_start:=true", "-p", "auto_save:=true",
+                                        "-p", "auto_start_hold_s:=0.6", "-p", "auto_start_cooldown_s:=3.0",
+                                        "-p", "min_hold_duration_s:=1.0", "-p", "auto_save_margin_s:=0.4",
+                                        "-p", "auto_save_min_travel_m:=0.08", "-p", "terminal_bell:=false",
+                                        "-p", f"schedule_file:={sched}"])
+            first = col.schedule[0]
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.guide_res is not None and col.poses.latest() is not None, 8.0))
+            # Vista corrida: la guía no deja empezar y da la pista correcta
+            self.assertTrue(_wait(lambda: col.guide_res[1]["error_px"] is not None, 4.0))
+            res = col.guide_res[1]
+            self.assertFalse(res["aligned"])
+            self.assertTrue(any("DERECHA" in h for h in res["hints"]), res["hints"])
+            self.assertFalse(col._start())
+            self.assertEqual(col.state, "IDLE")
+            # Vista de HOME3 y quieta: empieza sola (tras el reposo de 3 s desde el arranque del nodo)
+            flags["img_mode"].value = 1
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 10.0))
+            flags["img_mode"].value = 2                               # que no vuelva a empezar sola tras guardar
+            flags["moving"].value = 1
+            time.sleep(2.2)                                           # ~0,11 m
+            flags["moving"].value = 0
+            # Quieta al final: guarda sola tras min_hold + margen (1,4 s)
+            self.assertTrue(_wait(lambda: col.storage.get_num_episodes() == 1 and col.state == "IDLE", 6.0))
+            ex.shutdown()
+            ep = zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"]
+            a = dict(ep.attrs)
+            self.assertEqual(a["collector_version"], 3)
+            self.assertTrue(a["start_view"]["aligned"])
+            self.assertEqual(a["start_view"]["source"], "auto")
+            self.assertFalse(a["start_view"]["override"])
+            self.assertLess(a["start_view"]["error_px"], 1.5)
+            self.assertEqual(a["save_trigger"], "auto")
+            self.assertTrue(a["hold_detected_auto"])
+            self.assertEqual(a["qa_problems"], [])
+            self.assertEqual(a["schedule"]["index"], first.index)
+            self.assertEqual(a["object_cell"], first.cell)
+            self.assertGreater(a["travel_m"], 0.08)
+            self.assertGreater(a["max_speed_m_s"], 0.03)
+            self.assertIn(first.index, col.sched_done)
+            done = np.asarray(ep["action"])[:, 8] > 0.5
+            self.assertGreaterEqual(done.sum(), 20)                  # >= 1,0 s a 20 Hz
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
+
+
+def _make_collector(tmp, extra=()):
     """Recolector con parámetros de prueba (dataset temporal) sin tocar el YAML."""
     ctx_args = ["--ros-args", "-p", f"dataset_path:={Path(tmp) / 'sim_demos.zarr'}", "-p", f"repo_root:={ROOT}",
-                "-p", "image_size:=32"]
+                "-p", "image_size:=32", *extra]
     # Los parámetros se pasan como argumentos de línea de comandos del nodo (sin tocar el YAML)
     orig = Node.__init__
 

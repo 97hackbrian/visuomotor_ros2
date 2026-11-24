@@ -1,0 +1,69 @@
+# Medición de la odometría de la D435i contra el tablero ChArUco y elección del estimador (plan
+# docs/plans/plan_d435i_herramienta_demostraciones.md, fases 2 y 3).
+#
+# Herramientas que lo leen:
+#   tools/hardware/record_vio_bag.sh            graba una corrida (record_topics)
+#   tools/hardware/evaluate_pose_estimates.py   referencia del tablero y métricas por estimador
+#   tools/hardware/replay_odometry_candidates.py  reprocesa los mismos bags con cada candidato
+vio_measurement:
+  # ---- Tópicos y marcos (los de realsense_d435i_vio.launch.py) ----
+  color_topics: ["/camera/camera/color/image_raw/compressed", "/camera/camera/color/image_raw"]  # el primero presente
+  depth_topics: ["/camera/camera/aligned_depth_to_color/image_raw/compressedDepth",
+                 "/camera/camera/aligned_depth_to_color/image_raw"]
+  camera_info_topic: "/camera/camera/color/camera_info"
+  imu_topic: "/camera/camera/imu"
+  live_odom_topic: "/rtabmap/odom"
+  optical_frame: "camera_color_optical_frame"
+  # Si el bag no trae /tf_static: camera_link -> camera_color_optical_frame típica de la D435i (aviso en el informe)
+  default_link_to_optical_xyz: [0.0, 0.015, 0.0]
+  default_link_to_optical_rpy: [-1.5707963, 0.0, -1.5707963]
+
+  # ---- Referencia del tablero ----
+  board_config: "visuomotor_bringup/config/realsense/charuco_board.yaml"
+  board_min_corners: 10                 # esquinas ChArUco mínimas por imagen
+  board_max_reprojection_px: 1.0        # se descarta la pose si el error medio de reproyección es mayor
+  pair_tolerance_s: 0.002               # odometría e imagen de la misma captura (RTAB-Map usa el sello de la imagen)
+  rpe_horizons_s: [0.25, 0.5, 1.0]
+
+  # ---- Criterios de aceptación propuestos (plan, "Objetivo y criterios"): se fijan tras la medición base ----
+  acceptance:
+    ate_anchored_median_mm: 5.0
+    ate_anchored_p90_mm: 10.0
+    rpe_0p5s_median_mm: 3.0
+    scale_error_abs_pct: 1.0
+    rot_anchored_median_deg: 1.0
+    lost_pct: 0.0
+
+  # ---- Grabación de corridas de medición (record_vio_bag.sh) ----
+  # Color JPEG y profundidad PNG (sin pérdida): ~10 MB/s. Cruda: ~46 MB/s.
+  record_topics:
+    - "/camera/camera/color/image_raw/compressed"
+    - "/camera/camera/aligned_depth_to_color/image_raw/compressedDepth"
+    - "/camera/camera/color/camera_info"
+    - "/camera/camera/color/metadata"
+    - "/camera/camera/imu"
+    - "/imu/data"
+    - "/rtabmap/odom"
+    - "/odom_info"
+    - "/tf_static"
+  bag_dir: "datasets/vio_bags"
+
+  # ---- Reprocesado offline (replay_odometry_candidates.py) ----
+  replay:
+    base_params: "visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml"
+    rate: 0.5                           # reproducción más lenta que el tiempo real: RTAB-Map procesa todos los frames
+    domain_id: 88                       # dominio DDS aislado (no interfiere con la cámara ni con el robot)
+    madgwick_gain: 0.035
+    warmup_s: 3.0
+    output_topic: "/replay/odom"
+  # Candidatos: parámetros de RTAB-Map que cambian respecto a base_params. Las afirmaciones de K15 sobre el ajuste de
+  # haces y GuessMotion nunca se midieron con un experimento controlado: aquí se miden.
+  candidates:
+    baseline: {}
+    bundle_adjustment: {"OdomF2M/BundleAdjustment": "1"}
+    guess_motion: {"Odom/GuessMotion": "true"}
+    frame_to_frame: {"Odom/Strategy": "1"}
+    optical_flow: {"Vis/CorType": "1"}
+    min_depth_0p15: {"Vis/MinDepth": "0.15"}      # H4: al final de la aproximación la mesa queda cerca
+    no_kalman: {"Odom/FilteringStrategy": "0"}
+    no_imu_init: {"wait_imu_to_init": false}

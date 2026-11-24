@@ -201,13 +201,27 @@ El nodo de inferencia implementa dos capas independientes de detención:
    - *Arquitectura Desacoplada:* Captura manual de aproximación (*approaching*) en hardware real. Soporta dos modalidades independientes y coexistentes:
      - **D415 (VO puro):** [d415_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d415_camera_params.yaml) + [realsense_d415_vo.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo.launch.py). Medido en reposo: $30.63\text{ Hz}$, jitter $0.394\text{ mm}$, $300.5\text{ inliers}$. Que los puntos se anclen al patrón IR no está verificado; si ocurriera, sería un defecto, porque el patrón se mueve con la cámara.
      - **D435i (odometría RGB-D con el marco inicial alineado a la gravedad por el IMU BMI085):** [d435i_camera_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/d435i_camera_params.yaml) + [rtabmap_vio_params.yaml](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml) + `imu_filter_madgwick` + [realsense_d435i_vio.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio.launch.py). `rgbd_odometry` F2M (GFTT/ORB sobre la imagen RGB, PnP + RANSAC, subpíxel 5×5/15, Kalman), con `GuessMotion: false` y `BundleAdjustment: 0`. El IMU solo alinea el marco inicial con la gravedad (`wait_imu_to_init`): no es un VIO acoplado. Origen en la cámara (`Odom/AlignWithGround: false`). **Precisión sin medir contra referencia:** las cifras de jitter y 0 % de pérdidas se tomaron en reposo y no representan la toma real (ver §20 y `context.md` lección 43).
-   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` v2 (2026-11-23):
+   - *Recolector FSM a 20 Hz:* `vo_collector_node.py` v3 (2026-11-24; v2 del 2026-11-23):
      - rejilla regular de 20 Hz con sellos de tiempo, pose interpolada y la imagen de sello más cercano;
      - la odometría nula de RTAB-Map se marca como perdida (nunca se guarda como pose);
      - `reset_odom` al empezar cada episodio;
      - done verificado (quieto y ≥ `min_hold_duration_s`, sin forzarlo en frames en movimiento);
      - control de calidad que bloquea el guardado: [D] descartar o [F] forzar;
-     - metadatos de trazabilidad.
+     - metadatos de trazabilidad;
+     - **v3:** guía de inicio a la vista de HOME3. Compara los ArUco de la mesa con `home3_view_reference.yaml`,
+       generado desde los intentos reales. Muestra la imagen `~/start_guide` y no empieza fuera de tolerancia;
+       [I] empieza igual y queda registrado.
+     - **v3, opcionales:** inicio automático (vista alineada y quieta), guardado automático (quieta al final), aviso de
+       velocidad > 0,15 m/s y programa de celdas × orientaciones (`schedule_file`).
+     - **Logs en rclpy:** nunca `(warn if x else info)(msg)` en una misma línea. Si la severidad cambia entre
+       llamadas, rclpy lanza `ValueError` y se cae el ejecutor; al recolector v2 le pasaba con el primer frame perdido.
+     - **Recompilar tras cambiar el código o el YAML:** `install/visuomotor_data_collection` es una copia.
+     - **Medición de la odometría** (sin robot): tablero ChArUco A3 9×7 de 36 mm y bags MCAP.
+       - `record_vio_bag.sh` graba las corridas.
+       - `evaluate_pose_estimates.py` compara contra el tablero.
+       - `replay_odometry_candidates.py` reprocesa los mismos bags con cada candidato.
+       - `make_synthetic_vio_bag.py` genera un bag con verdad conocida para probar la cadena.
+       - Plan en `docs/plans/plan_d435i_herramienta_demostraciones.md`, sección "Trabajo sin el robot".
      Imagen 256×256 RGB; estado 8D sin fuga causal; acción 9D. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
@@ -264,11 +278,15 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Modelo entregado:* `deploy/jetson/model/` = época 200 de `visuomotor_core/outputs/train_real_v7x5v2_relative_ee_e300` (300 épocas). Validación (8 episodios): ADE 11.6 mm, ADE ejecutado 7.6 mm (línea base 11.0), FDE 18.5 mm, 1.74°, F1 done 0.70, progreso 1.00. Auto-stop calibrado 0.60 x 5 pasos (100% paradas, 0 prematuras, ~8 mm). Lazo cerrado ROS 2 simulado: coseno 0.99, 0 rechazos.
     - *Selección de checkpoints:* los criterios de parada basados en la pérdida (punto 14) recomendaban la época ~8; las métricas de comportamiento mejoraron hasta ~200. En DP se elige con métricas de muestreo completo y reproducción de la ruta de despliegue, no con la pérdida.
     - *Líneas base exigentes (obligatorio):* "quedarse quieto" es una vara baja. `evaluate_sampling` reporta además "velocidad constante" (`cv_ade_mm`, `cv_ade_exec_mm`, `cv_fde_mm`; desfase acción/estado estimado del dataset). Época 200 en validación: la política pierde con la velocidad constante en los 3 pasos ejecutados (3.6 vs 1.3 mm) y gana desde ~0.53 s (FDE 18.5 vs 21.3 mm). Ablación visual (`tools/diagnose_policy_baselines.py`): con imágenes de otro episodio el FDE sube a 29.2 mm (la política sí usa la imagen); desde el reposo acierta la dirección en el 64 % frente al 55 % de "ir siempre hacia la dirección media" (n = 22): los datos v7 apenas obligan a usar la visión.
-    - *Estado (2026-11-23):* **evaluado en el xArm5 físico (8 intentos, 5 cm/s).**
-      - 8/8 llegaron y se detuvieron solos sobre la herramienta (IC de Wilson al 95 %: 68–100 %).
-      - 6/8 terminaron con la vista de las demos (IC 41–93 %).
-      - Los 2 restantes (tijeras giradas ~75° en yaw, y tijeras junto a la base) pararon ~20 % más cerca y descentrados:
-        faltan variedad de orientación y de posiciones cercanas en v7.
+    - *Estado (2026-11-23):* **evaluado en el xArm5 físico (14 intentos, 5 cm/s).**
+      - 9/14 llegaron y se detuvieron solos sobre la herramienta (IC de Wilson al 95 %: 39–84 %).
+      - 7/14 terminaron con la vista de las demos (IC 27–73 %).
+      - Funciona con las tijeras rectas en las zonas que cubren las demos v7.
+      - Falla con las tijeras giradas (intentos 9 y 10) y junto a la base (11).
+      - El intento 12 (centro, tijeras rectas) reconoció el final una sola inferencia (done 0,66) y siguió bajando.
+      - El intento 14 tenía otra escena (mantel corrido y sin ArUco): la señal de término no pasó de 0,11.
+      - **Cuando la política no reconoce el final, sigue bajando.** El piso del vigilante (brida a z ≥ 0,15 m) la
+        detuvo 4 veces: es obligatorio en todo ensayo.
       - No usar la altura de las demos vecinas como criterio: la altura de parada humana sobre un mismo lugar varía
         ±7 cm.
       - Resultados en `experiments/xarm5_real_trials/2026-11-23/`, herramienta `tools/xarm5/real_trials/run_trial.sh`; detalle en `context.md`, lección 45.
@@ -369,6 +387,25 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/plot_real_trial.
 # 24. Calibración cámara-brida con el xArm5 y el tablero (capture: ROS 2 con cámara + TF del robot; solve: sin ROS, no edita YAML)
 python3 tools/xarm5/calibrate_hand_eye.py capture --out-dir datasets/hand_eye/<fecha>
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/calibrate_hand_eye.py solve --samples datasets/hand_eye/<fecha>
+
+# 26. Recolección v8 con guía de inicio a HOME3, inicio/guardado automáticos, programa y bags crudos (ver la guía: rqt_image_view /vo_collector_node/start_guide)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_collection_schedule.py --out experiments/collection_schedules/v8_schedule.csv
+COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=experiments/collection_schedules/v8_schedule.csv -p raw_bag_enabled:=true" ./tools/hardware/run_data_collection.sh demonstrations_real_v8
+
+# 27. Exposición/ganancia/balance automáticos de la D435i -> valores manuales (contenedor de la cámara corriendo)
+docker exec -it -u 1000 -w /ros visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/read_camera_auto_settings.py"
+
+# 28. Medición de la odometría contra el tablero ChArUco: grabar corridas, evaluar la odometría en vivo y reprocesar con cada candidato
+./tools/hardware/record_vio_bag.sh reposo_home3 15
+./tools/hardware/record_vio_bag.sh aprox_01
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/evaluate_pose_estimates.py --run datasets/vio_bags/<bag> --out-dir experiments/vio_measurement/<fecha>"
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/replay_odometry_candidates.py --run datasets/vio_bags/<bag1> --run datasets/vio_bags/<bag2> --out-dir experiments/vio_replay/<fecha>"
+
+# 29. Probar la cadena de medición sin cámara (bag sintético con verdad conocida)
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/make_synthetic_vio_bag.py --out /tmp/syn && python3 tools/hardware/replay_odometry_candidates.py --run /tmp/syn --candidates baseline --allow-nominal --ground-truth-topic /ground_truth/optical_pose --out-dir /tmp/syn_replay"
+
+# 30. Regenerar la referencia de la vista de HOME3 (si cambian la cámara, su montaje, HOME3 o los ArUco de la mesa)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_home3_view_reference.py --images "experiments/xarm5_real_trials/<fecha>/trial_*/pre.png"
 ```
 
 ---

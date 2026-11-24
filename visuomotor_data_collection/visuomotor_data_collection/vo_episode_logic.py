@@ -113,6 +113,10 @@ class PoseBuffer:
     def latest(self) -> Optional[PoseSample]:
         return self._s[-1] if self._s else None
 
+    def window(self, t_from: float) -> List[PoseSample]:
+        """Muestras con sello >= ``t_from``."""
+        return [s for s in self._s if s.stamp >= t_from]
+
     def valid_after(self, t: float) -> int:
         """Número de poses válidas con sello > ``t``."""
         return sum(1 for s in self._s if s.stamp > t and not s.lost)
@@ -271,6 +275,27 @@ def detect_hold_start(p: np.ndarray, rate_hz: float, static_speed: float, window
     while i > 0 and v[i - 1] <= static_speed:
         i -= 1
     return i
+
+
+def trailing_static_s(p: np.ndarray, rate_hz: float, static_speed: float, window_s: float) -> float:
+    """Duración (s) del tramo final quieto; 0 si el último frame se mueve."""
+    i = detect_hold_start(p, rate_hz, static_speed, window_s)
+    return 0.0 if i is None else (len(p) - i) / rate_hz
+
+
+def max_travel(p: np.ndarray) -> float:
+    """Distancia máxima (m) alcanzada desde la posición inicial."""
+    p = np.asarray(p, dtype=np.float64)
+    return float(np.linalg.norm(p - p[0], axis=1).max()) if len(p) else 0.0
+
+
+def auto_save_ready(p: np.ndarray, rate_hz: float, min_travel_m: float, min_hold_s: float, margin_s: float,
+                    static_speed: float, window_s: float) -> bool:
+    """Guardado automático: la cámara ya se alejó del inicio al menos ``min_travel_m`` (al empezar también está
+    quieta) y lleva quieta al final ``min_hold_s + margin_s``."""
+    if len(p) < 2 or max_travel(p) < min_travel_m:
+        return False
+    return trailing_static_s(p, rate_hz, static_speed, window_s) >= min_hold_s + margin_s
 
 
 def check_done_segment(p: np.ndarray, hold: Sequence[bool], rate_hz: float, min_hold_s: float, static_speed: float,

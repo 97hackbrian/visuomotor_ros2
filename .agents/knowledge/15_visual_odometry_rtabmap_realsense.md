@@ -349,3 +349,34 @@ Pruebas: `tests/test_vio_raw_diagnostics.py`.
 
 Regla: una cifra de precisión de la herramienta se reporta como distribución (mediana, p90, máximo, n) medida contra
 una referencia (xArm5 o tablero ChArUco), nunca como el mejor intento. Plan: `docs/plans/plan_d435i_herramienta_demostraciones.md`.
+
+### Medición sin el robot y recolector v3 (2026-11-24)
+* **Tamaño del tablero, decidido con datos:** aproximación sintética con verdad conocida
+  (`tools/hardware/make_synthetic_vio_bag.py`: plano texturado y tablero, profundidad exacta, IMU y extrínseca
+  típica). Error de posición de la referencia, mediana en mm:
+
+  | Tablero | < 0,45 m | 0,45–0,6 m | 0,6–0,75 m | 0,75–1,2 m (HOME3) |
+  |---|---|---|---|---|
+  | A4 7×5, 33 mm | 0,35 | 1,2 | 2,3 | 14,0 |
+  | A4 9×5, 30 mm | 0,33 | 0,9 | 2,3 | 6,1 |
+  | A3 9×7, 36 mm | 0,11 | 0,4 | 0,7 | 1,7 |
+
+  - Lejos, la orientación del tablero chico sale ~1° errada con PnP iterativo e IPPE por igual. Al anclar en ese
+    frame, el error se propaga (~9 mm a 0,5 m de recorrido).
+  - Más esquinas reducen el error más que cuadros más grandes.
+* **Herramientas:**
+  - `vio_bag_utils.py`: lectura de MCAP, imágenes (incluida la compressedDepth), TF estáticas y odometría nula.
+  - `evaluate_pose_estimates.py`: referencia del tablero, pares por sello y `evaluate_paired`, con huecos y RPE por
+    tiempo.
+  - `replay_odometry_candidates.py`: reproducción con reloj simulado a 0,5×, `republish`, Madgwick y
+    `rgbd_odometry` con los parámetros del candidato, en el dominio DDS 88.
+  - `record_vio_bag.sh` y `read_camera_auto_settings.py`.
+  - Prueba de punta a punta: `tests/test_vio_measurement_pipeline.py`. Recupera la escala (+3,00 %) y las pérdidas
+    inyectadas. RTAB-Map base en la escena sintética: 4,5 mm de mediana.
+* **Recolector v3:** guía de inicio a la vista de HOME3 (ArUco de la mesa), inicio y guardado automáticos, aviso de
+  velocidad y programa de celdas × orientaciones (skill `realsense-vio-data-collection` §4).
+* **Corregido:**
+  - Caída del ejecutor del recolector v2 por un log que cambia de severidad en la misma línea (`ValueError` de
+    rclpy).
+  - `/tf_static` ausente en los bags crudos (QoS volátil).
+  - `run_data_collection.sh` no cargaba el YAML.

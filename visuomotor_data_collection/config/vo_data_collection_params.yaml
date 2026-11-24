@@ -40,6 +40,7 @@ vo_collector_node:
     # tópicos comprimidos (image_transport) o cambiar la lista por los crudos (~46 MB/s).
     raw_bag_enabled: false
     raw_bag_dir: "datasets/raw_bags"
+    # /tf_static se graba con QoS TRANSIENT_LOCAL (vo_raw_recorder.py).
     raw_bag_topics:
       - "/camera/camera/color/image_raw/compressed"
       - "/camera/camera/aligned_depth_to_color/image_raw/compressedDepth"
@@ -48,6 +49,38 @@ vo_collector_node:
       - "/rtabmap/odom"
       - "/odom_info"
       - "/tf_static"
+
+    # ---- Recolector v3 (2026-11-24): guía de inicio a HOME3, inicio/guardado automáticos y programa ----
+    # Guía de inicio: compara los ArUco de la mesa con la vista de la cámara del robot en HOME3 (referencia generada
+    # con tools/hardware/make_home3_view_reference.py desde los 14 intentos reales). Verla en vivo con:
+    #   ros2 run rqt_image_view rqt_image_view /vo_collector_node/start_guide
+    # En la referencia, el robot repite HOME3 con < 1 px; las demos v7 empezaban con escala 0,88-1,26 y hasta ~80 px de
+    # corrimiento.
+    start_guide_enabled: true
+    start_guide_reference: "visuomotor_bringup/config/realsense/home3_view_reference.yaml"
+    start_guide_tolerance_px: 8.0          # error medio de esquina, en píxeles de 640x480
+    start_guide_min_markers: 2
+    start_guide_required: true             # [ESPACIO] no empieza fuera de tolerancia; [I] empieza igual (queda registrado)
+    start_guide_rate_hz: 5.0
+    start_guide_image_topic: "~/start_guide"
+    end_view_box_frac: 0.5                 # recuadro central de la imagen de guía durante la grabación (llegada)
+    # Inicio automático: empieza cuando la vista lleva auto_start_hold_s alineada y quieta (tocar el teclado mueve la
+    # cámara). Guardado automático: guarda cuando la cámara ya se alejó del inicio y lleva quieta al final
+    # min_hold_duration_s + auto_save_margin_s. NO hacer pausas largas a mitad de camino con auto_save activo.
+    auto_start: false
+    auto_start_hold_s: 1.0
+    auto_start_max_motion_px: 3.0
+    auto_start_cooldown_s: 3.0             # tras guardar o descartar, antes de poder empezar solo otra vez
+    auto_save: false
+    auto_save_min_travel_m: 0.10
+    auto_save_margin_s: 0.5
+    # Aviso de velocidad. v7: máxima por episodio con mediana 0,11 m/s y p90 0,15 m/s; media 0,055 m/s. En los
+    # ensayos el puente del xArm5 limitó a 0,05 m/s.
+    max_demo_speed_m_s: 0.15
+    terminal_bell: true                    # pitido de la terminal al empezar, guardar o rechazar
+    # Programa de recolección (CSV de tools/hardware/make_collection_schedule.py; "" = sin programa).
+    schedule_file: ""
+
     # Trazabilidad: raíz del repo (para el commit) y YAML cuyo sha256 se guarda en cada episodio.
     repo_root: "."
     config_files_to_hash:

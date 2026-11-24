@@ -3,7 +3,7 @@ name: realsense-vio-data-collection
 description: Protocolo operativo para recolección experta de demostraciones reales con Intel RealSense D435i/D415 y odometría RGB-D de RTAB-Map (sin certificar: ver §2), blindaje de red local con ROS_LOCALHOST_ONLY, auto-incremento/aumento de datasets Zarr, desacoplamiento de gripper y restricciones + conversión obligatoria para entrenar Diffusion Policy en el xArm5 real.
 ---
 
-# Skill: RealSense VIO & UMI Handheld Data Collection (v1.4)
+# Skill: RealSense VIO & UMI Handheld Data Collection (v1.5)
 
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
@@ -142,7 +142,32 @@ La política se ejecuta en un UFACTORY xArm5: lo demostrado debe ser ejecutable 
 
 ---
 
-## 4. Controles Durante la Recolección Interactiva (recolector v2, 2026-11-23)
+## 4. Controles Durante la Recolección Interactiva (recolector v3, 2026-11-24; v2 del 2026-11-23)
+
+**v3: empezar en la vista de HOME3.** La política arranca en el robot siempre desde la misma vista. Las demos v7
+empezaban dispersas (escala 0,88–1,26 y hasta ~80 px de corrimiento).
+* **La guía:**
+  - Compara los ArUco de la mesa con `visuomotor_bringup/config/realsense/home3_view_reference.yaml`, generado
+    desde las imágenes del robot en HOME3.
+  - Ver la guía en vivo: `ros2 run rqt_image_view rqt_image_view /vo_collector_node/start_guide`. En verde, dónde
+    deben quedar los marcadores; en naranja, dónde están.
+  - La terminal imprime el error y las pistas.
+* **`[ESPACIO]`** solo empieza con la vista alineada (`start_guide_tolerance_px`, 8 px a 640×480). **`[I]`** empieza
+  igual y queda registrado en `start_view.override`.
+* **Opcionales:**
+  - `auto_start` empieza solo cuando la vista lleva 1 s alineada y quieta, porque tocar el teclado mueve la cámara.
+  - `auto_save` guarda cuando la cámara ya se alejó del inicio y lleva quieta al final 2 s + margen. Con `auto_save`
+    no hacer pausas largas a mitad de camino.
+* **Llegada:** la herramienta centrada y llenando el recuadro central de la imagen de guía, siempre a la misma vista.
+  En v7 la altura de parada variaba ±7 cm y la red no reconoció el final en el intento 12.
+* **Velocidad:** aviso por encima de `max_demo_speed_m_s` (0,15 m/s); la máxima y la media quedan en los atributos.
+* **Programa (`schedule_file`):**
+  - Generarlo con `tools/hardware/make_collection_schedule.py`: celdas 1–9 × orientaciones, en orden aleatorio.
+  - Las celdas siguen el teclado numérico visto en la imagen de HOME3: 7-8-9 lejos, 1-2-3 junto a la base.
+  - El recolector muestra la siguiente entrada y la guarda en `schedule`. **`[N]`** salta una entrada.
+* **Recompilar** `visuomotor_data_collection` tras cambiar el código o el YAML: la instalación es una copia.
+* **Logs en rclpy:** nunca `(warn if x else info)(msg)` en una misma línea. Si la severidad cambia entre llamadas,
+  rclpy lanza `ValueError` y se cae el ejecutor; al recolector v2 le pasaba con el primer frame perdido.
 
 Lógica en `visuomotor_data_collection/vo_episode_logic.py`, con pruebas en `tests/test_vo_episode_logic.py` y
 `tests/test_vo_collector_node_sim.py`. Parámetros en `vo_data_collection_params.yaml`.
@@ -166,9 +191,30 @@ Lógica en `visuomotor_data_collection/vo_episode_logic.py`, con pruebas en `tes
 * **Por episodio se guarda:**
   - arrays `timestamp`, `image_stamp`, `pose_stamp`, `inliers` y `lost`;
   - atributos `quality`, `qa_problems`, `odom_reset`, `start_gravity_mps2`, `git_commit`, `config_sha256` y
-    `collector_version: 2`.
+    `collector_version` (3). v3 agrega `start_view`, `schedule`, `max_speed_m_s`, `mean_speed_m_s`, `travel_m` y
+    `save_trigger`.
 * **Middleware:** usar CycloneDDS, como `run_vo_container.sh`. En la simulación, con FastDDS el suscriptor de
   imágenes en Python perdió ráfagas de ~300 ms; el control de calidad las marca, pero se pierden episodios.
+
+## 4b. Medición de la odometría sin el robot (2026-11-24)
+
+Referencia: tablero ChArUco **A3 9×7, cuadro de 36 mm**, medido con calibre (`measured: true`). En una aproximación
+sintética, el A4 7×5 anterior tenía ~14 mm de error a la distancia de HOME3; el A3 9×7 tiene 1,7 mm.
+
+```bash
+# Corridas (cámara + RTAB-Map corriendo; tablero a la vista): primero 15 s quieta, luego >= 10 aproximaciones
+./tools/hardware/record_vio_bag.sh reposo_home3 15
+./tools/hardware/record_vio_bag.sh aprox_01
+# Odometría en vivo contra el tablero (mediana [p90, máx] entre corridas; nunca el mejor caso)
+python3 tools/hardware/evaluate_pose_estimates.py --run datasets/vio_bags/<bag> --out-dir experiments/vio_measurement/<fecha>
+# Mismos bags, todos los candidatos de RTAB-Map (vio_measurement.yaml) y evaluación conjunta
+python3 tools/hardware/replay_odometry_candidates.py --run datasets/vio_bags/<b1> --run datasets/vio_bags/<b2> --out-dir experiments/vio_replay/<fecha>
+# Probar la cadena sin cámara: bag sintético con verdad conocida
+python3 tools/hardware/make_synthetic_vio_bag.py --out /tmp/syn
+```
+Regla de decisión (plan, Fase 3): gana la menor mediana de ATE anclado que cumpla el p90 y no tenga pérdidas. Si dos
+están a menos del 10 %, se elige el más simple. Antes de las corridas, fijar la exposición y el balance:
+`tools/hardware/read_camera_auto_settings.py`.
 
 ## 5. Auditoría y Visualización Post-Recolección
 

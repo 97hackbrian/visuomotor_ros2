@@ -6,7 +6,7 @@ hoja A4 o A3 apaisada. Añade una regla de 100 mm para comprobar la escala de la
 que medir con calibre y escribir las medidas reales en el YAML (``measured: true``).
 
 Uso (contenedor):
-    python3 tools/hardware/make_charuco_board.py                    # A4 -> docs/hardware/charuco_board.{pdf,png}
+    python3 tools/hardware/make_charuco_board.py                    # A3 (tablero por defecto) -> docs/hardware/
     python3 tools/hardware/make_charuco_board.py --paper A3 --out-dir /tmp/board
 """
 
@@ -35,7 +35,7 @@ INK = "#52514e"
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--config", default=str(DEFAULT_CONFIG))
-    ap.add_argument("--paper", choices=sorted(PAPERS_MM), default="A4")
+    ap.add_argument("--paper", choices=sorted(PAPERS_MM), default="A3")
     ap.add_argument("--dpi", type=int, default=600, help="resolución del tablero dentro del PDF")
     ap.add_argument("--out-dir", default=str(REPO / "docs" / "hardware"))
     args = ap.parse_args(argv)

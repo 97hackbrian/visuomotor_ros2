@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "visuomotor_core"))
 
 from visuomotor_core.analysis.trajectory_metrics import (  # noqa: E402
-    estimate_time_offset, evaluate_trajectory, interpolate_poses, matrix_to_quat, quat_to_matrix,
-    relative_pose_errors, summarize_runs, umeyama)
+    estimate_time_offset, evaluate_paired, evaluate_trajectory, interpolate_poses, matrix_to_quat, quat_to_matrix,
+    relative_pose_errors, relative_pose_errors_time, summarize_runs, umeyama)
 
 
 def _rz(a):
@@ -118,6 +118,45 @@ class RpeAndOffsetTest(unittest.TestCase):
         self.assertEqual(s["n"], 9)
         self.assertAlmostEqual(s["median"], 21.6)
         self.assertAlmostEqual(s["min"], 2.3)
+
+
+class PairedEvaluationTest(unittest.TestCase):
+    """Evaluación con pares ya asociados y huecos (referencia del tablero solo cuando se ve)."""
+
+    def test_rigid_offset_gives_zero_error(self):
+        t, p, q = _reference(200)
+        r_off = _rz(0.7) @ _rx(0.2)
+        p_est = (p @ r_off.T) + np.array([1.0, -2.0, 0.5])
+        q_est = matrix_to_quat(np.einsum("ij,njk->nik", r_off, quat_to_matrix(q)))
+        out = evaluate_paired(t, p_est, q_est, p, q)
+        self.assertLess(out["ate_anchored_mm"]["max"], 1e-6)
+        self.assertAlmostEqual(out["scale"], 1.0, places=9)
+        self.assertLess(out["rpe"]["0.5s"]["trans_mm"]["max"], 1e-6)
+        self.assertEqual(out["gaps"], 0)
+
+    def test_scale_error_and_gaps(self):
+        t, p, q = _reference(300)
+        p_est = p[0] + 1.03 * (p - p[0])                          # trayectoria 3 % más larga
+        keep = np.ones(len(t), bool)
+        keep[100:140] = False                                      # 2 s sin tablero
+        lost = np.zeros(keep.sum(), bool)
+        lost[10] = True
+        out = evaluate_paired(t[keep], p_est[keep], q[keep], p[keep], q[keep], lost=lost)
+        self.assertAlmostEqual(out["scale_error_pct"], 3.0, delta=0.05)
+        self.assertEqual(out["gaps"], 2)                           # el hueco sin tablero y el frame perdido
+        self.assertGreater(out["ate_anchored_mm"]["max"], 5.0)
+        self.assertAlmostEqual(out["lost_pct"], 100.0 / keep.sum(), places=6)
+        self.assertGreater(out["rpe"]["1s"]["n"], 0)
+
+    def test_time_rpe_matches_frame_rpe_on_regular_sampling(self):
+        t, p, q = _reference(200, rate=20.0)
+        rng = np.random.default_rng(0)
+        p_est = p + rng.normal(0, 0.002, p.shape)
+        r, re_ = quat_to_matrix(q), quat_to_matrix(q)
+        a, b = relative_pose_errors(p_est, re_, p, r, 10)
+        c, d = relative_pose_errors_time(t, p_est, re_, p, r, 0.5, 0.025)
+        np.testing.assert_allclose(a, c, atol=1e-12)
+        np.testing.assert_allclose(b, d, atol=1e-9)
 
 
 if __name__ == "__main__":

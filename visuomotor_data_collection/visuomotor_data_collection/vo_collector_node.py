@@ -16,8 +16,19 @@ Fase 4). La lógica pura está en ``vo_episode_logic.py`` y tiene pruebas en ``t
 * **Grabación cruda** por episodio (rosbag2 MCAP, opcional) para reprocesar la odometría offline.
 * **Metadatos:** versión del recolector, commit, sha256 de los YAML, celda del objeto (teclas 1–9).
 
-Controles: [ESPACIO] empezar · [H] llegada (HOLD) · [S] guardar · [F] forzar guardado · [D] descartar ·
-[G] gripper · [1-9] celda del objeto (0 = ninguna) · [Q] salir.
+Cambios de v3 (2026-11-24, tras los 14 intentos en el xArm5; ``vo_start_guide.py`` y ``vo_schedule.py``):
+* **Guía de inicio a HOME3:** compara los ArUco de la mesa con la vista que tiene la cámara del robot en HOME3. Publica
+  una imagen de guía (``~/start_guide``, verla con rqt_image_view) y, con ``start_guide_required``, no deja empezar
+  fuera de tolerancia ([I] empieza igual y queda registrado). Los episodios guardan ``start_view``.
+* **Inicio y guardado automáticos (opcionales):** ``auto_start`` empieza cuando la vista lleva ``auto_start_hold_s``
+  alineada y quieta, sin tocar el teclado (tocarlo mueve la cámara). ``auto_save`` guarda cuando la cámara ya se alejó
+  del inicio y lleva quieta al final ``min_hold_duration_s`` + margen.
+* **Velocidad:** aviso por encima de ``max_demo_speed_m_s``; la máxima y la media van a los atributos.
+* **Programa de recolección** (``schedule_file``): muestra la siguiente celda y orientación de la herramienta y la
+  guarda en el episodio ([N] salta una entrada).
+
+Controles: [ESPACIO] empezar · [I] empezar ignorando la guía · [H] llegada (HOLD) · [S] guardar · [F] forzar guardado
+· [D] descartar · [G] gripper · [1-9] celda del objeto (0 = ninguna) · [N] saltar entrada del programa · [Q] salir.
 """
 from __future__ import annotations
 
@@ -32,6 +43,7 @@ import threading
 import time
 import tty
 from pathlib import Path
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -46,10 +58,13 @@ from sensor_msgs.msg import Image, Imu, JointState
 from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
 from visuomotor_data_collection.vo_episode_logic import (
-    EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, check_done_segment, continuous_quat, detect_hold_start,
-    episode_quality, is_null_odometry)
+    EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, check_done_segment, continuous_quat,
+    detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
+from visuomotor_data_collection.vo_schedule import load_csv as load_schedule, next_pending
+from visuomotor_data_collection.vo_start_guide import (
+    SteadyAlignment, ViewReference, detect_markers, draw_guide, summary_line, view_alignment)
 
-COLLECTOR_VERSION = 2
+COLLECTOR_VERSION = 3
 IDLE, ARMING, RECORDING = "IDLE", "ARMING", "RECORDING"
 
 
@@ -121,6 +136,25 @@ class VOCollectorNode(Node):
         d('config_files_to_hash', ['visuomotor_bringup/config/realsense/d435i_camera_params.yaml',
                                    'visuomotor_bringup/config/realsense/rtabmap_vio_params.yaml',
                                    'visuomotor_data_collection/config/vo_data_collection_params.yaml'])
+        # v3: guía de inicio a HOME3, inicio/guardado automáticos, velocidad y programa de recolección
+        d('start_guide_enabled', True)
+        d('start_guide_reference', 'visuomotor_bringup/config/realsense/home3_view_reference.yaml')
+        d('start_guide_tolerance_px', 8.0)
+        d('start_guide_min_markers', 2)
+        d('start_guide_required', True)
+        d('start_guide_rate_hz', 5.0)
+        d('start_guide_image_topic', '~/start_guide')
+        d('end_view_box_frac', 0.5)
+        d('auto_start', False)
+        d('auto_start_hold_s', 1.0)
+        d('auto_start_max_motion_px', 3.0)
+        d('auto_start_cooldown_s', 3.0)
+        d('auto_save', False)
+        d('auto_save_min_travel_m', 0.10)
+        d('auto_save_margin_s', 0.5)
+        d('max_demo_speed_m_s', 0.15)
+        d('terminal_bell', True)
+        d('schedule_file', '')
         g = lambda name: self.get_parameter(name).value  # noqa: E731
         self.p = g
 
@@ -148,11 +182,45 @@ class VOCollectorNode(Node):
         self.last_p = None
         self.n_null = 0
         self.pending_problems = None
+        self.saving = False
         self.repo = Path(g('repo_root')).resolve()
         self.raw_bag = None
         if g('raw_bag_enabled'):
             from visuomotor_data_collection.vo_raw_recorder import RawEpisodeBag
             self.raw_bag = RawEpisodeBag(self, list(g('raw_bag_topics')))
+
+        # Guía de inicio a HOME3 (v3)
+        self.guide_ref = None
+        self.guide_res = None                     # (time.time(), resultado de view_alignment)
+        self.latest_full = None                   # (sello, imagen RGB a resolución completa)
+        self.start_view = None
+        self.steady = SteadyAlignment(float(g('auto_start_hold_s')), float(g('auto_start_max_motion_px')))
+        self.t_idle_since = time.time()
+        self._last_guide_print = 0.0
+        self._last_guide_aligned = None
+        self.auto_save_blocked = False
+        if g('start_guide_enabled'):
+            ref_path = Path(g('start_guide_reference'))
+            ref_path = ref_path if ref_path.is_absolute() else self.repo / ref_path
+            try:
+                self.guide_ref = ViewReference.load(ref_path)
+            except Exception as e:  # noqa: BLE001
+                self.get_logger().error(f"Guía de inicio DESACTIVADA: no se pudo leer {ref_path} ({e}).")
+        self.guide_pub = self.create_publisher(Image, g('start_guide_image_topic'), 2)
+        self.cb_guide = MutuallyExclusiveCallbackGroup()
+        self.create_timer(1.0 / float(g('start_guide_rate_hz')), self._guide_tick, callback_group=self.cb_guide)
+
+        # Programa de recolección (v3): entradas hechas = las que ya están en los atributos del dataset
+        self.schedule, self.sched_done, self.sched_skipped = [], set(), set()
+        if str(g('schedule_file')).strip():
+            sp = Path(g('schedule_file'))
+            sp = sp if sp.is_absolute() else self.repo / sp
+            self.schedule = load_schedule(sp)
+            for k in self.storage.root.group_keys():
+                sch = dict(self.storage.root[k].attrs).get("schedule") or {}
+                if "index" in sch:
+                    self.sched_done.add(int(sch["index"]))
+            self.get_logger().info(f"Programa {sp.name}: {len(self.schedule)} entradas, {len(self.sched_done)} hechas.")
 
         self.create_subscription(Image, g('camera_topic'), self._img_cb, 10, callback_group=self.cb_data)
         self.create_subscription(Odometry, g('odom_topic'), self._odom_cb, 50, callback_group=self.cb_data)
@@ -176,9 +244,16 @@ class VOCollectorNode(Node):
         self.get_logger().info("=" * 72)
         self.get_logger().info(f" VO Collector v{COLLECTOR_VERSION} | {self.rate} Hz | {g('image_size')} px | "
                                f"{self.storage_path} ({n_prev} episodios)")
-        self.get_logger().info(" [ESPACIO] empezar  [H] llegada  [S] guardar  [F] forzar  [D] descartar  [G] gripper  "
-                               "[1-9] celda  [Q] salir")
+        self.get_logger().info(" [ESPACIO] empezar  [I] empezar ignorando la guía  [H] llegada  [S] guardar  "
+                               "[F] forzar  [D] descartar  [G] gripper  [1-9] celda  [N] saltar  [Q] salir")
+        if self.guide_ref is not None:
+            self.get_logger().info(f" Guía de inicio a HOME3: tolerancia {g('start_guide_tolerance_px')} px "
+                                   f"({'obligatoria' if g('start_guide_required') else 'solo aviso'}); imagen en "
+                                   f"{self.guide_pub.topic_name} (rqt_image_view)")
+        self.get_logger().info(f" Inicio automático: {'SÍ' if g('auto_start') else 'no'} | guardado automático: "
+                               f"{'SÍ' if g('auto_save') else 'no'}")
         self.get_logger().info("=" * 72)
+        self._announce_schedule()
 
     # ------------------------------------------------------------------ dataset
     def _resolve_dataset_path(self, raw_path, prefix):
@@ -203,6 +278,7 @@ class VOCollectorNode(Node):
     def _img_cb(self, msg):
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+            self.latest_full = (_stamp(msg), img)                 # referencia (sin copia) para la guía
             s = int(self.p('image_size'))
             if img.shape[0] != s or img.shape[1] != s:
                 img = cv2.resize(img, (s, s), interpolation=cv2.INTER_AREA)
@@ -245,7 +321,7 @@ class VOCollectorNode(Node):
             self.current_gripper = float(msg.position[0])
 
     # ------------------------------------------------------------------ máquina de estados
-    def _start(self):
+    def _start(self, override: bool = False, source: str = "manual"):
         with self.lock:
             if self.state != IDLE:
                 self.get_logger().warn(f"Ya hay un episodio en curso ({self.state}).")
@@ -253,6 +329,22 @@ class VOCollectorNode(Node):
             if self.poses.latest() is None or len(self.images) == 0:
                 self.get_logger().warn("No se puede empezar: falta imagen u odometría.")
                 return False
+            res = None
+            if self.guide_ref is not None and self.guide_res is not None and time.time() - self.guide_res[0] < 1.0:
+                res = self.guide_res[1]
+            if self.guide_ref is not None and self.p('start_guide_required') and not override:
+                if res is None or not res.get("aligned"):
+                    self.get_logger().warn("No se empieza: la vista no coincide con HOME3. " +
+                                           (summary_line(res) if res else "Sin resultado reciente de la guía.") +
+                                           " [I] empieza igual (queda registrado).")
+                    self._bell()
+                    return False
+            self.start_view = None if res is None else {
+                k: res.get(k) for k in ("aligned", "error_px", "shift_px", "scale", "roll_deg", "residual_px",
+                                        "n_markers", "tol_px")}
+            if self.start_view is not None or override:
+                self.start_view = dict(self.start_view or {}, override=bool(override), source=source)
+            self.auto_save_blocked = False
             self.hold, self.current_gripper, self.pending_problems = False, 0.0, None
             self.imu_acc, self.imu_frame, self.n_null = [], "", 0
             self.state, self.t_arm, self.t_reset, self.odom_reset_ok = ARMING, time.time(), None, False
@@ -277,6 +369,7 @@ class VOCollectorNode(Node):
             self.odom_reset_ok = True
 
     def _tick(self):
+        save_now = False
         with self.lock:
             if self.state == ARMING:
                 if self.t_reset is None:
@@ -298,11 +391,26 @@ class VOCollectorNode(Node):
                         path = Path(self.p('raw_bag_dir')) / stem / time.strftime("ep_%Y%m%d_%H%M%S")
                         rec = self.raw_bag.start(path)
                         self.get_logger().info(f"[RAW BAG] {len(rec)} tópicos -> {path}")
-                    self.get_logger().info(">>> [REC] Grabando. Mover la cámara hacia el objetivo; [H] al llegar.")
+                    self.get_logger().info(">>> [REC] Grabando. Mover la cámara hacia el objetivo; " +
+                                           ("al llegar, quedarse QUIETA (guardado automático)." if self.p('auto_save')
+                                            else "[H] al llegar."))
+                    self._bell()
                 return
             if self.state == RECORDING:
                 self.sampler.step(self.poses, self.images, self.current_gripper, self.hold,
                                   image_wait_s=float(self.p('image_wait_s')))
+                if self.p('auto_save') and not self.auto_save_blocked and len(self.sampler.frames) > 2:
+                    p = np.array([f.p for f in self.sampler.frames])
+                    save_now = auto_save_ready(p, self.rate, float(self.p('auto_save_min_travel_m')),
+                                               float(self.p('min_hold_duration_s')),
+                                               float(self.p('auto_save_margin_s')), float(self.p('static_speed_m_s')),
+                                               float(self.p('static_window_s')))
+        if save_now:                                           # fuera del lock: _save lo toma de nuevo
+            ok, msg = self._save(auto_detect_hold=True, trigger="auto")
+            if not ok:
+                with self.lock:
+                    self.auto_save_blocked = True
+                self.get_logger().error(f"[AUTO] No se guardó ({msg}). [D] descartar o [F] forzar.")
 
     def _status(self):
         with self.lock:
@@ -313,9 +421,17 @@ class VOCollectorNode(Node):
             inl = [f.inliers for f in fr[-20:] if f.inliers >= 0]
             p = np.array([f.p for f in fr[-11:]])
             v = np.linalg.norm(p[-1] - p[0]) / max(1e-6, (len(p) - 1) / self.rate) if len(p) > 1 else 0.0
+        vmax = float(self.p('max_demo_speed_m_s'))
+        fast = v > vmax
         msg = (f"[REC] {len(fr) / self.rate:5.1f} s | perdidos {lost} | inliers {min(inl) if inl else -1} | "
-               f"v {v * 100:4.1f} cm/s{' | HOLD' if self.hold else ''}{f' | celda {self.object_cell}' if self.object_cell else ''}")
-        (self.get_logger().warn if lost else self.get_logger().info)(msg)
+               f"v {v * 100:4.1f} cm/s{f' > {vmax * 100:.0f}: MÁS LENTO' if fast else ''}"
+               f"{' | HOLD' if self.hold else ''}{f' | celda {self.object_cell}' if self.object_cell else ''}")
+        # Una línea por severidad: rclpy lanza ValueError si la misma línea de log cambia de severidad entre llamadas,
+        # y esa excepción detenía el ejecutor (el recolector v2 dejaba de recibir datos con el primer frame perdido).
+        if lost or fast:
+            self.get_logger().warn(msg)
+        else:
+            self.get_logger().info(msg)
 
     def _hold(self):
         if self.state != RECORDING:
@@ -331,25 +447,38 @@ class VOCollectorNode(Node):
             self.state, self.hold, self.pending_problems = IDLE, False, None
             self.sampler.start(None)
             self.sampler.t_next = None
+            self.t_idle_since = time.time()
+            self.steady.reset()
         if self.raw_bag is not None:
             self.raw_bag.stop(delete=True)
         self.get_logger().info(f"[DISCARD] Episodio descartado ({n} frames).")
         return True, "Descartado"
 
-    def _save(self, force: bool = False):
+    def _save(self, force: bool = False, auto_detect_hold: Optional[bool] = None, trigger: str = "manual"):
         with self.lock:
             if self.state != RECORDING:
                 return False, "No hay grabación activa"
+            if self.saving:                                   # [S] y el guardado automático a la vez
+                return False, "Guardado en curso"
+            self.saving = True
             # Completar los frames cuya pose ya llegó
             self.sampler.step(self.poses, self.images, self.current_gripper, self.hold, image_wait_s=0.0)
             frames = list(self.sampler.frames)
+        try:
+            auto_detect = bool(self.p('auto_hold')) if auto_detect_hold is None else bool(auto_detect_hold)
+            return self._save_frames(frames, force, auto_detect, trigger)
+        finally:
+            with self.lock:
+                self.saving = False
+
+    def _save_frames(self, frames, force: bool, auto_detect: bool, trigger: str):
         if len(frames) < int(self.p('min_episode_frames')):
             self._discard()
             return False, f"Episodio demasiado corto ({len(frames)} frames): descartado"
         p_abs = np.array([f.p for f in frames])
         hold = np.array([f.hold for f in frames])
         auto = False
-        if self.p('auto_hold') and not hold.any():
+        if auto_detect and not hold.any():
             i = detect_hold_start(p_abs, self.rate, float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
             if i is not None:
                 hold[i:] = True
@@ -371,6 +500,7 @@ class VOCollectorNode(Node):
                 self.get_logger().error(f"[QA] {pr}")
             self.get_logger().error("[QA] Episodio NO guardado: [D] descartar y repetir, o [F] forzar el guardado "
                                     "(queda marcado en los atributos).")
+            self._bell()
             return False, "QA: " + "; ".join(problems)
 
         rel = p_abs - p_abs[0] if self.p('relative_coordinates') else p_abs
@@ -394,6 +524,10 @@ class VOCollectorNode(Node):
         }
         bag_path = self.raw_bag.stop(delete=False) if self.raw_bag is not None else None
         g = np.mean(np.array(self.imu_acc), axis=0).tolist() if self.imu_acc else None
+        i_hold = int(np.argmax(chk["done"] > 0.5)) if (chk["done"] > 0.5).any() else len(frames)
+        v = smoothed_speeds(p_abs, self.rate, float(self.p('static_window_s')))
+        entry = next_pending(self.schedule, self.sched_done, self.sched_skipped) if self.schedule else None
+        cell = int(self.object_cell) or (entry.cell if entry is not None else 0)
         attrs = {
             "collector_version": COLLECTOR_VERSION,
             "sensor": "Intel RealSense", "odometry": "RTAB-Map rgbd_odometry",
@@ -405,17 +539,111 @@ class VOCollectorNode(Node):
             "odom_reset": bool(self.odom_reset_ok), "null_odometry_messages": int(self.n_null),
             "start_gravity_mps2": g, "start_gravity_frame": getattr(self, "imu_frame", ""),
             "quality": qual, "qa_problems": problems, "qa_forced": bool(force and problems),
-            "object_cell": int(self.object_cell), "raw_bag": None if bag_path is None else str(bag_path),
+            "object_cell": cell, "raw_bag": None if bag_path is None else str(bag_path),
             "git_commit": _git_commit(self.repo), "config_sha256": self._config_hashes(),
+            # v3
+            "start_view": self.start_view, "schedule": None if entry is None else entry.as_attrs(),
+            "max_speed_m_s": float(v[:i_hold].max()) if i_hold > 0 else 0.0,
+            "mean_speed_m_s": float(v[:i_hold].mean()) if i_hold > 0 else 0.0,
+            "travel_m": max_travel(p_abs), "max_demo_speed_m_s": float(self.p('max_demo_speed_m_s')),
+            "auto_start": bool(self.start_view and self.start_view.get("source") == "auto"),
+            "save_trigger": trigger,
         }
         ep_idx, total = self.storage.append_episode(buffer, attrs=attrs, extra_arrays=extra, episode_chunks=True)
         with self.lock:
             self.state, self.hold = IDLE, False
             self.sampler.t_next = None
+            self.t_idle_since = time.time()
+            self.steady.reset()
+            if entry is not None:
+                self.sched_done.add(entry.index)
         self.get_logger().info(f"[SAVE] episode_{ep_idx}: {len(frames)} frames ({len(frames) / self.rate:.1f} s), "
                                f"done {chk['hold_frames']} frames{' (auto)' if auto else ''}"
-                               f"{', FORZADO con problemas' if force and problems else ''}. Total {total}.")
+                               f"{', FORZADO con problemas' if force and problems else ''}. Total {total}. "
+                               f"Velocidad máx {attrs['max_speed_m_s'] * 100:.1f} cm/s.")
+        self._bell()
+        self._announce_schedule()
         return True, f"Guardado episode_{ep_idx}"
+
+    # ------------------------------------------------------------------ guía de inicio (v3)
+    def _guide_tick(self):
+        """En IDLE: compara la vista con HOME3, informa y arranca solo (``auto_start``). En REC: retícula de llegada.
+        La imagen de guía solo se dibuja si alguien la mira (rqt_image_view)."""
+        lf = self.latest_full
+        if lf is None:
+            return
+        stamp, img = lf
+        state = self.state
+        want_img = self.guide_pub.get_subscription_count() > 0
+        if state == IDLE and self.guide_ref is not None:
+            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            live = detect_markers(gray, self.guide_ref.dictionary)
+            res = view_alignment(live, (img.shape[1], img.shape[0]), self.guide_ref,
+                                 tol_px=float(self.p('start_guide_tolerance_px')),
+                                 min_markers=int(self.p('start_guide_min_markers')))
+            now = time.time()
+            with self.lock:
+                self.guide_res = (now, res)
+            if res["aligned"] != self._last_guide_aligned or now - self._last_guide_print > 2.0:
+                if res["aligned"]:                             # una línea por severidad (ver _status)
+                    self.get_logger().info(summary_line(res))
+                else:
+                    self.get_logger().warn(summary_line(res))
+                self._last_guide_print, self._last_guide_aligned = now, res["aligned"]
+            steady = self.steady.update(now, res, live)
+            if (self.p('auto_start') and steady and now - self.t_idle_since >= float(self.p('auto_start_cooldown_s'))):
+                self.get_logger().info(">>> [AUTO] Vista de HOME3 alineada y quieta: empezando.")
+                self.steady.reset()
+                self._start(source="auto")
+            if want_img:
+                self._publish_guide(draw_guide(img, live, self.guide_ref, res), stamp)
+        elif state in (ARMING, RECORDING) and want_img:
+            out = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            h, w = out.shape[:2]
+            f = float(self.p('end_view_box_frac'))
+            bw, bh = int(w * f / 2), int(h * f / 2)
+            cv2.rectangle(out, (w // 2 - bw, h // 2 - bh), (w // 2 + bw, h // 2 + bh), (0, 200, 255), 2, cv2.LINE_AA)
+            cv2.drawMarker(out, (w // 2, h // 2), (0, 200, 255), cv2.MARKER_CROSS, 24, 2, cv2.LINE_AA)
+            txt = "QUIETA: reiniciando odometria" if state == ARMING else (
+                "REC  HOLD" if self.hold else "REC  llegar con la herramienta centrada en el recuadro")
+            cv2.rectangle(out, (0, 0), (w, 26), (0, 0, 170) if state == RECORDING else (0, 120, 200), -1)
+            cv2.putText(out, txt, (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            self._publish_guide(out, stamp)
+
+    def _publish_guide(self, bgr, stamp):
+        msg = self.bridge.cv2_to_imgmsg(bgr, encoding="bgr8")
+        msg.header.stamp.sec = int(stamp)
+        msg.header.stamp.nanosec = int(round((stamp - int(stamp)) * 1e9)) % 1_000_000_000
+        msg.header.frame_id = "camera_color_optical_frame"
+        self.guide_pub.publish(msg)
+
+    def _bell(self):
+        if self.p('terminal_bell'):
+            try:
+                sys.stdout.write("\a")
+                sys.stdout.flush()
+            except OSError:
+                pass
+
+    def _announce_schedule(self):
+        if not self.schedule:
+            return
+        e = next_pending(self.schedule, self.sched_done, self.sched_skipped)
+        if e is None:
+            self.get_logger().info(f"[PROGRAMA] Completo: {len(self.sched_done)} demos hechas.")
+        else:
+            self.get_logger().info(f"[PROGRAMA] Siguiente {e.describe()} ({len(self.sched_done)}/{len(self.schedule)} "
+                                   "hechas). [N] saltar.")
+
+    def _skip_schedule(self):
+        e = next_pending(self.schedule, self.sched_done, self.sched_skipped) if self.schedule else None
+        if e is None:
+            self.get_logger().warn("No hay entrada del programa que saltar.")
+            return False
+        self.sched_skipped.add(e.index)
+        self.get_logger().info(f"[PROGRAMA] Saltada {e.describe()} (vuelve a aparecer al reiniciar el recolector).")
+        self._announce_schedule()
+        return True
 
     def _config_hashes(self):
         out = {}
@@ -435,9 +663,12 @@ class VOCollectorNode(Node):
     # ------------------------------------------------------------------ control
     def _srv_trigger(self, req, res):
         cmd = req.command.strip().upper()
-        if cmd == "START":
-            res.success = self._start()
-            res.message = "Grabación solicitada" if res.success else "No se pudo empezar"
+        if cmd in ("START", "START_OVERRIDE"):
+            res.success = self._start(override=(cmd == "START_OVERRIDE"))
+            res.message = "Grabación solicitada" if res.success else "No se pudo empezar (¿vista no alineada?)"
+        elif cmd == "SKIP":
+            res.success = self._skip_schedule()
+            res.message = "Entrada saltada" if res.success else "Sin programa"
         elif cmd == "HOLD":
             self._hold()
             res.success, res.message = self.state == RECORDING, "Hold"
@@ -473,6 +704,10 @@ class VOCollectorNode(Node):
                 ch = sys.stdin.read(1).lower()
                 if ch == ' ':
                     self._start()
+                elif ch == 'i':
+                    self._start(override=True)
+                elif ch == 'n':
+                    self._skip_schedule()
                 elif ch == 'h':
                     self._hold()
                 elif ch == 's':

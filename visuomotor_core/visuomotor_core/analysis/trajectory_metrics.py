@@ -261,6 +261,78 @@ def evaluate_trajectory(t_est: np.ndarray, p_est: np.ndarray, q_est: np.ndarray,
     return out
 
 
+def relative_pose_errors_time(t: np.ndarray, p_est: np.ndarray, r_est: np.ndarray, p_ref: np.ndarray,
+                              r_ref: np.ndarray, horizon_s: float, tol_s: float) -> Tuple[np.ndarray, np.ndarray]:
+    """RPE entre cada instante ``t_i`` y el instante ``t_j`` más cercano a ``t_i + horizon_s`` (a ≤ ``tol_s``).
+
+    A diferencia de ``relative_pose_errors`` (desfase fijo en frames), admite huecos: la referencia del tablero solo
+    existe cuando el tablero se ve."""
+    t = np.asarray(t, dtype=np.float64)
+    n = len(t)
+    if n < 2:
+        return np.zeros(0), np.zeros(0)
+    target = t + horizon_s
+    j = np.searchsorted(t, target)
+    c0, c1 = np.clip(j - 1, 0, n - 1), np.clip(j, 0, n - 1)
+    d0, d1 = np.abs(t[c0] - target), np.abs(t[c1] - target)
+    c = np.where(d1 < d0, c1, c0)
+    m = (np.minimum(d0, d1) <= tol_s) & (c > np.arange(n))
+    i, k = np.arange(n)[m], c[m]
+    if len(i) == 0:
+        return np.zeros(0), np.zeros(0)
+    dp_ref = np.einsum("nji,nj->ni", r_ref[i], p_ref[k] - p_ref[i])
+    dp_est = np.einsum("nji,nj->ni", r_est[i], p_est[k] - p_est[i])
+    dr_ref = np.einsum("nji,njk->nik", r_ref[i], r_ref[k])
+    dr_est = np.einsum("nji,njk->nik", r_est[i], r_est[k])
+    e_r = np.einsum("nji,njk->nik", dr_ref, dr_est)
+    e_t = np.einsum("nji,nj->ni", dr_ref, dp_est - dp_ref)
+    return np.linalg.norm(e_t, axis=1), rotation_angle_deg(e_r)
+
+
+def evaluate_paired(t: np.ndarray, p_est: np.ndarray, q_est: np.ndarray, p_ref: np.ndarray, q_ref: np.ndarray,
+                    lost: Optional[np.ndarray] = None, rpe_horizons_s: Sequence[float] = (0.25, 0.5, 1.0),
+                    rpe_tol_s: Optional[float] = None) -> Dict:
+    """Como ``evaluate_trajectory``, pero con pares YA asociados (mismo instante; p. ej. la odometría y la pose del
+    tablero de la MISMA imagen) y con huecos permitidos: no interpola la referencia a través de los huecos.
+
+    Ambas trayectorias deben ser la pose del mismo marco físico (p. ej. el marco óptico de color). ``lost`` marca pares
+    sin estimación válida (cuentan en ``lost_pct``)."""
+    t = np.asarray(t, dtype=np.float64)
+    lost = np.zeros(len(t), bool) if lost is None else np.asarray(lost, bool)
+    ok = ~lost
+    if ok.sum() < 3:
+        raise ValueError("menos de 3 pares válidos")
+    te = t[ok]
+    if np.any(np.diff(te) <= 0):
+        raise ValueError("los instantes deben ser estrictamente crecientes")
+    pe, re_ = np.asarray(p_est, np.float64)[ok], quat_to_matrix(np.asarray(q_est, np.float64)[ok])
+    pr, rr = np.asarray(p_ref, np.float64)[ok], quat_to_matrix(np.asarray(q_ref, np.float64)[ok])
+    dt = float(np.median(np.diff(te)))
+    gaps = np.diff(te) > 1.5 * dt
+    out: Dict = {"n_frames": int(len(t)), "n_valid": int(ok.sum()), "lost_pct": float(100.0 * lost.mean()),
+                 "duration_s": float(te[-1] - te[0]), "gaps": int(gaps.sum()),
+                 "path_length_m": float(np.linalg.norm(np.diff(pr, axis=0), axis=1)[~gaps].sum())}
+    s, r, tt = anchor_to_first(pe, re_, pr, rr)
+    pa, ra = apply_transform(s, r, tt, pe, re_)
+    err = np.linalg.norm(pa - pr, axis=1)
+    out["ate_anchored_mm"] = _stats(err, 1000.0)
+    out["rot_anchored_deg"] = _stats(rotation_angle_deg(np.einsum("nji,njk->nik", rr, ra)))
+    out["final_error_anchored_mm"] = float(err[-1] * 1000.0)
+    out["error_series"] = {"t": (te - te[0]).tolist(), "ate_anchored_mm": (err * 1000.0).tolist()}
+    s, r, tt = umeyama(pe, pr, with_scale=False)
+    out["ate_se3_mm"] = _stats(np.linalg.norm(apply_transform(s, r, tt, pe)[0] - pr, axis=1), 1000.0)
+    s, r, tt = umeyama(pe, pr, with_scale=True)
+    out["ate_sim3_mm"] = _stats(np.linalg.norm(apply_transform(s, r, tt, pe)[0] - pr, axis=1), 1000.0)
+    out["scale"] = float(1.0 / s)
+    out["scale_error_pct"] = float(100.0 * (1.0 / s - 1.0))
+    tol = 0.5 * dt if rpe_tol_s is None else rpe_tol_s
+    out["rpe"] = {}
+    for h in rpe_horizons_s:
+        et, er = relative_pose_errors_time(te, pe, re_, pr, rr, h, tol)
+        out["rpe"][f"{h:g}s"] = {"trans_mm": _stats(et, 1000.0), "rot_deg": _stats(er), "n": int(len(et))}
+    return out
+
+
 def summarize_runs(results: Iterable[Dict], keys: Sequence[str] = ("ate_anchored_mm.rmse", "ate_anchored_mm.max",
                                                                       "ate_sim3_mm.rmse", "scale_error_pct",
                                                                       "rot_anchored_deg.median", "lost_pct")

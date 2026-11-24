@@ -354,11 +354,12 @@ Parámetros relevantes ya fijados en `config/jetson_policy_params.yaml`: `quater
 - **Registrar:** distancia final, tiempo, paradas prematuras, recortes del puente y un rosbag de `/policy/metrics`.
 - **Estimación previa:** ~40 % (30-55 %) si la vista en HOME3 coincide con la referencia. Con 20 intentos, el
   intervalo de confianza al 95 % es de unos ±20 puntos (Wilson: 10/20 → 30-70 %); con 10, de unos ±30.
-- **Resultados del 2026-11-23 (8 intentos):**
-  - **8/8 llegaron y se detuvieron solos sobre la herramienta** (IC 68–100 %).
-  - **6/8 terminaron con la vista de las demos** (encuadre y distancia; IC 41–93 %).
-  - Los 2 restantes, tijeras giradas ~75° y tijeras junto a la base a la derecha, pararon ~20 % más cerca que en las
-    demos y descentrados.
+- **Resultados del 2026-11-23 (14 intentos):**
+  - **9/14 llegaron y se detuvieron solos sobre la herramienta** (IC 39–84 %).
+  - **7/14 terminaron con la vista de las demos** (encuadre y distancia; IC 27–73 %).
+  - Funciona con las tijeras rectas en las zonas que cubren las demos v7. Falla con las tijeras giradas o junto a la
+    base, y con otra escena (mantel corrido, sin ArUco).
+  - Cuando no reconoce el final, la política sigue bajando: el piso del vigilante (z ≥ 0,15 m) la detuvo 4 veces.
   - 0 errores del puente.
   - Detalle en `experiments/xarm5_real_trials/2026-11-23/summary.md`.
 - **Orquestador desde el PC:** `tools/xarm5/real_trials/run_trial.sh N "posición"`.

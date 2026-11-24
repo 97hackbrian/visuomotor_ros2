@@ -1,8 +1,8 @@
 # Tablero ChArUco fijo de la celda: referencia física de la herramienta de demostraciones con la D435i
 # (plan: docs/plans/plan_d435i_herramienta_demostraciones.md, Fase 1).
 #
-# 1. Generar el PDF a escala 1:1:
-#      python3 tools/hardware/make_charuco_board.py
+# 1. Generar el PDF a escala 1:1 (A3; con el A4 alternativo, --paper A4):
+#      python3 tools/hardware/make_charuco_board.py --paper A3
 # 2. Imprimir al 100 % (sin "ajustar a la página") y pegarlo sobre una placa rígida y plana.
 # 3. Medir con calibre el lado de varios cuadros y de varios marcadores, y escribir aquí la MEDIA en metros.
 #    Poner measured: true. Las herramientas de medición se niegan a usar medidas nominales.
@@ -11,12 +11,22 @@
 #
 # Diccionario distinto del de los dos ArUco de la mesa (DICT_4X4_50) para no confundir marcadores.
 # Filas IMPARES: el patrón no cambia entre versiones de OpenCV (portátil y Jetson).
+#
+# Tamaño elegido con datos (2026-11-24): error de posición de la referencia del tablero contra la verdad, en una
+# aproximación sintética (tools/hardware/make_synthetic_vio_bag.py; cámara ideal, solo JPEG). Medianas en mm:
+#   distancia cámara-tablero      < 0,45 m   0,45-0,60   0,60-0,75   0,75-1,2 (HOME3)
+#   A4 7x5, cuadro 33 mm (antes)     0,35       1,2         2,3         14,0
+#   A4 9x5, cuadro 30 mm             0,33       0,9         2,3          6,1   <- alternativa si no hay A3
+#   A3 9x7, cuadro 36 mm (este)      0,11       0,4         0,7          1,7
+# Pesa más el número de esquinas (63 frente a 24) que el tamaño del cuadro. Con una cámara real el error será mayor:
+# medir la quietud de la referencia en reposo (sección "Medición" del plan).
+# Para el A4: squares_x 9, squares_y 5, square_length_m 0.030, marker_length_m 0.0225 y --paper A4.
 charuco_board:
   dictionary: "DICT_5X5_100"
-  squares_x: 7
-  squares_y: 5
-  square_length_m: 0.033        # NOMINAL (A4 apaisado): reemplazar por la medida con calibre
-  marker_length_m: 0.025        # NOMINAL: reemplazar por la medida con calibre
+  squares_x: 9
+  squares_y: 7
+  square_length_m: 0.036        # NOMINAL (A3 apaisado): reemplazar por la medida con calibre
+  marker_length_m: 0.027        # NOMINAL: reemplazar por la medida con calibre
   measured: false
 
   # Las escribe tools/xarm5/calibrate_hand_eye.py SOLO tras revisar el residuo (null = sin calibrar).

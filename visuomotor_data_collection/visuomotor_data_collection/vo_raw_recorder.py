@@ -6,6 +6,10 @@ trayectoria con otro estimador o parámetros (Fase 3 del plan) sin repetir la to
 Los tópicos se leen de YAML. Su tipo se resuelve en el grafo al empezar el episodio; los tópicos que no existen se
 avisan y se omiten. Se suscribe en modo serializado (``raw=True``): no deserializa nada, así que el coste es copiar
 bytes.
+
+Los tópicos latched (``/tf_static``) se publican una sola vez al arrancar la cámara: con la QoS de sensores (volátil)
+el bag no los recibía y el reprocesado offline quedaba sin la transformación cámara-óptica. Se graban con
+TRANSIENT_LOCAL y fiable (corregido el 2026-11-24).
 """
 
 from __future__ import annotations
@@ -13,6 +17,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
+
+LATCHED_TOPICS = ("/tf_static",)
 
 
 class RawEpisodeBag:
@@ -32,8 +38,11 @@ class RawEpisodeBag:
     def start(self, path: Path) -> List[str]:
         """Abre el bag y se suscribe. Devuelve los tópicos grabados."""
         import rosbag2_py
-        from rclpy.qos import qos_profile_sensor_data
+        from rclpy.qos import (DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy,
+                               qos_profile_sensor_data)
         from rosidl_runtime_py.utilities import get_message
+        latched = QoSProfile(depth=100, history=HistoryPolicy.KEEP_LAST, reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
         self.stop(delete=False)
         path = Path(path)
@@ -53,9 +62,9 @@ class RawEpisodeBag:
                 meta = rosbag2_py.TopicMetadata(name=topic, type=types[topic], serialization_format="cdr")
             writer.create_topic(meta)
             self.counts[topic] = 0
+            qos = latched if topic in LATCHED_TOPICS else qos_profile_sensor_data
             self._subs.append(self.node.create_subscription(
-                get_message(types[topic]), topic, lambda data, tp=topic: self._write(tp, data),
-                qos_profile_sensor_data, raw=True))
+                get_message(types[topic]), topic, lambda data, tp=topic: self._write(tp, data), qos, raw=True))
             recorded.append(topic)
         self.writer, self.path = writer, path
         return recorded

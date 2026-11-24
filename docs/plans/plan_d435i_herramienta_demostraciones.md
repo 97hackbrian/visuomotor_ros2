@@ -2,17 +2,17 @@
 
 Aprobado el 2026-11-23. El plan original está abajo, sin cambios; esta tabla lleva el avance.
 
-## Estado de avance (2026-11-23)
+## Estado de avance (2026-11-24)
 
 | Fase | Hecho (con pruebas) | Pendiente |
 |---|---|---|
 | 0. Diagnóstico y documentos | `--raw-diagnostics` en `tools/xarm5/analyze_vio_dataset_quality.py` (`tests/test_vio_raw_diagnostics.py`), con resultados en `datasets/evaluations_real_v7_xarm5_v2/raw_diagnostics.*`. Corregidos AGENTS §17/§20 y comandos, K15 (§0 nuevo), skill v1.4 y `context.md` (lección 43). Quitado `ultra_precision` de los launch de la D435i; el YAML `_best_umi` queda marcado como histórico | H4 (distancia final cámara–mesa): requiere medir el lado de los ArUco de la mesa (`--aruco-marker-m`) |
-| 1. Escena y cámara | `charuco_board.yaml`, `visuomotor_bringup/charuco.py`, `tools/hardware/make_charuco_board.py` (A4, 7×5, 33 mm; `tests/test_charuco.py`) | Imprimir, medir con calibre, fijar el tablero; luz fija; exposición y balance manuales en `d435i_camera_params.yaml` |
-| 2. Medición con referencia | Métricas `visuomotor_core/analysis/trajectory_metrics.py` (`tests/test_trajectory_metrics.py`); calibración `tools/xarm5/calibrate_hand_eye.py` (`tests/test_hand_eye.py`) | Driver de la RealSense en la imagen de la Jetson; capturar la calibración; herramienta de trayectorias con el robot (`record_vio_ground_truth.py`) y CLI de evaluación sobre bags (`evaluate_pose_estimates.py`) |
-| 3. Elección del estimador | — | Requiere los bags de la Fase 2 |
-| 4. Recolector v2 | Sellos y emparejamiento por tiempo, poses nulas marcadas, `odom_info`/inliers, `reset_odom` por episodio, gravedad inicial, done verificado (+ `auto_hold`), signo continuo, QA que bloquea el guardado ([F] fuerza), metadatos, celda del objeto, `state`/`action` en un bloque por episodio, grabación cruda opcional (`vo_raw_recorder.py`). Pruebas: `tests/test_vo_episode_logic.py` y `tests/test_vo_collector_node_sim.py` (ROS 2 simulado) | Guía de inicio con el tablero (necesita la vista de HOME3 de la Fase 2.1); control de ejecutabilidad en vivo (extraer el núcleo de `Converter`); `build_dataset_from_bags.py` (necesita la Fase 3); probar la grabación cruda con la cámara real (desactivada por defecto) |
-| 5. Protocolo y piloto | — | Tras las fases 1–4 |
-| 6. Documentación | Parcial (Fase 0) | Skill v2.0 y K15 con las mediciones reales |
+| 1. Escena y cámara | `charuco_board.yaml` (**A3 9×7, cuadro de 36 mm**, elegido con datos el 2026-11-24), `visuomotor_bringup/charuco.py`, `tools/hardware/make_charuco_board.py` (`tests/test_charuco.py`); `tools/hardware/read_camera_auto_settings.py` (exposición/ganancia/balance automáticos -> manuales) | Imprimir en A3, medir con calibre, fijar el tablero; luz fija; escribir la exposición y el balance manuales en `d435i_camera_params.yaml` |
+| 2. Medición con referencia | Métricas `trajectory_metrics.py` (+ `evaluate_paired`, RPE por tiempo con huecos); `tools/hardware/record_vio_bag.sh`; `tools/hardware/evaluate_pose_estimates.py` (referencia del tablero, pares por sello, resumen por estimador); bag sintético con verdad `tools/hardware/make_synthetic_vio_bag.py`. Pruebas: `tests/test_trajectory_metrics.py`, `tests/test_vio_measurement_pipeline.py`. Calibración `tools/xarm5/calibrate_hand_eye.py` (`tests/test_hand_eye.py`) | Corridas a mano contra el tablero (sin robot); con el robot: captura de la calibración cámara-brida y trayectorias reproducidas por el xArm5 (`record_vio_ground_truth.py`) |
+| 3. Elección del estimador | `tools/hardware/replay_odometry_candidates.py`: reprocesa los mismos bags con cada candidato de `vio_measurement.yaml` (base, ajuste de haces, GuessMotion, F2F, flujo óptico, `Vis/MinDepth` 0,15, sin Kalman, sin IMU) y llama al evaluador. Probado de punta a punta con el bag sintético | Correr sobre los bags reales y decidir con la regla de la Fase 3 |
+| 4. Recolector | **v3:** guía de inicio a la vista de HOME3 (ArUco de la mesa, referencia de los 14 intentos reales), inicio y guardado automáticos, aviso de velocidad, programa de celdas × orientaciones, imagen de guía `~/start_guide`. Corregidos: caída del ejecutor por cambiar la severidad de un log en la misma línea (v2), `/tf_static` no se grababa en los bags crudos, `run_data_collection.sh` no cargaba el YAML. Pruebas: `tests/test_vo_start_guide.py`, `tests/test_vo_schedule.py`, `tests/test_vo_collector_node_sim.py` (v2 y v3) | Probar con la cámara real; control de ejecutabilidad en vivo (núcleo de `Converter`); `build_dataset_from_bags.py` (tras la Fase 3) |
+| 5. Protocolo y piloto | Programa de recolección (`tools/hardware/make_collection_schedule.py`); protocolo abajo ("Trabajo sin el robot") | Piloto de 10–15 demos y comparación con v7 |
+| 6. Documentación | Fase 0; recolector v3 y cadena de medición (2026-11-24) | Skill v2.0 y K15 con las mediciones reales |
 
 **Hallazgos de la Fase 0 (v7 crudo):**
 - Los saltos de 0,51 m de los episodios 23 y 24 son poses nulas de RTAB-Map guardadas como poses (4 frames).
@@ -25,6 +25,92 @@ Aprobado el 2026-11-23. El plan original está abajo, sin cambios; esta tabla ll
 **Hallazgo de la prueba del recolector:**
 - Dos callbacks de imagen que terminan en orden inverso hacían perder la imagen que llegaba tarde. Corregido.
 - Con FastDDS, el suscriptor en Python perdió ráfagas de imágenes; con CycloneDDS, que usan los scripts, no.
+
+## Trabajo sin el robot (2026-11-24)
+
+El robot no está disponible; solo la cámara. Todo lo de abajo funciona sin el xArm5. Lo que requiere el robot (la
+calibración cámara-brida y las trayectorias reproducidas por el brazo) queda para después.
+
+### Lo que dejaron los 14 intentos en el xArm5 (2026-11-23) para v8
+- **Inicio:** el robot arranca siempre desde la misma vista (HOME3; los ArUco de la mesa se repiten con < 1 px). Las
+  demos v7 empezaban dispersas: escala 0,88–1,26 y corrimiento de hasta ~80 px (en 640) respecto a esa vista.
+  -> Guía de inicio del recolector v3.
+- **Cobertura:** los fallos fueron con las tijeras giradas (intentos 7, 9 y 10) y junto a la base (8 y 11), donde v7
+  no tenía demos. -> Programa de celdas × orientaciones, en orden aleatorio.
+- **Parada:** la altura a la que la persona se detiene sobre un mismo lugar varió ±7 cm. En el intento 12, la red
+  reconoció el final solo un instante y siguió bajando. -> Llegar siempre a la misma vista final: la herramienta
+  centrada y llenando el recuadro central de la imagen de guía, y quieta al menos 2 s.
+- **Escena:** con el mantel corrido y sin ArUco (intento 14) la señal de término no pasó de 0,11. -> La escena de las
+  demos (mantel, ArUco, tablero) debe ser la misma en la inferencia.
+- **Velocidad:** en v7, la velocidad máxima por episodio tuvo mediana 0,11 m/s (p90 0,15). En los ensayos el puente
+  limitó a 0,05 m/s. -> Aviso por encima de 0,15 m/s.
+
+### Hallazgo con el bag sintético: el tamaño del tablero
+Error de posición de la referencia del tablero contra la verdad, en una aproximación sintética (cámara ideal, solo
+compresión JPEG). Mediana en mm:
+
+| Tablero | < 0,45 m | 0,45–0,60 m | 0,60–0,75 m | 0,75–1,2 m (HOME3) |
+|---|---|---|---|---|
+| A4 7×5, cuadro de 33 mm (el anterior) | 0,35 | 1,2 | 2,3 | 14,0 |
+| A4 9×5, cuadro de 30 mm (alternativa) | 0,33 | 0,9 | 2,3 | 6,1 |
+| **A3 9×7, cuadro de 36 mm (el elegido)** | 0,11 | 0,4 | 0,7 | 1,7 |
+
+- Con el A4 anterior, la referencia no servía a la distancia de HOME3: el primer frame salía ~1° girado y eso
+  propagaba ~9 mm al anclar.
+- Pesa más el número de esquinas (63 frente a 24) que el tamaño del cuadro.
+- Con una cámara real el error será mayor. Por eso la primera corrida de cada sesión es la cámara quieta, para
+  medirlo.
+
+### Cadena de medición, probada sin cámara
+Usa el bag sintético con verdad conocida (`tests/test_vio_measurement_pipeline.py`):
+- el evaluador recupera exactamente la escala (+3,00 %) y las pérdidas (3,9 %) inyectadas en la odometría simulada;
+- el reprocesado reproduce el bag:
+  - descomprime JPEG y compressedDepth;
+  - pasa por Madgwick y `rgbd_odometry`;
+  - graba y evalúa.
+- RTAB-Map base sobre la escena sintética: 4,5 mm de mediana y 9,3 mm al final.
+
+Es una escena fácil: esto valida las herramientas, no la odometría real.
+
+### Pasos con la cámara conectada (en orden)
+1. **Recompilar** el recolector si cambió (la instalación de `visuomotor_data_collection` es una copia, no
+   enlaces): `colcon build --symlink-install --packages-select visuomotor_data_collection visuomotor_bringup`.
+2. **Tablero:**
+   - Generarlo con `python3 tools/hardware/make_charuco_board.py`, que crea un A3 en `docs/hardware/`.
+   - Imprimirlo al 100 % y pegarlo sobre una placa plana.
+   - Medir varios cuadros y marcadores con calibre y escribir la media en `charuco_board.yaml` con `measured: true`.
+   - Fijarlo en la celda: visible desde HOME3 y durante la aproximación, y sin taparlo. Se queda también en la
+     inferencia.
+3. **Luz y cámara:**
+   - Con la luz definitiva, correr `read_camera_auto_settings.py` en el contenedor de la cámara.
+   - Escribir la exposición, la ganancia y el balance manuales en `d435i_camera_params.yaml`.
+   - Llevar el mismo cambio a la Jetson.
+4. **Medición base:** con la cámara y RTAB-Map corriendo, usar `record_vio_bag.sh`.
+   - `reposo_home3` 15 s: la cámara quieta en la vista de HOME3. Da el ruido de la referencia y de la odometría.
+   - `reposo_cerca` 15 s: lo mismo, a ~0,4 m de la mesa.
+   - ≥ 10 aproximaciones tipo demo (`aprox_NN`): desde la vista de HOME3 hasta una herramienta, a la velocidad de
+     las demos, con el tablero a la vista la mayor parte del tiempo.
+5. **Evaluar y elegir el estimador:**
+   - `evaluate_pose_estimates.py` mide la odometría en vivo.
+   - `replay_odometry_candidates.py` reprocesa con todos los candidatos.
+   - Regla de la Fase 3: gana la menor mediana de ATE anclado que cumpla el p90 y no tenga pérdidas. Si dos están a
+     menos del 10 %, se elige el más simple.
+   - Pasar el ganador a `rtabmap_vio_params.yaml`.
+6. **Piloto v8 (10–15 demos):**
+   - Lanzar con `COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=<csv> -p
+     raw_bag_enabled:=true" ./tools/hardware/run_data_collection.sh demonstrations_real_v8`.
+   - Mirar la guía con `rqt_image_view` en `/vo_collector_node/start_guide`.
+   - Después: control de calidad, conversión (`convert_vio_dataset_to_xarm5.py`), 20 épocas y comparación con v7
+     contra las líneas base exigentes.
+7. **Toma completa de v8** solo si el piloto pasa. Los bags crudos permiten recalcular las poses si después gana
+   otro estimador.
+
+### Riesgos nuevos
+- **Vista de HOME3:** la referencia sale de imágenes tomadas con la cámara en el robot. Si se movieron la mesa o los
+  ArUco, o si el objeto amarillo y negro del borde inferior de la vista es parte del montaje del robot y ya no está,
+  hay que revisar la guía (o regenerar la referencia) antes de grabar.
+- **Escena:** el tablero A3 pasa a formar parte de la escena de las demos y debe estar también en la inferencia.
+- **Disco:** con los bags crudos, ~10 MB/s mientras se graba un episodio (100 demos de 20 s ≈ 20 GB).
 
 ## Contexto
 

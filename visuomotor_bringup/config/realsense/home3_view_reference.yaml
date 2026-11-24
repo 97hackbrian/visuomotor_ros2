@@ -1,0 +1,51 @@
+# Vista de HOME3 (cámara montada en el xArm5): esquinas de los ArUco de la mesa, en píxeles de image_size.
+# La usa la guía de inicio del recolector (vo_collector_node, start_guide_*) para empezar cada demostración con la
+# misma vista con la que arranca la política en el robot.
+# Generado por tools/hardware/make_home3_view_reference.py: no editar a mano; regenerar si cambian la cámara, su
+# montaje, HOME3 o la posición de los marcadores en la mesa.
+home3_view_reference:
+  dictionary: DICT_4X4_50
+  image_size:
+  - 640
+  - 480
+  markers:
+    12:
+    - - 447.72
+      - 204.5
+    - - 413.33
+      - 204.92
+    - - 409.96
+      - 176.76
+    - - 443.37
+      - 176.26
+    14:
+    - - 209.16
+      - 177.43
+    - - 207.26
+      - 205.97
+    - - 171.51
+      - 206.28
+    - - 174.5
+      - 177.5
+  repeatability_px: 0.728
+  source: '14 imágenes: experiments/xarm5_real_trials/*/trial_*/pre.png'
+  n_images: 14
+  n_images_per_marker:
+    12: 12
+    14: 13
+  created: '2026-11-24'
+  files:
+  - experiments/xarm5_real_trials/2026-11-23/trial_001/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_002/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_003/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_004/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_005/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_006/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_007/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_008/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_009/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_010/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_011/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_012/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_013/pre.png
+  - experiments/xarm5_real_trials/2026-11-23/trial_014/pre.png

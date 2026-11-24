@@ -471,8 +471,19 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       `home3_reference_view.png`, etapa B (dry-run) y etapa C (5 cm/s), siempre con orden explícita del usuario para
       cada movimiento.
 
-45. **Primera evaluación en el xArm5 físico (2026-11-23, 8 intentos): 8/8 sobre la herramienta y 6/8 con la vista de
-    las demos:**
+45. **Primera evaluación en el xArm5 físico (2026-11-23, 14 intentos): 9/14 sobre la herramienta y 7/14 con la vista
+    de las demos:**
+    - *Intentos 9 a 14:*
+      - 9 y 10 (tijeras a la izquierda, en diagonal): zigzag lateral sin parar. El 10 terminó contra el piso del
+        vigilante.
+      - 11 (junto a la base): fue hacia adelante, lejos de las tijeras, hasta el piso.
+      - 12 (centro, rectas): done 0,66 en una sola inferencia (se exigen 5 seguidas), siguió bajando hasta el piso.
+      - 13 (centro-derecha, en diagonal): éxito completo.
+      - 14 (mantel corrido, sin ArUco): done ≤ 0,11, hasta el piso.
+    - *Lección de seguridad:* cuando la política no reconoce el final, sigue bajando. El piso del vigilante (brida a
+      z ≥ 0,15 m) la detuvo 4 veces.
+    - *Para v8:* tijeras giradas, posiciones junto a la base, la misma escena que en la inferencia, una vista final
+      constante y empezar en la vista de HOME3 (lección 46).
     - *Medidas de éxito:* "llegó y se detuvo sobre la herramienta" (parada automática + centro de la imagen sobre las
       tijeras; es el criterio del usuario) y "terminó como en las demos" (vista final estricta).
     - *Criterio descartado:* "altura a ≤ 5 cm de las demos vecinas". La altura de parada humana sobre un mismo lugar
@@ -507,6 +518,39 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - El aborto del chequeo previo leía el código de un `grep`: no habría abortado. Ahora usa el código del
         chequeo, verificado por SSH.
       En los 7 intentos el chequeo pasó completo, así que el segundo error no tuvo efecto.
+
+46. **Preparación de v8 sin el robot (2026-11-24): recolector v3 y cadena de medición de la odometría:**
+    - *Guía de inicio a HOME3:*
+      - La referencia son las esquinas de los ArUco de la mesa en las 14 imágenes `pre.png` de los ensayos (robot en
+        HOME3; repetibilidad p95 0,73 px). Herramienta: `tools/hardware/make_home3_view_reference.py`.
+      - Las demos v7 empezaban con escala 0,88–1,26 y hasta 32 px de corrimiento a 256 px (~80 px a 640).
+      - El recolector compara en la imagen, sin necesitar el robot ni el tamaño real de los marcadores, y da pistas
+        (derecha/izquierda, acercar/alejar, giro).
+    - *Recolector v3:* inicio y guardado automáticos (tocar el teclado mueve la cámara), aviso de velocidad > 0,15 m/s
+      (en v7 la máxima por episodio tuvo p90 0,15 m/s) y programa de celdas × orientaciones
+      (`tools/hardware/make_collection_schedule.py`).
+    - *Errores encontrados y corregidos:*
+      - **Caída silenciosa del recolector v2:** `(warn if x else info)(msg)` en una misma línea. rclpy lanza
+        `ValueError` si una línea cambia de severidad, y eso detenía el ejecutor con el primer frame perdido. La
+        prueba simulada no lo veía porque llama a `_save` directamente.
+      - `/tf_static` no entraba en los bags crudos: QoS volátil frente a un tópico latched.
+      - `run_data_collection.sh` no cargaba el YAML del recolector.
+      - En las pruebas, `fork` tras usar DDS colgaba al proceso hijo: ahora usan `spawn`.
+    - *Tablero elegido con datos:*
+      - En una aproximación sintética con verdad conocida, la referencia del A4 7×5 de 33 mm tenía ~14 mm de error a
+        la distancia de HOME3 (0,75–1,2 m): el primer frame salía ~1° girado.
+      - El A3 9×7 de 36 mm baja a 1,7 mm (0,11 mm a < 0,45 m). El A4 9×5 de 30 mm queda en 6,1 mm.
+      - Pesa más el número de esquinas que el tamaño del cuadro.
+      - Nuevo valor por defecto de `charuco_board.yaml`, todavía sin imprimir.
+    - *Cadena de medición probada sin cámara:* bag sintético → referencia del tablero → métricas por pares
+      (`evaluate_paired`, con huecos) → reprocesado con RTAB-Map. Recupera la escala (+3,00 %) y las pérdidas (3,9 %)
+      inyectadas. RTAB-Map base en la escena sintética: 4,5 mm de mediana. Valida las herramientas, no la odometría
+      real.
+    - *Siguiente paso:* con la cámara, seguir la sección "Trabajo sin el robot" del plan.
+      1. Imprimir y medir el tablero.
+      2. Fijar la exposición.
+      3. Medir con ≥ 10 corridas y elegir el estimador.
+      4. Hacer el piloto v8.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
