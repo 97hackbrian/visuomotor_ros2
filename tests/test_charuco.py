@@ -82,5 +82,56 @@ class CharucoTest(unittest.TestCase):
         self.assertIsNone(estimate_pose(np.full((480, 640), 200, np.uint8), self.board, self.cfg, K))
 
 
+class BoardViewCheckTest(unittest.TestCase):
+    """tools/hardware/check_board_view.py: esquinas, distancia y ángulo con una vista sintética de pose conocida."""
+
+    def test_stats_on_synthetic_view(self):
+        sys.path.insert(0, str(ROOT / "tools" / "hardware"))
+        from check_board_view import board_view_stats, summary
+        cfg = CharucoConfig.load(DEFAULT_CONFIG)
+        board = make_board(cfg)
+        base = CharucoTest._front_facing(type("T", (), {"cfg": cfg, "board": board})())
+        center = chessboard_corners(board).mean(0)
+        r = base @ _rot(math.radians(25), 0.0, 0.0)
+        t = np.array([0.0, 0.0, 0.75]) - r @ center                    # centro del tablero a 0,75 m, 25° de visión
+        img = _render(cfg, board, r, t)
+        st = board_view_stats(img, board, cfg, K)
+        self.assertEqual(st["corners"], st["total"])
+        self.assertAlmostEqual(st["distance_m"], 0.75, delta=0.01)
+        self.assertAlmostEqual(st["view_angle_deg"], 25.0, delta=1.0)
+        self.assertIn("OK", summary(st, {"aligned": True, "error_px": 2.0}))
+
+class BoardPdfTest(unittest.TestCase):
+    """El PDF para imprimir: estructura válida, tamaño de página y del tablero exactos, e imagen idéntica al tablero
+    (el backend PDF de matplotlib 3.6 rellenaba mal las filas de las imágenes de 1 bit y el tablero salía corrupto)."""
+
+    def test_pdf_board_is_exact(self):
+        import re
+        import tempfile
+        import zlib
+        sys.path.insert(0, str(ROOT / "tools" / "hardware"))
+        import make_charuco_board
+        out = Path(tempfile.mkdtemp())
+        self.assertEqual(make_charuco_board.main(["--paper", "A3", "--dpi", "150", "--out-dir", str(out)]), 0)
+        pdf = next(out.glob("*.pdf")).read_bytes()
+        self.assertTrue(pdf.startswith(b"%PDF-1.4") and pdf.rstrip().endswith(b"%%EOF"))
+        mb = [float(v) for v in re.search(rb"/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]", pdf).groups()]
+        np.testing.assert_allclose(mb, [420 / 25.4 * 72, 297 / 25.4 * 72], atol=0.01)      # A3 apaisado
+        cfg = CharucoConfig.load(DEFAULT_CONFIG)
+        w_mm, h_mm = (1000 * v for v in cfg.size_m)
+        cm = [float(v) for v in re.search(rb"q ([\d.]+) 0 0 ([\d.]+) [\d.]+ [\d.]+ cm /Im0 Do", pdf).groups()]
+        np.testing.assert_allclose(cm, [w_mm / 25.4 * 72, h_mm / 25.4 * 72], atol=0.01)    # tamaño impreso exacto
+        m = re.search(rb"/Width (\d+) /Height (\d+) .*?/Length (\d+) >>\nstream\n", pdf, re.S)
+        w, h, n = (int(v) for v in m.groups())
+        data = zlib.decompress(pdf[m.end():m.end() + n])
+        self.assertEqual(len(data), h * ((w + 7) // 8))                                     # filas completas al byte
+        bits = np.unpackbits(np.frombuffer(data, np.uint8).reshape(h, -1), axis=1)[:, :w]
+        ref = board_image(make_board(cfg), (w, h)) > 127
+        self.assertTrue(np.array_equal(bits.astype(bool), ref))
+        # El tablero se detecta completo en la imagen del PDF
+        px, ids = detect_corners(np.where(bits > 0, 255, 0).astype(np.uint8), make_board(cfg), cfg)
+        self.assertEqual(len(ids), (cfg.squares_x - 1) * (cfg.squares_y - 1))
+
+
 if __name__ == "__main__":
     unittest.main()

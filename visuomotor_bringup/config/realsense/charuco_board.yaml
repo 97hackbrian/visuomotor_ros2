@@ -1,4 +1,4 @@
-# Tablero ChArUco fijo de la celda: referencia física de la herramienta de demostraciones con la D435i
+# Tablero ChArUco: referencia física para medir la odometría de la D435i
 # (plan: docs/plans/plan_d435i_herramienta_demostraciones.md, Fase 1).
 #
 # 1. Generar el PDF a escala 1:1 (A3; con el A4 alternativo, --paper A4):
@@ -6,8 +6,12 @@
 # 2. Imprimir al 100 % (sin "ajustar a la página") y pegarlo sobre una placa rígida y plana.
 # 3. Medir con calibre el lado de varios cuadros y de varios marcadores, y escribir aquí la MEDIA en metros.
 #    Poner measured: true. Las herramientas de medición se niegan a usar medidas nominales.
-# 4. Fijar el tablero en la celda: visible desde HOME3 y durante la aproximación, sin que lo tapen los objetos.
-#    El tablero se queda también durante la inferencia en el robot, para que la escena sea la misma.
+# 4. Corridas de medición de la odometría: el tablero va plano sobre la mesa, en la zona donde va la herramienta
+#    (centro), sin tapar los dos ArUco de la mesa (los usa la guía de inicio). Las aproximaciones terminan sobre el
+#    tablero. Comprobar con tools/hardware/check_board_view.py que, desde la vista de HOME3, se ven las 48 esquinas
+#    interiores ((9-1) x (7-1)).
+# 5. Demostraciones v8: SIN el tablero, con la misma escena que v7 y que los ensayos en el robot (mantel, los dos ArUco
+#    y la herramienta). La guía de inicio no lo necesita, y así no hay que agregarlo en la inferencia (2026-11-24).
 #
 # Diccionario distinto del de los dos ArUco de la mesa (DICT_4X4_50) para no confundir marcadores.
 # Filas IMPARES: el patrón no cambia entre versiones de OpenCV (portátil y Jetson).
@@ -18,7 +22,7 @@
 #   A4 7x5, cuadro 33 mm (antes)     0,35       1,2         2,3         14,0
 #   A4 9x5, cuadro 30 mm             0,33       0,9         2,3          6,1   <- alternativa si no hay A3
 #   A3 9x7, cuadro 36 mm (este)      0,11       0,4         0,7          1,7
-# Pesa más el número de esquinas (63 frente a 24) que el tamaño del cuadro. Con una cámara real el error será mayor:
+# Pesa más el número de esquinas (48 interiores frente a 24) que el tamaño del cuadro. Con una cámara real el error será mayor:
 # medir la quietud de la referencia en reposo (sección "Medición" del plan).
 # Para el A4: squares_x 9, squares_y 5, square_length_m 0.030, marker_length_m 0.0225 y --paper A4.
 charuco_board:

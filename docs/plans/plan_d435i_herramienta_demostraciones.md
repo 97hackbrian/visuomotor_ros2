@@ -7,7 +7,7 @@ Aprobado el 2026-11-23. El plan original está abajo, sin cambios; esta tabla ll
 | Fase | Hecho (con pruebas) | Pendiente |
 |---|---|---|
 | 0. Diagnóstico y documentos | `--raw-diagnostics` en `tools/xarm5/analyze_vio_dataset_quality.py` (`tests/test_vio_raw_diagnostics.py`), con resultados en `datasets/evaluations_real_v7_xarm5_v2/raw_diagnostics.*`. Corregidos AGENTS §17/§20 y comandos, K15 (§0 nuevo), skill v1.4 y `context.md` (lección 43). Quitado `ultra_precision` de los launch de la D435i; el YAML `_best_umi` queda marcado como histórico | H4 (distancia final cámara–mesa): requiere medir el lado de los ArUco de la mesa (`--aruco-marker-m`) |
-| 1. Escena y cámara | `charuco_board.yaml` (**A3 9×7, cuadro de 36 mm**, elegido con datos el 2026-11-24), `visuomotor_bringup/charuco.py`, `tools/hardware/make_charuco_board.py` (`tests/test_charuco.py`); `tools/hardware/read_camera_auto_settings.py` (exposición/ganancia/balance automáticos -> manuales) | Imprimir en A3, medir con calibre, fijar el tablero; luz fija; escribir la exposición y el balance manuales en `d435i_camera_params.yaml` |
+| 1. Escena y cámara | `charuco_board.yaml` (**A3 9×7, cuadro de 36 mm**, elegido con datos el 2026-11-24), `visuomotor_bringup/charuco.py`, `tools/hardware/make_charuco_board.py` (`tests/test_charuco.py`); `tools/hardware/read_camera_auto_settings.py` (exposición/ganancia/balance automáticos -> manuales) | Imprimir en A3 (PDF corregido el 2026-11-24), medir con calibre y colocarlo para medir (centro de la mesa; las demos van sin tablero); luz fija; escribir la exposición y el balance manuales en `d435i_camera_params.yaml` |
 | 2. Medición con referencia | Métricas `trajectory_metrics.py` (+ `evaluate_paired`, RPE por tiempo con huecos); `tools/hardware/record_vio_bag.sh`; `tools/hardware/evaluate_pose_estimates.py` (referencia del tablero, pares por sello, resumen por estimador); bag sintético con verdad `tools/hardware/make_synthetic_vio_bag.py`. Pruebas: `tests/test_trajectory_metrics.py`, `tests/test_vio_measurement_pipeline.py`. Calibración `tools/xarm5/calibrate_hand_eye.py` (`tests/test_hand_eye.py`) | Corridas a mano contra el tablero (sin robot); con el robot: captura de la calibración cámara-brida y trayectorias reproducidas por el xArm5 (`record_vio_ground_truth.py`) |
 | 3. Elección del estimador | `tools/hardware/replay_odometry_candidates.py`: reprocesa los mismos bags con cada candidato de `vio_measurement.yaml` (base, ajuste de haces, GuessMotion, F2F, flujo óptico, `Vis/MinDepth` 0,15, sin Kalman, sin IMU) y llama al evaluador. Probado de punta a punta con el bag sintético | Correr sobre los bags reales y decidir con la regla de la Fase 3 |
 | 4. Recolector | **v3:** guía de inicio a la vista de HOME3 (ArUco de la mesa, referencia de los 14 intentos reales), inicio y guardado automáticos, aviso de velocidad, programa de celdas × orientaciones, imagen de guía `~/start_guide`. Corregidos: caída del ejecutor por cambiar la severidad de un log en la misma línea (v2), `/tf_static` no se grababa en los bags crudos, `run_data_collection.sh` no cargaba el YAML. Pruebas: `tests/test_vo_start_guide.py`, `tests/test_vo_schedule.py`, `tests/test_vo_collector_node_sim.py` (v2 y v3) | Probar con la cámara real; control de ejecutabilidad en vivo (núcleo de `Converter`); `build_dataset_from_bags.py` (tras la Fase 3) |
@@ -41,7 +41,7 @@ calibración cámara-brida y las trayectorias reproducidas por el brazo) queda p
   reconoció el final solo un instante y siguió bajando. -> Llegar siempre a la misma vista final: la herramienta
   centrada y llenando el recuadro central de la imagen de guía, y quieta al menos 2 s.
 - **Escena:** con el mantel corrido y sin ArUco (intento 14) la señal de término no pasó de 0,11. -> La escena de las
-  demos (mantel, ArUco, tablero) debe ser la misma en la inferencia.
+  demos (mantel y los dos ArUco, como en v7 y en los ensayos) debe ser la misma en la inferencia.
 - **Velocidad:** en v7, la velocidad máxima por episodio tuvo mediana 0,11 m/s (p90 0,15). En los ensayos el puente
   limitó a 0,05 m/s. -> Aviso por encima de 0,15 m/s.
 
@@ -57,7 +57,7 @@ compresión JPEG). Mediana en mm:
 
 - Con el A4 anterior, la referencia no servía a la distancia de HOME3: el primer frame salía ~1° girado y eso
   propagaba ~9 mm al anclar.
-- Pesa más el número de esquinas (63 frente a 24) que el tamaño del cuadro.
+- Pesa más el número de esquinas (48 interiores frente a 24) que el tamaño del cuadro.
 - Con una cámara real el error será mayor. Por eso la primera corrida de cada sesión es la cámara quieta, para
   medirlo.
 
@@ -75,21 +75,26 @@ Es una escena fácil: esto valida las herramientas, no la odometría real.
 ### Pasos con la cámara conectada (en orden)
 1. **Recompilar** el recolector si cambió (la instalación de `visuomotor_data_collection` es una copia, no
    enlaces): `colcon build --symlink-install --packages-select visuomotor_data_collection visuomotor_bringup`.
-2. **Tablero:**
+2. **Tablero** (solo para las corridas de medición; ver "Dónde va el tablero"):
    - Generarlo con `python3 tools/hardware/make_charuco_board.py`, que crea un A3 en `docs/hardware/`.
    - Imprimirlo al 100 % y pegarlo sobre una placa plana.
    - Medir varios cuadros y marcadores con calibre y escribir la media en `charuco_board.yaml` con `measured: true`.
-   - Fijarlo en la celda: visible desde HOME3 y durante la aproximación, y sin taparlo. Se queda también en la
-     inferencia.
 3. **Luz y cámara:**
    - Con la luz definitiva, correr `read_camera_auto_settings.py` en el contenedor de la cámara.
    - Escribir la exposición, la ganancia y el balance manuales en `d435i_camera_params.yaml`.
    - Llevar el mismo cambio a la Jetson.
-4. **Medición base:** con la cámara y RTAB-Map corriendo, usar `record_vio_bag.sh`.
-   - `reposo_home3` 15 s: la cámara quieta en la vista de HOME3. Da el ruido de la referencia y de la odometría.
-   - `reposo_cerca` 15 s: lo mismo, a ~0,4 m de la mesa.
-   - ≥ 10 aproximaciones tipo demo (`aprox_NN`): desde la vista de HOME3 hasta una herramienta, a la velocidad de
-     las demos, con el tablero a la vista la mayor parte del tiempo.
+4. **Medición base:**
+   - Con la cámara y RTAB-Map corriendo, poner el tablero en el centro de la mesa (ver "Dónde va el tablero").
+   - Dejar `check_board_view.py` abierto en otra terminal: muestra si la vista coincide con HOME3 y cuántas
+     esquinas se ven.
+   - Grabar con `record_vio_bag.sh`, que reinicia la odometría al empezar, como el recolector.
+     - `reposo_home3` 15 s: la cámara quieta en la vista de HOME3. Da el ruido de la referencia y de la odometría.
+     - `reposo_cerca` 15 s: lo mismo, a ~0,4 m del tablero.
+     - ≥ 10 aproximaciones tipo demo (`aprox_NN`):
+       - empezar en la vista de HOME3 y quedarse quieta ~2 s;
+       - bajar hasta ~25–30 cm sobre el tablero, como en una demo y a su velocidad;
+       - quedarse quieta ~2 s y detener con Ctrl+C.
+       - Variar la trayectoria entre corridas: llegar desde un lado, con algo de giro, más rápido o más lento.
 5. **Evaluar y elegir el estimador:**
    - `evaluate_pose_estimates.py` mide la odometría en vivo.
    - `replay_odometry_candidates.py` reprocesa con todos los candidatos.
@@ -105,11 +110,39 @@ Es una escena fácil: esto valida las herramientas, no la odometría real.
 7. **Toma completa de v8** solo si el piloto pasa. Los bags crudos permiten recalcular las poses si después gana
    otro estimador.
 
+### Dónde va el tablero (cambio respecto a la Fase 1 original, 2026-11-24)
+El plan original dejaba el tablero fijo en la escena también para las demos y la inferencia. Se cambia, por dos
+razones:
+- La guía de inicio usa los dos ArUco de la mesa; ya no necesita el tablero.
+- Si el tablero queda en la escena, cambia lo que ve la política: habría que ponerlo también en la inferencia, y v8 ya
+  no se parecería a v7 ni a los ensayos.
+
+**Uso del tablero:**
+- **Corridas de medición:** plano sobre la mesa, en la zona central donde va la herramienta, sin tapar los dos ArUco.
+  Las aproximaciones terminan sobre él, como si fuera la herramienta.
+  - Así se ve desde la vista de HOME3 (~0,85 m) y también cerca al final.
+  - Bien sujeto con cinta en las esquinas, que no se mueva durante la sesión.
+  - Comprobar con `tools/hardware/check_board_view.py`: desde la vista de HOME3 deben verse las 48 esquinas.
+- **Demos v8:** sin tablero. La misma escena que en v7 y en los ensayos: mantel, los dos ArUco y la herramienta.
+- **Con el robot:** el tablero sirve para la calibración cámara-brida. Después se retira, y las trayectorias de
+  referencia se miden con el robot sin tablero en la escena.
+
+**Preparación:**
+- Imprimirlo al 100 % ("tamaño real", sin "ajustar a la página"), en papel mate y sin modo de ahorro de tóner.
+- Comprobar la regla de 100 mm impresa.
+- Pegarlo sin burbujas sobre una placa rígida y plana (cartón pluma, MDF o acrílico de ≥ 3 mm). Un tablero curvo
+  sesga la pose.
+- Medir con calibre el largo total de los 9 cuadros (324 mm nominal) y de los 7 (252 mm), y dividir.
+- Medir 3–4 marcadores (27 mm nominal).
+- Escribir las medias en `charuco_board.yaml` con `measured: true`.
+
 ### Riesgos nuevos
 - **Vista de HOME3:** la referencia sale de imágenes tomadas con la cámara en el robot. Si se movieron la mesa o los
   ArUco, o si el objeto amarillo y negro del borde inferior de la vista es parte del montaje del robot y ya no está,
   hay que revisar la guía (o regenerar la referencia) antes de grabar.
-- **Escena:** el tablero A3 pasa a formar parte de la escena de las demos y debe estar también en la inferencia.
+- **Medición optimista:** en las corridas de medición el tablero agrega textura, y la odometría rastrea mejor que en
+  las demos (mantel blanco). Sirve para ordenar a los candidatos. La exactitud absoluta en la escena real se mide
+  después con el robot como referencia (Fase 2.2), sin tablero en la escena.
 - **Disco:** con los bags crudos, ~10 MB/s mientras se graba un episodio (100 demos de 20 s ≈ 20 GB).
 
 ## Contexto

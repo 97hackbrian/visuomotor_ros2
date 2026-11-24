@@ -217,6 +217,9 @@ El nodo de inferencia implementa dos capas independientes de detención:
        llamadas, rclpy lanza `ValueError` y se cae el ejecutor; al recolector v2 le pasaba con el primer frame perdido.
      - **Recompilar tras cambiar el código o el YAML:** `install/visuomotor_data_collection` es una copia.
      - **Medición de la odometría** (sin robot): tablero ChArUco A3 9×7 de 36 mm y bags MCAP.
+       - El tablero se usa solo en las corridas de medición, en el centro de la mesa.
+       - Las demos v8 se graban sin tablero, con la misma escena que v7 y que los ensayos.
+       - `check_board_view.py` comprueba que se vean las 48 esquinas desde HOME3.
        - `record_vio_bag.sh` graba las corridas.
        - `evaluate_pose_estimates.py` compara contra el tablero.
        - `replay_odometry_candidates.py` reprocesa los mismos bags con cada candidato.
@@ -376,7 +379,7 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/export_home3_ref
 # 22. Diagnóstico de una grabación cruda de la D435i (poses nulas, duplicados, discontinuidades, done en movimiento)
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_vio_dataset_quality.py --raw datasets/demonstrations_real_v7.zarr --raw-diagnostics --out-dir datasets/evaluations_real_v7_xarm5_v2
 
-# 23. Tablero ChArUco de la celda (PDF a escala 1:1; medir con calibre y poner measured: true en charuco_board.yaml)
+# 23. Tablero ChArUco A3 9x7 de 36 mm (PDF escrito sin matplotlib, a escala 1:1; imprimir al 100 %, medir con calibre y poner measured: true en charuco_board.yaml)
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_charuco_board.py
 
 # 25. Ensayo en el xArm5 real desde el PC (brazo en HOME3, puente lanzado por el usuario, usuario en la parada de emergencia)
@@ -403,6 +406,9 @@ docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup
 
 # 29. Probar la cadena de medición sin cámara (bag sintético con verdad conocida)
 docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/make_synthetic_vio_bag.py --out /tmp/syn && python3 tools/hardware/replay_odometry_candidates.py --run /tmp/syn --candidates baseline --allow-nominal --ground-truth-topic /ground_truth/optical_pose --out-dir /tmp/syn_replay"
+
+# 31. Colocar el tablero para medir: desde la vista de HOME3, guía de inicio + esquinas vistas, distancia y ángulo (imagen en /board_check/image)
+docker exec -it -u 1000 -w /ros visuomotor_vo_active bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/hardware/check_board_view.py"
 
 # 30. Regenerar la referencia de la vista de HOME3 (si cambian la cámara, su montaje, HOME3 o los ArUco de la mesa)
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_home3_view_reference.py --images "experiments/xarm5_real_trials/<fecha>/trial_*/pre.png"

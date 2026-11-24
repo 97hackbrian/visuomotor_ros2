@@ -546,6 +546,18 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       (`evaluate_paired`, con huecos) → reprocesado con RTAB-Map. Recupera la escala (+3,00 %) y las pérdidas (3,9 %)
       inyectadas. RTAB-Map base en la escena sintética: 4,5 mm de mediana. Valida las herramientas, no la odometría
       real.
+    - *Más errores encontrados el mismo día:*
+      - **PDF del tablero corrupto:** el backend PDF de matplotlib 3.6.3 guardaba la imagen de 2 colores (1 bit) con
+        el relleno de filas incorrecto, y los visores mostraban rayas diagonales. `make_charuco_board.py` ahora escribe
+        el PDF directamente: 1 bit a 600 ppp, regla vectorial y Helvetica. Verificado con Poppler, MuPDF y
+        Ghostscript: 48/48 esquinas y cuadro de 36,02 mm en el render. Prueba: `tests/test_charuco.py`.
+      - **`ros2 bag record` detenido para siempre:** `timeout` lo pone en otro grupo de procesos, el grabador lee la
+        terminal (pausa con ESPACIO) y el sistema lo detiene (estado T). Solución: `timeout --foreground` y
+        `--disable-keyboard-controls`.
+    - *Decisión:* el tablero se usa solo para medir, en el centro de la mesa. Las demos v8 van sin tablero, con la
+      escena de v7 y de los ensayos. La guía de inicio usa los ArUco de la mesa, y así no hay que agregar nada en la
+      inferencia. La medición con tablero es optimista (más textura); la exactitud en la escena real se mide con el
+      robot.
     - *Siguiente paso:* con la cámara, seguir la sección "Trabajo sin el robot" del plan.
       1. Imprimir y medir el tablero.
       2. Fijar la exposición.

@@ -200,6 +200,16 @@ Lógica en `visuomotor_data_collection/vo_episode_logic.py`, con pruebas en `tes
 
 Referencia: tablero ChArUco **A3 9×7, cuadro de 36 mm**, medido con calibre (`measured: true`). En una aproximación
 sintética, el A4 7×5 anterior tenía ~14 mm de error a la distancia de HOME3; el A3 9×7 tiene 1,7 mm.
+* **Impresión:** el PDF de `make_charuco_board.py` se escribe sin matplotlib. El de matplotlib 3.6 salía corrupto,
+  con rayas diagonales. Imprimirlo al 100 % (tamaño real), en papel mate, comprobar la regla de 100 mm y pegarlo en
+  una placa rígida.
+* **Dónde:** solo para las corridas de medición. Plano en el centro de la mesa, donde va la herramienta, sin tapar
+  los dos ArUco. Las aproximaciones terminan sobre él.
+* **Comprobar:** con `tools/hardware/check_board_view.py`, desde la vista de HOME3 deben verse las 48 esquinas.
+* **Demos v8:** sin tablero, con la misma escena que v7 y los ensayos en el robot.
+* **Grabación:** `record_vio_bag.sh` reinicia la odometría antes de grabar.
+  - Usa `timeout --foreground` y `--disable-keyboard-controls`: sin eso, `ros2 bag record` quedaba detenido
+    (estado T) y nunca terminaba.
 
 ```bash
 # Corridas (cámara + RTAB-Map corriendo; tablero a la vista): primero 15 s quieta, luego >= 10 aproximaciones
