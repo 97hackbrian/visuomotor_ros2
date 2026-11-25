@@ -702,6 +702,9 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       el 2026-11-25, a pedido del usuario, se agrandó a x de 0,405 a 0,633 m e y de -0,27 a +0,31 m. El mantel va de
       y = -0,36 a +0,34 m; el ancho es asimétrico porque la cámara va ~1,6 cm a un lado del TCP y la caja del puente
       (|y| <= 0,30 para el TCP) corta antes por la derecha. Ir más allá exige ampliar la caja.
+      Para ajustarla a mano: `tools/hardware/v8_tmux.sh grid` (`adjust_v8_grid.py`, mismo modelo de alcance que
+      `make_v8_cells.py`: `ReachModel`). Cada episodio guarda su celda en metros (`schedule.cell_bounds_m`), porque
+      el número de celda solo no basta si la grilla cambia a mitad del dataset.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

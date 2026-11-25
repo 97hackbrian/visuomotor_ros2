@@ -6,6 +6,8 @@
 #   tools/hardware/v8_tmux.sh check     # ventana "chequeo": guía de HOME3 sin grabar (/board_check/image)
 #   tools/hardware/v8_tmux.sh collect   # ventana "recolector": run_v8_session.sh -> EMPIEZA A GRABAR DEMOS
 #   tools/hardware/v8_tmux.sh guide     # ventana "guia": rqt_image_view de la guía del recolector
+#   tools/hardware/v8_tmux.sh grid      # ventana "grilla": ajustar la grilla a mano (adjust_v8_grid.py; en vivo si
+#                                          la cámara corre). Reiniciar el recolector después de guardar.
 #   tools/hardware/v8_tmux.sh show      # abre una terminal en el escritorio enganchada a la sesión
 #   tools/hardware/v8_tmux.sh log [ventana] [líneas]   # últimas líneas de una ventana (por defecto el recolector)
 #   tools/hardware/v8_tmux.sh stop [ventana]           # Ctrl-C a una ventana, o a todas (cámara la última)
@@ -53,6 +55,12 @@ case "${1:-}" in
   guide)
     cam_running || { echo "la cámara no está corriendo (v8_tmux.sh camera)"; exit 1; }
     new_win guia "docker exec -it -u 1000 -w /ros $CAM bash -c '$ROS_ENV && ros2 run rqt_image_view rqt_image_view /vo_collector_node/start_guide'" ;;
+  grid)
+    if cam_running; then
+      new_win grilla "docker exec -it -u 1000 -w /ros $CAM bash -c '$ROS_ENV && python3 tools/hardware/adjust_v8_grid.py --live'"
+    else
+      new_win grilla "docker exec -it -u 1000 -w /ros visuomotor_ros2 bash -c 'source /opt/ros/jazzy/setup.bash && source install/setup.bash && python3 tools/hardware/adjust_v8_grid.py'"
+    fi ;;
   show)
     tmux has-session -t "$S" 2>/dev/null || { echo "no hay sesión $S"; exit 1; }
     if command -v gnome-terminal >/dev/null; then
@@ -67,7 +75,7 @@ case "${1:-}" in
     if [ -n "${2:-}" ]; then
       tmux send-keys -t "$S:$2" C-c; sleep 1; tmux kill-window -t "$S:$2"
     else
-      for w in guia recolector voz guia_chequeo chequeo; do has_win "$w" && { tmux send-keys -t "$S:$w" C-c; sleep 2; tmux kill-window -t "$S:$w"; }; done
+      for w in grilla guia recolector voz guia_chequeo chequeo; do has_win "$w" && { tmux send-keys -t "$S:$w" C-c; sleep 2; tmux kill-window -t "$S:$w"; }; done
       has_win camara && { tmux send-keys -t "$S:camara" C-c; sleep 5; tmux kill-session -t "$S"; }
     fi ;;
   *)

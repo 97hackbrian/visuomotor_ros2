@@ -53,6 +53,62 @@ def cam_looking_down(p, yaw_deg):
     return T
 
 
+class ReachModel:
+    """¿Llega el robot a la vista final sobre un punto de la mesa? Pone la cámara sobre el punto mirando hacia abajo
+    (alturas ``heights``, orientaciones de cámara ``cam_yaws`` con "+90 = derecha"), calcula el TCP con la extrínseca
+    medida y aplica la MISMA caja, alcance y proyección de 5 GDL que el puente. Lo usan este script y
+    ``adjust_v8_grid.py``."""
+
+    def __init__(self, bridge_yaml, alignment_yaml, calib_json, table_z: float, heights, cam_yaws=(0.0,)):
+        g = yaml.safe_load(open(bridge_yaml))["xarm5_bridge"]["ros__parameters"]
+        self.box = WorkspaceLimits(g["workspace_x_min"], g["workspace_x_max"], g["workspace_y_min"],
+                                   g["workspace_y_max"], g["workspace_z_min"], g["workspace_z_max"],
+                                   g["workspace_min_radius_xy"], g["workspace_max_radius_xy"])
+        self.reach = ReachLimit(g["workspace_shoulder_xyz_m"], g["workspace_wrist_offset_m"],
+                                g["workspace_max_reach_m"], g["workspace_min_reach_m"])
+        self.pl = (g["arm_plane_pitch_min"], g["arm_plane_pitch_max"])
+        al = yaml.safe_load(open(alignment_yaml))["xarm5_dataset_alignment"]
+        self.T_tcp_link = pose_matrix(al["tcp_to_camera_xyz_m"], rpy_to_quat(*al["tcp_to_camera_rpy_rad"]))
+        self.T_link_opt = np.array(json.loads(Path(calib_json).read_text())["T_link_opt"])
+        self.zt = float(table_z)
+        # cam_looking_down usa "positivo = antihorario"; la configuración, "+90 = derecha"
+        self.combos = [(float(h), -float(yw)) for h in heights for yw in cam_yaws]
+
+    def point(self, p_xy):
+        """(fracción de combinaciones alcanzables, recorte máximo en m) para la cámara sobre ``p_xy``."""
+        ok, worst = 0, 0.0
+        for h, yw in self.combos:
+            T_opt = cam_looking_down([p_xy[0], p_xy[1], self.zt + h], yw)
+            T_tcp = T_opt @ inv_T(self.T_link_opt) @ inv_T(self.T_tcp_link)
+            xyz, q = T_tcp[:3, 3], matrix_to_quat(T_tcp[:3, :3])
+            az = arm_azimuth(xyz)
+            pitch, yaw = arm_plane_params(q, az)
+            pitch_c = min(max(pitch, self.pl[0]), self.pl[1])
+            Rq, Rr = T_tcp[:3, :3], q2m(arm_plane_quat(az, pitch_c, yaw))
+            dev = math.degrees(math.acos(min(1.0, (np.trace(Rq.T @ Rr) - 1) / 2)))
+            out, _, valid = clamp_to_workspace(xyz, pitch_c, self.box, self.reach)
+            clamp = float(np.linalg.norm(out - xyz))
+            ok += valid and clamp < 0.01 and dev < 8.0
+            worst = max(worst, clamp)
+        return ok / len(self.combos), worst
+
+    def cell(self, x_lo, x_hi, y_lo, y_hi):
+        """Peor caso entre el centro y las 4 esquinas de la celda: (fracción alcanzable, recorte máximo en m)."""
+        pts = [((x_lo + x_hi) / 2, (y_lo + y_hi) / 2), (x_lo, y_hi), (x_hi, y_hi), (x_hi, y_lo), (x_lo, y_lo)]
+        fr = [self.point(p) for p in pts]
+        return min(f[0] for f in fr), max(f[1] for f in fr)
+
+
+def default_paths() -> dict:
+    """Rutas por defecto (las mismas en este script y en adjust_v8_grid.py)."""
+    return {"cells": REPO / "visuomotor_bringup/config/realsense/v8_cells.yaml",
+            "table": REPO / "visuomotor_bringup/config/realsense/table_markers.yaml",
+            "image": REPO / S / "home3_now/home3_0.png",
+            "bridge": REPO / "visuomotor_bringup/config/xarm5/xarm5_real_params.yaml",
+            "alignment": REPO / "visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml",
+            "calib": REPO / "datasets/vio_frames/201446_static_board/calib.json"}
+
+
 def main(argv=None) -> int:
     import cv2
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -69,18 +125,11 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     cfg = yaml.safe_load(open(a.cells))["v8_cells"]
     xe, ye, zt = cfg["x_edges_m"], cfg["y_edges_m"], float(cfg["table_z_m"])
-    g = yaml.safe_load(open(a.bridge))["xarm5_bridge"]["ros__parameters"]
-    box = WorkspaceLimits(g["workspace_x_min"], g["workspace_x_max"], g["workspace_y_min"], g["workspace_y_max"],
-                          g["workspace_z_min"], g["workspace_z_max"], g["workspace_min_radius_xy"],
-                          g["workspace_max_radius_xy"])
-    reach = ReachLimit(g["workspace_shoulder_xyz_m"], g["workspace_wrist_offset_m"], g["workspace_max_reach_m"],
-                       g["workspace_min_reach_m"])
-    pl = (g["arm_plane_pitch_min"], g["arm_plane_pitch_max"])
-    al = yaml.safe_load(open(a.alignment))["xarm5_dataset_alignment"]
-    T_tcp_link = pose_matrix(al["tcp_to_camera_xyz_m"], rpy_to_quat(*al["tcp_to_camera_rpy_rad"]))
+    # Orientación de la CÁMARA al final según el protocolo (check_camera_yaws_deg; [0] = la de HOME3, sin girarla
+    # con las hojas)
+    model = ReachModel(a.bridge, a.alignment, a.calib, zt, cfg["check_heights_m"], cfg.get("check_camera_yaws_deg", [0.0]))
     cal = json.loads(Path(a.calib).read_text())
     K = np.array(cal["K"]).reshape(3, 3)
-    T_link_opt = np.array(cal["T_link_opt"])
     h3 = json.loads(Path(a.home3_tcp).read_text())
     T_base_tcp_h3 = np.eye(4)
     T_base_tcp_h3[:3, :3], T_base_tcp_h3[:3, 3] = q2m(h3["q"]), h3["xyz"]
@@ -93,27 +142,6 @@ def main(argv=None) -> int:
         uv = (K @ pc.T).T
         return uv[:, :2] / uv[:, 2:]
 
-    def reachable(p_xy):
-        ok, worst = 0, 0.0
-        # Orientación de la CÁMARA al final según el protocolo (check_camera_yaws_deg; [0] = la de HOME3, sin girarla con
-        # las hojas). cam_looking_down usa "positivo = antihorario"; la configuración, "+90 = derecha".
-        combos = [(h, -float(yw)) for h in cfg["check_heights_m"] for yw in cfg.get("check_camera_yaws_deg", [0.0])]
-        for h, yw in combos:
-            T_opt = cam_looking_down([p_xy[0], p_xy[1], zt + h], yw)
-            T_tcp = T_opt @ inv_T(T_link_opt) @ inv_T(T_tcp_link)
-            xyz, q = T_tcp[:3, 3], matrix_to_quat(T_tcp[:3, :3])
-            az = arm_azimuth(xyz)
-            pitch, yaw = arm_plane_params(q, az)
-            pitch_c = min(max(pitch, pl[0]), pl[1])
-            Rq, Rr = T_tcp[:3, :3], q2m(arm_plane_quat(az, pitch_c, yaw))
-            dev = math.degrees(math.acos(min(1.0, (np.trace(Rq.T @ Rr) - 1) / 2)))
-            out, _, valid = clamp_to_workspace(xyz, pitch_c, box, reach)
-            clamp = float(np.linalg.norm(out - xyz))
-            good = valid and clamp < 0.01 and dev < 8.0
-            ok += good
-            worst = max(worst, clamp)
-        return ok / len(combos), worst
-
     img = cv2.imread(a.image)
     over = img.copy()
     cells = {}
@@ -123,16 +151,14 @@ def main(argv=None) -> int:
             y_hi, y_lo = ye[3 - ci], ye[2 - ci]
             x_lo, x_hi = xe[ri], xe[ri + 1]
             corners = [(x_lo, y_hi), (x_hi, y_hi), (x_hi, y_lo), (x_lo, y_lo)]
-            pts = [((x_lo + x_hi) / 2, (y_lo + y_hi) / 2)] + corners
-            fr = [reachable(p) for p in pts]
-            frac = min(f[0] for f in fr)
+            frac, max_clamp = model.cell(x_lo, x_hi, y_lo, y_hi)
             d_mark = min(np.min(np.abs(np.array([[m[:, 0].min() - x_hi, x_lo - m[:, 0].max()]]))) if
                          (m[:, 1].min() <= y_hi and m[:, 1].max() >= y_lo) else 1.0 for m in markers.values())
             poly = project([[x, y, zt] for x, y in corners])
             cells[cid] = {"name": CELL_NAMES[cid], "x_m": [x_lo, x_hi], "y_m": [y_lo, y_hi],
                           "center_m": [round((x_lo + x_hi) / 2, 3), round((y_lo + y_hi) / 2, 3)],
                           "polygon_home3_px": np.round(poly, 1).tolist(), "reachable_fraction": round(frac, 3),
-                          "max_clamp_m": round(max(f[1] for f in fr), 4)}
+                          "max_clamp_m": round(max_clamp, 4)}
             color = (40, 170, 40) if frac == 1.0 else (0, 0, 220)
             cv2.polylines(over, [poly.astype(np.int32)], True, color, 2, cv2.LINE_AA)
             c = poly.mean(0).astype(int)

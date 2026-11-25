@@ -463,6 +463,8 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_data
 ./tools/hardware/run_v8_session.sh
 
 # 42. Celdas de la mesa en metros (zona que el robot alcanza) y su dibujo en la vista de HOME3 para la guía del recolector
+# 43. Ajustar la grilla a mano: ventana con barras, celdas verdes/rojas según el alcance del robot y límite de los ArUco; [G] guarda v8_cells.yaml y regenera (en vivo si la cámara corre)
+tools/hardware/v8_tmux.sh grid
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
 ```
 

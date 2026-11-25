@@ -682,7 +682,9 @@ class VOCollectorNode(Node):
             "git_commit": _git_commit(self.repo), "config_sha256": self._config_hashes(),
             # v3
             "start_view": self.start_view, "schedule": None if entry is None else dict(
-                entry.as_attrs(), schedule_id=self.sched_id, yaw_convention=YAW_CONVENTION),
+                entry.as_attrs(), schedule_id=self.sched_id, yaw_convention=YAW_CONVENTION,
+                # La grilla se puede ajustar (adjust_v8_grid.py): la celda en metros deja el episodio autocontenido
+                cell_bounds_m=[float(v) for v in self.cells_m.get(entry.cell, ())]),
             "max_speed_m_s": float(v[:i_hold].max()) if i_hold > 0 else 0.0,
             "mean_speed_m_s": float(v[:i_hold].mean()) if i_hold > 0 else 0.0,
             "travel_m": max_travel(p_abs), "max_demo_speed_m_s": float(self.p('max_demo_speed_m_s')),
