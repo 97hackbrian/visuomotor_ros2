@@ -580,9 +580,16 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - El final queda una mediana de 44 mm MÁS ALTO que en v2: la política de v2 apuntaba bajo. Es coherente con los
         ensayos que siguieron bajando hasta el piso del vigilante (hipótesis, no probada).
       - El episodio 17 queda fuera del volumen del puente (59 % > 50 %) y se descarta: 75 episodios.
-    - *Tablero:* con la escala libre, la calibración ajusta cuadros de 35,1 mm (nominal 36; el usuario midió 3,5 cm y
-      la regla de 100 mm, 100). Falta medir los 9 cuadros: 316 mm = tablero chico; 324 mm = error de ~2,5 % en la focal
-      de fábrica.
+    - *Tablero:* el usuario midió los 9 cuadros: 324 mm, es decir 36,0 mm por cuadro y escala 1:1. La calibración con
+      escala libre había ajustado 35,1 mm, pero NO era una medida:
+      - la focal de fábrica está bien a ~1 % (`check_color_intrinsics.py`, modelo de un solo factor: −0,6 %, mitades
+        +0,6 / −1,7 %);
+      - la calibración completa de intrínsecas con estas vistas es degenerada (fx −21 %, cy corrido 90 px): todas
+        miran el tablero desde un mismo lado;
+      - con esas vistas, la escala se compensa corriendo la cámara por el eje óptico.
+      Con la escala medida, la traslación cámara-TCP cambia 8,6 mm (0,41°): es la incertidumbre actual de la
+      extrínseca, y afecta ≤ 4,5 mm a las trayectorias convertidas. `evaluate_vio_gt.py` usa la escala medida por
+      defecto.
     - *Odometría en vivo (RTAB-Map actual, 8 aproximaciones, mediana entre corridas [peor]):*
       - ATE anclada 21,7 mm [40], máximo por corrida 95 mm [149], error al volver a HOME3 55 mm [79].
       - Escala 3,2 % [7,2], pérdidas 4,6 % [33], RPE a 0,5 s 10,8 mm.

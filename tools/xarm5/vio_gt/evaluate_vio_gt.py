@@ -130,11 +130,14 @@ def gyro_time_offset(bag, t_r, q_r, max_offset_s, grid_hz=100.0):
     return best[1] / grid_hz, best[0]
 
 
-def solve(samples):
+def solve(samples, scales=(1.0,)):
+    """``scales``: factores de escala del tablero a probar. Por defecto solo 1.0 (tablero MEDIDO). Dejar la escala
+    libre (p. ej. 0.95-1.05) es solo un diagnóstico: con vistas desde un mismo lado, la escala se compensa corriendo
+    la cámara a lo largo del eje óptico (2026-11-24: ajustó 0.975, y la focal de fábrica resultó correcta a ~1 %)."""
     import cv2
     best = None
     B = [s["T_base_tcp"] for s in samples]
-    for scale in np.linspace(0.95, 1.05, 101):
+    for scale in scales:
         C = [s["T_cam_board"].copy() for s in samples]
         for c in C:
             c[:3, 3] *= scale
@@ -168,6 +171,10 @@ def main(argv=None) -> int:
     ap.add_argument("--odom-bag", default="", help="bag con otra odometría (p. ej. un candidato reprocesado)")
     ap.add_argument("--odom-topic", default=ODOM)
     ap.add_argument("--label", default="live", help="sufijo de las salidas (vio_vs_robot_<label>.json/png)")
+    ap.add_argument("--fit-board-scale", action="store_true",
+                    help="diagnóstico: escala del tablero libre (0.95-1.05) en vez de la medida")
+    ap.add_argument("--hand-eye-out", default="hand_eye.json", help="nombre del resultado de la calibración")
+    ap.add_argument("--hand-eye-only", action="store_true", help="solo la calibración cámara-brida")
     a = ap.parse_args(argv)
     run = Path(a.run)
     plan = json.loads((run / "plan.json").read_text())
@@ -195,22 +202,31 @@ def main(argv=None) -> int:
         samples, _ = static_samples(run, bag, plan, t_r, p_r, q_r, t0_pc, cfg, make_board(cfg), a.min_corners,
                                     a.max_reproj_px)
         print(f"{len(samples)} paradas válidas para la calibración cámara-brida")
-        he = solve(samples)
+        he = solve(samples, np.linspace(0.95, 1.05, 101) if a.fit_board_scale else (1.0,))
+        free = he if a.fit_board_scale else solve(samples, np.linspace(0.95, 1.05, 101))
         X = he["T_tcp_optical"]
         T_tcp_link = X @ inv_T(T_link_opt)
+        X_free = free["T_tcp_optical"] @ inv_T(T_link_opt)
         he_out = {"method": he["method"], "board_scale": he["board_scale"],
-                  "square_length_from_robot_m": he["board_scale"] * cfg.square_length_m,
+                  "board_scale_mode": "fitted (diagnostic)" if a.fit_board_scale else "fixed (measured board)",
+                  "diagnostic_free_scale": {"board_scale": free["board_scale"], "residual": free["residual"],
+                                            "tcp_to_camera_link_xyz_m": X_free[:3, 3].tolist(),
+                                            "translation_difference_mm": float(
+                                                np.linalg.norm(X_free[:3, 3] - T_tcp_link[:3, 3]) * 1000)},
+                  "square_length_m_used": he["board_scale"] * cfg.square_length_m,
                   "T_tcp_optical": X.tolist(), "T_tcp_camera_link": T_tcp_link.tolist(),
                   "tcp_to_camera_link_xyz_m": T_tcp_link[:3, 3].tolist(),
                   "tcp_to_camera_link_quat_xyzw": matrix_to_quat(T_tcp_link[:3, :3]).tolist(),
                   "residual": he["residual"], "residual_nominal_scale": he["residual_nominal_scale"],
                   "rotation_diversity_deg": he["rotation_diversity_deg"], "n_samples": len(samples),
                   "samples": [{k: v for k, v in s.items() if not k.startswith("T_")} for s in samples]}
-        (run / "hand_eye.json").write_text(json.dumps(he_out, indent=2))
+        (run / a.hand_eye_out).write_text(json.dumps(he_out, indent=2))
         report["hand_eye"] = {k: v for k, v in he_out.items() if k != "samples"}
-        print(json.dumps({k: he_out[k] for k in ("method", "board_scale", "square_length_from_robot_m",
-                                                 "tcp_to_camera_link_xyz_m", "residual", "residual_nominal_scale",
+        print(json.dumps({k: he_out[k] for k in ("method", "board_scale", "board_scale_mode",
+                                                 "tcp_to_camera_link_xyz_m", "residual", "diagnostic_free_scale",
                                                  "rotation_diversity_deg", "n_samples")}, indent=1))
+        if a.hand_eye_only:
+            return 0
 
     T_tcp_link = X @ inv_T(T_link_opt)
     if a.odom_bag:                                   # odometría reprocesada (replay_odometry_candidates.py)

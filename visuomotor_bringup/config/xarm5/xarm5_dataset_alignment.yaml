@@ -36,6 +36,12 @@ xarm5_dataset_alignment:
   #   * v7_xarm5_v2 se convirtió con la traslación 0 y la rotación nominal: con un giro de 30° de la herramienta, la
   #     palanca de 67.6 mm mueve el TCP convertido ~3.5 cm. demonstrations_real_v7_xarm5_v3.zarr usa estos valores.
   #   * Vale mientras el soporte de la cámara en la brida sea el mismo: si se desmonta, volver a medir.
+  #   * INCERTIDUMBRE (~9 mm en traslación): estos valores salen de la calibración con la escala del tablero libre
+  #     (ajustó 0,975). Con la escala medida (1,0; hand_eye_measured_board.json, método PARK, residuo 4,4 mm) la
+  #     traslación es (66,3, -15,9, 10,6) mm: 8,6 mm de diferencia, casi toda a lo largo del eje de la herramienta, y
+  #     0,41° de rotación. Sobre las trayectorias convertidas son <= 4,5 mm con giros de 30°, menos que el error de la
+  #     odometría, así que se mantiene v3. Para afinarla: repetir la calibración con vistas más variadas (el tablero
+  #     más cerca del robot e inclinaciones mayores).
   # Anterior (sin medir, hasta el 2026-11-24): xyz [0, 0, 0], rpy [3.14159265, -1.5707963, 0.0].
   tcp_to_camera_xyz_m: [0.06293, -0.01626, 0.01849]
   tcp_to_camera_rpy_rad: [3.13372, -1.53072, 0.00445]   # ejes fijos X-Y-Z: R = Rz(yaw)·Ry(pitch)·Rx(roll)

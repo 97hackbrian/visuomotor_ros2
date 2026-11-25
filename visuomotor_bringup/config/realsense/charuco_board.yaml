@@ -29,11 +29,13 @@ charuco_board:
   dictionary: "DICT_5X5_100"
   squares_x: 9
   squares_y: 7
-  # MEDIDO (2026-11-24, impreso en A3 y pegado sobre placa): los 9 cuadros miden 324 mm de punta a punta (36,0 mm por
-  # cuadro) y la regla impresa de 100 mm mide 100 mm. Escala 1:1 verificada: el marcador queda en su valor de 27 mm.
-  # Con el robot como referencia, la calibración cámara-brida ajusta 35,1 mm por cuadro (-2,5 %). Como el tablero
-  # mide 36,0, esa diferencia viene de la cámara (focal de fábrica o profundidad), no de la impresión: ver
-  # context.md, lección 47.
+  # MEDIDO (2026-11-24, impreso en A3): los 9 cuadros miden 324 mm de punta a punta (36,0 mm por cuadro) y la regla
+  # impresa de 100 mm mide 100 mm. Escala 1:1 verificada: el marcador queda en su valor de 27 mm.
+  # La calibración cámara-brida con la escala del tablero LIBRE ajustó 35,1 mm (-2,5 %). No es una medida:
+  #   * la focal de fábrica de la cámara de color está bien a ~1 % (check_color_intrinsics.py: -0,6 %; mitades
+  #     +0,6 / -1,7 %);
+  #   * con vistas del tablero desde un mismo lado, la escala se compensa corriendo la cámara a lo largo del eje óptico.
+  # Por eso evaluate_vio_gt.py usa ahora la escala medida (1.0) y deja la libre solo como diagnóstico.
   square_length_m: 0.036
   marker_length_m: 0.027
   measured: true
