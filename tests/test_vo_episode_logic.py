@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_episode_logic import (  # noqa: E402
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, check_done_segment, continuous_quat, detect_hold_start,
-    episode_quality, is_null_odometry)
+    episode_quality, imu_still_since, is_null_odometry)
 
 Q_DOWN = np.array([0.0, 0.7071068, 0.0, 0.7071068])
 
@@ -123,6 +123,30 @@ class DoneTest(unittest.TestCase):
     def test_no_hold_is_reported(self):
         p, hold = self._traj()
         self.assertTrue(check_done_segment(p, np.zeros(len(hold), bool), 20.0, 2.0, 0.02, 0.5)["problems"])
+
+
+class ImuStillnessTest(unittest.TestCase):
+    """Quietud final por giróscopo: decide el guardado cuando la odometría visual se perdió al final."""
+
+    def test_still_since_after_motion(self):
+        t = np.arange(0, 4, 0.005)                                   # 200 Hz
+        g = np.zeros((len(t), 3))
+        g[t < 2.5, 2] = 0.4                                          # gira hasta 2,5 s, después quieta
+        rng = np.random.default_rng(0)
+        g += rng.normal(0, 0.01, g.shape)                            # ruido / temblor leve
+        s = imu_still_since(t, g, 0.08)
+        self.assertIsNotNone(s)
+        self.assertAlmostEqual(s, 2.5, delta=0.15)
+
+    def test_moving_at_the_end_is_none(self):
+        t = np.arange(0, 2, 0.005)
+        g = np.zeros((len(t), 3))
+        g[t > 1.5, 0] = 0.3
+        self.assertIsNone(imu_still_since(t, g, 0.08))
+
+    def test_always_still(self):
+        t = np.arange(0, 1, 0.005)
+        self.assertEqual(imu_still_since(t, np.zeros((len(t), 3)), 0.08), t[0])
 
 
 if __name__ == "__main__":

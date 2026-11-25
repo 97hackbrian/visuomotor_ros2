@@ -41,6 +41,7 @@ import sys
 import termios
 import threading
 import time
+from collections import deque
 import tty
 from pathlib import Path
 from typing import Optional
@@ -59,6 +60,7 @@ from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
 from visuomotor_data_collection.vo_episode_logic import (
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, check_done_segment, continuous_quat,
+    imu_still_since,
     detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
 from visuomotor_data_collection.vo_schedule import load_csv as load_schedule, next_pending
 from visuomotor_data_collection.vo_start_guide import (
@@ -125,6 +127,12 @@ class VOCollectorNode(Node):
         d('static_window_s', 0.5)
         d('auto_hold', False)
         d('strict_qa', True)
+        # False (v8, con bag crudo: las poses del dataset salen de DROID offline): las pérdidas de la odometría EN VIVO
+        # quedan como aviso (qa_warnings) y no bloquean el guardado.
+        d('qa_tracking_blocking', True)
+        # Quietud final por giróscopo cuando la odometría en vivo está perdida al final (la pose se congela).
+        d('imu_still_gyro_rad_s', 0.08)
+        d('imu_still_smooth_s', 0.15)
         d('min_episode_frames', 20)
         d('raw_bag_enabled', False)
         d('raw_bag_dir', 'datasets/raw_bags')
@@ -180,6 +188,8 @@ class VOCollectorNode(Node):
         self.t_arm = 0.0
         self.odom_reset_ok = False
         self.imu_acc = []
+        self.imu_buf = deque(maxlen=4000)                   # (t, wx, wy, wz): quietud final por giróscopo
+        self.imu_hold_start = None
         self.last_q = None
         self.last_p = None
         self.n_null = 0
@@ -321,6 +331,8 @@ class VOCollectorNode(Node):
                 self.get_logger().warn(f"Pocos inliers: {msg.inliers}", throttle_duration_sec=1.0)
 
     def _imu_cb(self, msg):
+        w = msg.angular_velocity
+        self.imu_buf.append((msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec, w.x, w.y, w.z))
         if self.state in (ARMING,) or (self.state == RECORDING and len(self.imu_acc) < 40):
             a = msg.linear_acceleration
             self.imu_acc.append((a.x, a.y, a.z))
@@ -358,6 +370,7 @@ class VOCollectorNode(Node):
             self.hold, self.current_gripper, self.pending_problems = False, 0.0, None
             self.imu_acc, self.imu_frame, self.n_null = [], "", 0
             self.state, self.t_arm, self.t_reset, self.odom_reset_ok = ARMING, time.time(), None, False
+            self.imu_hold_start = None
             # v3.1: el bag crudo empieza YA, con la cámara quieta en la pose de inicio. Esos frames y el acelerómetro
             # dan la pose REAL de inicio (estimate_start_poses.py). Antes empezaba con el pitido de "Grabando", justo
             # cuando la mano empieza a moverse, y no quedaba ningún momento quieto.
@@ -428,11 +441,26 @@ class VOCollectorNode(Node):
                 self.sampler.step(self.poses, self.images, self.current_gripper, self.hold,
                                   image_wait_s=float(self.p('image_wait_s')))
                 if self.p('auto_save') and not self.auto_save_blocked and len(self.sampler.frames) > 2:
-                    p = np.array([f.p for f in self.sampler.frames])
-                    save_now = auto_save_ready(p, self.rate, float(self.p('auto_save_min_travel_m')),
-                                               float(self.p('min_hold_duration_s')),
-                                               float(self.p('auto_save_margin_s')), float(self.p('static_speed_m_s')),
-                                               float(self.p('static_window_s')))
+                    fr = self.sampler.frames
+                    p = np.array([f.p for f in fr])
+                    need = float(self.p('min_hold_duration_s')) + float(self.p('auto_save_margin_s'))
+                    tail = fr[-max(2, int(round(need * self.rate))):]
+                    if not any(f.lost for f in tail):
+                        save_now = auto_save_ready(p, self.rate, float(self.p('auto_save_min_travel_m')),
+                                                   float(self.p('min_hold_duration_s')),
+                                                   float(self.p('auto_save_margin_s')),
+                                                   float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
+                    else:
+                        # Odometría perdida al final: su pose congelada parecería quieta. La quietud se decide con el
+                        # giróscopo (no depende de la imagen) y el recorrido con los frames que sí tenían pose.
+                        ok = np.array([not f.lost for f in fr])
+                        imu = np.array(self.imu_buf) if len(self.imu_buf) > 10 else None
+                        if (imu is not None and ok.sum() >= 2
+                                and max_travel(p[ok]) >= float(self.p('auto_save_min_travel_m'))):
+                            t_still = imu_still_since(imu[:, 0], imu[:, 1:4], float(self.p('imu_still_gyro_rad_s')),
+                                                      float(self.p('imu_still_smooth_s')))
+                            if t_still is not None and imu[-1, 0] - t_still >= need:
+                                save_now, self.imu_hold_start = True, t_still
         if save_now:                                           # fuera del lock: _save lo toma de nuevo
             ok, msg = self._save(auto_detect_hold=True, trigger="auto")
             if not ok:
@@ -473,6 +501,7 @@ class VOCollectorNode(Node):
         with self.lock:
             n = len(self.sampler.frames)
             self.state, self.hold, self.pending_problems = IDLE, False, None
+            self.imu_hold_start = None
             self.sampler.start(None)
             self.sampler.t_next = None
             self.t_idle_since = time.time()
@@ -505,7 +534,12 @@ class VOCollectorNode(Node):
             return False, f"Episodio demasiado corto ({len(frames)} frames): descartado"
         p_abs = np.array([f.p for f in frames])
         hold = np.array([f.hold for f in frames])
-        auto = False
+        auto, done_source = False, "odometry"
+        if auto_detect and not hold.any() and self.imu_hold_start is not None:
+            # Guardado decidido por el giróscopo (odometría perdida al final): el HOLD empieza donde se quedó quieta
+            ts = np.array([f.timestamp for f in frames])
+            hold = ts >= self.imu_hold_start
+            auto, done_source = bool(hold.any()), "imu"
         if auto_detect and not hold.any():
             i = detect_hold_start(p_abs, self.rate, float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
             if i is not None:
@@ -515,14 +549,21 @@ class VOCollectorNode(Node):
                                  float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
         qual = episode_quality(frames, self.rate)
         problems = list(chk["problems"])
+        tracking, warnings = [], []
         if qual["lost_frames"]:
-            problems.append(f"{qual['lost_frames']} frames con rastreo perdido o sin imagen")
+            tracking.append(f"{qual['lost_frames']} frames con rastreo perdido o sin imagen")
         if qual["duplicate_images"]:
             problems.append(f"{qual['duplicate_images']} imágenes repetidas en frames consecutivos")
         min_inl = int(self.p('min_inliers_tracking'))
         low = sum(1 for f in frames if 0 <= f.inliers < min_inl)
         if low:
-            problems.append(f"{low} frames con menos de {min_inl} inliers")
+            tracking.append(f"{low} frames con menos de {min_inl} inliers")
+        if self.p('qa_tracking_blocking'):
+            problems += tracking
+        else:                                                 # v8: las poses salen de DROID desde el bag crudo
+            warnings += tracking
+            for wmsg in tracking:
+                self.get_logger().warn(f"[QA] aviso (no bloquea; poses offline): {wmsg}")
         if problems and self.p('strict_qa') and not force:
             for pr in problems:
                 self.get_logger().error(f"[QA] {pr}")
@@ -567,6 +608,7 @@ class VOCollectorNode(Node):
             "odom_reset": bool(self.odom_reset_ok), "null_odometry_messages": int(self.n_null),
             "start_gravity_mps2": g, "start_gravity_frame": getattr(self, "imu_frame", ""),
             "quality": qual, "qa_problems": problems, "qa_forced": bool(force and problems),
+            "qa_warnings": warnings, "done_source": done_source,
             "object_cell": cell, "raw_bag": None if bag_path is None else str(bag_path),
             "raw_bag_starts_at": getattr(self, "raw_bag_started_in", None),
             "git_commit": _git_commit(self.repo), "config_sha256": self._config_hashes(),
@@ -579,6 +621,7 @@ class VOCollectorNode(Node):
             "save_trigger": trigger,
         }
         ep_idx, total = self.storage.append_episode(buffer, attrs=attrs, extra_arrays=extra, episode_chunks=True)
+        self.imu_hold_start = None
         with self.lock:
             self.state, self.hold = IDLE, False
             self.sampler.t_next = None

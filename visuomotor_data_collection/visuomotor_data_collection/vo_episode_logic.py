@@ -289,6 +289,27 @@ def max_travel(p: np.ndarray) -> float:
     return float(np.linalg.norm(p - p[0], axis=1).max()) if len(p) else 0.0
 
 
+def imu_still_since(t: np.ndarray, gyro: np.ndarray, gyro_thr: float, smooth_s: float = 0.15) -> Optional[float]:
+    """Inicio del tramo FINAL quieto según el giróscopo (|w| suavizado < ``gyro_thr``), o ``None`` si al final se mueve.
+
+    No depende de la imagen: sirve cuando la odometría visual se pierde al final de la aproximación, cerca de la mesa,
+    donde la pose queda congelada y parecería quieta aunque la mano se siga moviendo."""
+    t = np.asarray(t, float)
+    if len(t) < 3:
+        return None
+    g = np.asarray(gyro, float)
+    w = np.linalg.norm(g, axis=1) if g.ndim == 2 else np.abs(g)
+    dt = float(np.median(np.diff(t))) if len(t) > 1 else 0.005
+    k = max(1, int(round(smooth_s / max(dt, 1e-4))))
+    ws = np.convolve(w, np.ones(k) / k, mode="same")
+    moving = np.nonzero(ws >= gyro_thr)[0]
+    if len(moving) == 0:
+        return float(t[0])
+    if moving[-1] >= len(t) - 1:
+        return None
+    return float(t[moving[-1] + 1])
+
+
 def auto_save_ready(p: np.ndarray, rate_hz: float, min_travel_m: float, min_hold_s: float, margin_s: float,
                     static_speed: float, window_s: float) -> bool:
     """Guardado automático: la cámara ya se alejó del inicio al menos ``min_travel_m`` (al empezar también está

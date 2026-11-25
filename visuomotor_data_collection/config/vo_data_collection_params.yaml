@@ -35,6 +35,13 @@ vo_collector_node:
     auto_hold: false                       # true: si no se pulsó [H], detectar el tramo final quieto
     # true: no se guarda un episodio con problemas de QA (descartar con [D] o forzar con [F]).
     strict_qa: true
+    # false (v8, con bag crudo; lo pone run_v8_session.sh): las pérdidas de la odometría EN VIVO quedan como aviso
+    # (qa_warnings) y no bloquean, porque las poses del dataset se recalculan offline con DROID desde el bag crudo.
+    qa_tracking_blocking: true
+    # Si la odometría en vivo está perdida al final (la pose se congela y parecería quieta), el final quieto lo decide
+    # el giróscopo: |w| suavizado < umbral durante min_hold + margen. El done empieza ahí (done_source: imu).
+    imu_still_gyro_rad_s: 0.08
+    imu_still_smooth_s: 0.15
     min_episode_frames: 20
     # Grabación cruda por episodio (rosbag2 MCAP) para reprocesar la odometría offline. Requiere que existan los
     # tópicos comprimidos (image_transport) o cambiar la lista por los crudos (~46 MB/s).

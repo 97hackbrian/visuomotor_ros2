@@ -100,6 +100,7 @@ if HAVE_ROS:
             imu = Imu()
             imu.header.stamp, imu.header.frame_id = stamp, "camera_imu_optical_frame"
             imu.linear_acceleration.y = 9.81
+            imu.angular_velocity.z = 0.4 if f["moving"].value else 0.0   # la mano gira al moverse
             self.pub_imu.publish(imu)
 
     def _camera_process(flags):
@@ -270,6 +271,59 @@ class CollectorV3GuideTest(unittest.TestCase):
             stamps = [stamp_of(m) for _, m, _ in iter_messages(a["raw_bag"], ["/camera/camera/imu"])]
             t0 = float(np.asarray(ep["timestamp"])[0])
             self.assertGreater(t0 - min(stamps), 0.15, "el bag no tiene la ventana quieta de ARMING")
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
+
+
+    def test_lost_at_end_saves_by_imu_without_blocking(self):
+        """v8 a mano: la odometría en vivo se pierde al bajar cerca de la mesa (pose congelada). No debe guardar
+        mientras la mano se mueve; guarda cuando el giróscopo dice quieto, con el done desde ahí, y la pérdida queda
+        como aviso (qa_tracking_blocking: false), porque las poses salen después de DROID desde el bag crudo."""
+        import zarr
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        ctx = mp.get_context("spawn")
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        flags["img_mode"].value = 2
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        try:
+            col = _make_collector(tmp, ["-p", "auto_start:=true", "-p", "auto_save:=true",
+                                        "-p", "auto_start_hold_s:=0.6", "-p", "auto_start_cooldown_s:=3.0",
+                                        "-p", "min_hold_duration_s:=1.0", "-p", "auto_save_margin_s:=0.4",
+                                        "-p", "auto_save_min_travel_m:=0.05", "-p", "terminal_bell:=false",
+                                        "-p", "qa_tracking_blocking:=false"])
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.guide_res is not None and col.poses.latest() is not None, 8.0))
+            flags["img_mode"].value = 1
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 10.0))
+            flags["img_mode"].value = 2
+            flags["moving"].value = 1
+            time.sleep(1.4)                                          # ~7 cm con pose válida
+            flags["null"].value = 1                                  # se pierde la odometría... y la mano sigue
+            time.sleep(1.6)
+            self.assertEqual(col.storage.get_num_episodes(), 0, "guardó con la pose congelada mientras se movía")
+            t_stop = time.time()
+            flags["moving"].value = 0                                # quieta, todavía perdida
+            self.assertTrue(_wait(lambda: col.storage.get_num_episodes() == 1 and col.state == "IDLE", 6.0))
+            ex.shutdown()
+            ep = zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"]
+            a = dict(ep.attrs)
+            self.assertEqual(a["done_source"], "imu")
+            self.assertEqual(a["qa_problems"], [])
+            self.assertTrue(any("rastreo perdido" in w for w in a["qa_warnings"]), a["qa_warnings"])
+            ts = np.asarray(ep["timestamp"])
+            done = np.asarray(ep["action"])[:, 8] > 0.5
+            self.assertGreaterEqual(done.sum(), 20)
+            self.assertGreater(ts[done][0], t_stop - 0.35, "el done empieza antes de que la mano se detuviera")
         finally:
             flags["stop"].value = 1
             proc.join(timeout=5)

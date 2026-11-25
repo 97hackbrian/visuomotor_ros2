@@ -44,8 +44,10 @@ cat <<'EOF'
   4. Pitido "Grabando": bajar suave (<= 15 cm/s) hacia la herramienta.
   5. Terminar a 25-30 cm SOBRE la herramienta, centrada en el recuadro, y quedarse quieta ~2,5 s -> guarda sola.
   6. Si el control de calidad la rechaza: [D] y repetir. [N] salta la entrada del programa.
+     (Si la odometría en vivo se pierde cerca de la mesa: es un AVISO, la demo se guarda igual; el final quieto
+      lo detecta el giróscopo. Las poses del dataset salen después de DROID desde el bag crudo.)
 ==========================================================================================
 EOF
 COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=$SCHED -p raw_bag_enabled:=true \
--p raw_bag_preroll_arming:=true -p raw_bag_dir:=datasets/raw_bags" \
+-p raw_bag_preroll_arming:=true -p raw_bag_dir:=datasets/raw_bags -p qa_tracking_blocking:=false" \
   exec ./tools/hardware/run_data_collection.sh "$DATASET"

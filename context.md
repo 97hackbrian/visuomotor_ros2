@@ -711,6 +711,14 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Sesión:* `tools/hardware/run_v8_session.sh` revisa la cámara, los archivos, el disco (>= 30 GB) e `install/`,
       muestra el protocolo y lanza el recolector (inicio y guardado automáticos, programa de 108 entradas, bag con
       pre-roll). Al día siguiente continúa el mismo dataset y el mismo programa.
+    - *Odometría en vivo perdida al final (frecuente cerca de la mesa):* antes, la pose congelada parecía quieta y
+      podía guardar la demo cortada, con el done mal puesto; y el control de calidad bloqueaba las demos con pérdidas.
+      Ahora:
+      - con la cola perdida, el final quieto lo decide el giróscopo (`imu_still_since`, |w| < 0,08 rad/s), y el done
+        empieza ahí (`done_source: imu`);
+      - con `qa_tracking_blocking: false` (`run_v8_session.sh`), las pérdidas quedan en `qa_warnings`, porque las
+        poses salen de DROID offline.
+      - Prueba simulada: no guarda mientras se mueve perdida y guarda al detenerse.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
