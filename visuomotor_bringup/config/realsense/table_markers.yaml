@@ -1,0 +1,44 @@
+# ArUco de la mesa: esquinas en link_base (m) triangulando con el robot, y vertical real en la base
+# (tools/xarm5/vio_gt/calibrate_table_markers.py). Vale mientras no se muevan los marcadores sobre el
+# mantel ni el robot respecto de la mesa (la guía de inicio lo comprueba en HOME3).
+table_markers:
+  dictionary: DICT_4X4_50
+  corners_base_m:
+    12:
+    - - 0.663669
+      - -0.214798
+      - 0.020976
+    - - 0.663476
+      - -0.164086
+      - 0.022907
+    - - 0.714765
+      - -0.164944
+      - 0.01787
+    - - 0.715158
+      - -0.215895
+      - 0.017645
+    14:
+    - - 0.717349
+      - 0.129517
+      - 0.015892
+    - - 0.665551
+      - 0.129613
+      - 0.021634
+    - - 0.664736
+      - 0.178624
+      - 0.024555
+    - - 0.716031
+      - 0.179006
+      - 0.019789
+  side_length_m:
+    12: 0.05121
+    14: 0.0506
+  gravity_base:
+  - -0.005529
+  - 0.0139
+  - 0.999888
+  depth_scale_correction: 0.986
+  source_run: experiments/vio_gt/2026-11-24/runs/201446_static_board
+  windows: 16
+  triangulation_rms_px: 4.153014266283775
+  validation: start_anchor_validation.json de la corrida

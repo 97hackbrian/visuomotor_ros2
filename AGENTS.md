@@ -233,6 +233,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
        - ORB-SLAM3 se pierde cerca de la mesa (y sus modos inerciales no inicializan con el robot lento); Open3D
          deriva; DPVO no cabe en 8 GB.
        - Detalle en `context.md`, lección 48. Decisión con argumento práctico y teórico, y registro de experimentos para el paper: `.agents/knowledge/18_vio_estimator_selection_droid_slam.md`. Uso: skill `.agents/skills/droid-slam-offline-vio/SKILL.md`.
+     - **Anclaje con la pose REAL de inicio (2026-11-25):** el conversor ya no tiene por qué suponer que cada demo empieza en HOME3 (en v7: 32° ± 6° frente a 24,6°). `estimate_start_poses.py` usa PnP con los ArUco de la mesa (triangulados con el robot en `table_markers.yaml`) y la inclinación del acelerómetro; el conversor v3 la aplica con `--start-poses`. Contra el robot: 11 mm / 0,6°, y 5 mm / 0,55° en 8 inicios en HOME3. v7 no se reancla (256 px y sin IMU). Lección 49 de `context.md`; comandos 39–40.
      Imagen 256×256 RGB; estado 8D sin fuga causal; acción 9D. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
@@ -449,6 +450,13 @@ docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup
 # 38. ORB-SLAM3 (rgbd, rgbd_inertial, mono_inertial) y reevaluación homogénea de todas las fuentes con el resumen comparativo
 tools/xarm5/vio_gt/frameworks/run_orbslam3_all.sh experiments/vio_gt/<fecha>
 tools/xarm5/vio_gt/frameworks/reeval_all.sh experiments/vio_gt/<fecha>
+
+# 39. ArUco de la mesa en link_base (triangulados con el robot) + vertical real; valida el anclaje de inicio dejando una vista fuera (--write escribe table_markers.yaml)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/calibrate_table_markers.py --run experiments/vio_gt/<fecha>/runs/<static> --frames datasets/vio_frames/<static> --write
+
+# 40. Pose REAL de inicio de cada demo (ArUco + IMU) y conversión anclada con ella (conversor v3; sin --start-poses = supone HOME3)
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/estimate_start_poses.py --zarr datasets/demonstrations_real_v8.zarr --out <start_poses.json>"
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8.zarr --dst <nuevo>.zarr --drop-flagged --start-poses <start_poses.json>
 ```
 
 ---

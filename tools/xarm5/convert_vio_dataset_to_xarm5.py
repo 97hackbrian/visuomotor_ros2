@@ -35,6 +35,7 @@ import json
 import math
 import sys
 import time
+from typing import Optional
 from pathlib import Path
 
 import numpy as np
@@ -62,7 +63,7 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
 from visuomotor_core.dataset.trajectory_filters import TrajectoryFilterConfig, smooth_pose_trajectory  # noqa: E402
 from visuomotor_core.utils.rotations import HEMISPHERE_MODES, canonicalize  # noqa: E402
 
-CONVERTER_VERSION = 2  # 2: filtro de trayectoria opcional + hemisferio de cuaternión + auditoría de saltos VIO
+CONVERTER_VERSION = 3  # 2: filtro + hemisferio + auditoría de saltos; 3: anclaje opcional con la pose de inicio medida (--start-poses)
 
 DEFAULT_BRIDGE_PARAMS = REPO / "visuomotor_bringup/config/xarm5/xarm5_real_params.yaml"
 DEFAULT_ALIGNMENT = REPO / "visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml"
@@ -137,12 +138,16 @@ class Converter:
         roll, pitch, yaw = project_orientation(quat, "top_down_yaw", self.fixed_rpy)
         return rpy_to_quat(roll, pitch, clamp_yaw(yaw, *self.yaw_limits))
 
-    def to_base(self, poses: np.ndarray, ref_inv: np.ndarray):
-        """poses [T, 7] (xyz + quat en odom) -> (xyz [T,3] TCP en link_base, quat original [T,4] en link_base)."""
+    def to_base(self, poses: np.ndarray, ref_inv: np.ndarray, t_base_start: Optional[np.ndarray] = None):
+        """poses [T, 7] (xyz + quat en odom) -> (xyz [T,3] TCP en link_base, quat original [T,4] en link_base).
+
+        ``t_base_start``: pose MEDIDA del TCP al inicio del episodio (ArUco + IMU, ``estimate_start_poses.py``). Si es
+        ``None`` se supone que el episodio empieza en HOME (comportamiento de las versiones 1 y 2)."""
+        t_start = self.t_base_home if t_base_start is None else np.asarray(t_base_start, dtype=np.float64)
         xyz = np.zeros((len(poses), 3))
         quats = np.zeros((len(poses), 4))
         for i, p in enumerate(poses):
-            t = self.t_base_home @ self.t_tcp_cam @ (ref_inv @ pose_matrix(p[:3], p[3:7])) @ self.t_cam_tcp
+            t = t_start @ self.t_tcp_cam @ (ref_inv @ pose_matrix(p[:3], p[3:7])) @ self.t_cam_tcp
             xyz[i] = t[:3, 3]
             quats[i] = matrix_to_quat(t[:3, :3])
         return xyz, quats
@@ -162,7 +167,8 @@ class Converter:
         p, q, fstats = smooth_pose_trajectory(poses[:, :3], poses[:, 3:7], rate_hz, self.filter_cfg)
         return np.concatenate([p, q], axis=1), fstats
 
-    def convert_episode(self, state: np.ndarray, action: np.ndarray, rate_hz: float):
+    def convert_episode(self, state: np.ndarray, action: np.ndarray, rate_hz: float,
+                        t_base_start: Optional[np.ndarray] = None):
         raw_steps = np.linalg.norm(np.diff(np.asarray(state[:, :3], dtype=np.float64), axis=0), axis=1)
         poses = {}
         filter_stats = {}
@@ -175,7 +181,7 @@ class Converter:
         out = {}
         stats = {}
         for name, arr in (("state", state), ("action", action)):
-            xyz, q_req = self.to_base(poses[name], ref_inv)
+            xyz, q_req = self.to_base(poses[name], ref_inv, t_base_start)
             q_proj = np.array([self.project(xyz[i], q_req[i]) for i in range(len(xyz))])
             dev = np.array([rotation_angle(q_req[i], q_proj[i]) for i in range(len(xyz))])
             q_proj = canonicalize(q_proj, self.hemisphere, self.q_ref)
@@ -206,6 +212,7 @@ class Converter:
                     "tcp_xyz_min": [float(v) for v in xyz.min(axis=0)],
                     "tcp_xyz_max": [float(v) for v in xyz.max(axis=0)],
                     "start_offset_from_home_m": float(np.linalg.norm(xyz[0] - self.home_xyz)),
+                    "start_anchor": "measured" if t_base_start is not None else "home",
                 }
                 reasons = []
                 if stats["max_orientation_deviation_rad"] > self.max_dev:
@@ -238,7 +245,15 @@ def main(argv=None):
     ap.add_argument("--drop-flagged", action="store_true", help="no copia los episodios marcados en la auditoría")
     ap.add_argument("--allow-uncalibrated", action="store_true",
                     help="permite convertir con extrinsic_calibrated: false (solo pruebas)")
+    ap.add_argument("--start-poses", default="",
+                    help="JSON de tools/xarm5/estimate_start_poses.py: ancla cada episodio con su pose de inicio "
+                         "MEDIDA (ArUco + IMU) en vez de suponer HOME. Episodios sin pose fiable: HOME")
     args = ap.parse_args(argv)
+    starts = {}
+    if args.start_poses:
+        for k, v in json.loads(Path(args.start_poses).read_text())["episodes"].items():
+            if v.get("T_base_camera_link") is not None and v.get("usable", False):
+                starts[k] = np.asarray(v["T_base_camera_link"], dtype=np.float64)
 
     import zarr  # import tardío: --help funciona sin zarr
 
@@ -267,7 +282,8 @@ def main(argv=None):
               "tcp_to_camera_rpy_rad": alignment["tcp_to_camera_rpy_rad"],
               "extrinsic_calibrated": conv.calibrated, "converter_version": CONVERTER_VERSION,
               "trajectory_filter": conv.filter_cfg.to_dict(), "quaternion_hemisphere": conv.hemisphere,
-              "quaternion_reference_xyzw": [float(v) for v in conv.q_ref], "episodes": {}}
+              "quaternion_reference_xyzw": [float(v) for v in conv.q_ref],
+              "start_poses": args.start_poses or None, "episodes": {}}
     n_out = 0
     for key in episode_keys(root):
         ep = root[key]
@@ -276,7 +292,9 @@ def main(argv=None):
         state, action = np.asarray(ep["state"]), np.asarray(ep["action"])
         if state.shape[1] != 8 or action.shape[1] < 8:
             sys.exit(f"ERROR: {key}: state {state.shape} / action {action.shape} (se espera 8 / 9 dimensiones)")
-        data, stats = conv.convert_episode(state, action, rate)
+        # Pose medida de camera_link al inicio -> TCP: T_base_tcp = T_base_cam · T_cam_tcp (misma extrínseca del YAML)
+        t_start = starts[key] @ conv.t_cam_tcp if key in starts else None
+        data, stats = conv.convert_episode(state, action, rate, t_start)
         stats["source_episode"] = key
         flagged = bool(stats["flags"])
         written = None
@@ -295,6 +313,7 @@ def main(argv=None):
                           "orientation_mode": conv.mode, "relative_coordinates": conv.relative,
                           "home_xyz_m": conv.home_xyz.tolist(), "audit_flags": stats["flags"],
                           "converter_version": CONVERTER_VERSION, "quaternion_hemisphere": conv.hemisphere,
+                          "start_anchor": stats["start_anchor"],
                           "trajectory_filter": conv.filter_cfg.to_dict(),
                           "max_orientation_deviation_rad": stats["max_orientation_deviation_rad"]})
             g.attrs.update(attrs)

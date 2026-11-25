@@ -219,6 +219,56 @@ Costo: 96–183 s por corrida (57–113 s de video, 2032–3696 frames), con 3,8
   - `datasets/vio_frames/` (3 GB).
   - **No borrarlos: son la evidencia del paper.**
 
+## 8. Anclaje con la pose REAL de inicio: ArUco + IMU (2026-11-25)
+
+**Problema:**
+- El conversor suponía que cada demo empieza exactamente en HOME3 y le pegaba el movimiento relativo de la
+  odometría. Un error de inclinación θ en el inicio rota todo el episodio: unos 0,6 m · θ al final (5° son ~5 cm).
+- En v7 el inicio estaba a 32° ± 6° de inclinación frente a los 24,6° de HOME3, y el encuadre variaba hasta ~80 px.
+- Probablemente es un error mayor que el de la odometría, y nunca se corrigió: el conversor descarta la orientación
+  absoluta, y v7 no guardó el IMU.
+
+**Método** (`visuomotor_data_collection/start_anchor.py`):
+- *Calibración* (`tools/xarm5/vio_gt/calibrate_table_markers.py`):
+  - Las 8 esquinas de los dos ArUco de la mesa se triangulan en `link_base` con 9 vistas del robot en poses
+    conocidas. No hace falta medir los marcadores: el lado sale de 51,2 y 50,6 mm.
+  - La vertical real de la base (0,86° de z: desnivel de la base + sesgo del IMU) sale del acelerómetro en esas vistas.
+  - Se guarda en `visuomotor_bringup/config/realsense/table_markers.yaml`.
+- *Estimación por episodio* (`tools/xarm5/estimate_start_poses.py`):
+  - Ventana quieta del inicio, detectada con el giróscopo.
+  - PnP (SQPnP + LM) con las esquinas medianas de varios frames.
+  - Inclinación reemplazada por la del acelerómetro. Si discrepan > 3°, el episodio queda en HOME y se marca.
+  - Sale `T_base_camera_link` → `convert_vio_dataset_to_xarm5.py --start-poses` (conversor v3). Sin la opción, la
+    salida es idéntica a v3 (verificado en los 83 episodios).
+
+**Validación contra el robot** (ventanas quietas de la corrida `static_board`, dejando una fuera; error de
+posición / rotación):
+
+| Variante | Mediana | Máximo |
+|---|---|---|
+| PnP solo | 11,2 mm / 1,20° | 33,6 mm / 5,84° |
+| **PnP + IMU** | **11,2 mm / 0,63°** | **33,6 mm / 0,89°** |
+| PnP + IMU, con los dos marcadores (caso HOME3) | 10,8 mm / 0,61° | — |
+| 3D-3D con la profundidad | 63 mm / 4,5° | — |
+| Híbrido (rotación de PnP + IMU, posición de la profundidad) | 16,8 mm / 0,63° | 18,2 mm |
+| Resolución de v7 (256×256, un frame, sin IMU) | 33 mm / 4,0° | con fallas de 543 mm / 50° |
+
+- El 3D-3D se descarta: muestra un desfase de ~17 mm entre la profundidad y las esquinas trianguladas (extrínseca o
+  profundidad).
+- Prueba nula en las 8 aproximaciones de la sesión, que empezaron en HOME3 con los dos marcadores visibles:
+  - error contra el robot de 5,2 mm / 0,55° de mediana (máx. 7,0 mm / 0,63°);
+  - 8/8 utilizables y el IMU de acuerdo en todas.
+- Conclusión: la inclinación de inicio baja de ~7° ± 6° (v7) a ~0,6°, y la posición queda en ~1 cm.
+- v7 **no** se reancla: con 256 px, un solo frame y sin IMU, el anclaje no mejora el error original.
+
+**Límites:**
+- La validación es de la misma sesión de la calibración. Con un solo marcador visible de lado, el error de posición
+  llega a ~3 cm.
+- La calibración vale mientras no se muevan los ArUco ni el robot respecto de la mesa.
+- Falta validarlo con inicios deliberadamente fuera de HOME3: en la próxima sesión, ±3 cm y ±5°, con el robot como
+  referencia.
+- Protocolo: tras el pitido de inicio, quedarse quieto ~0,5 s (el bag crudo empieza al iniciar el episodio).
+
 **Referencias:**
 - Teed y Deng, "DROID-SLAM: Deep Visual SLAM for Monocular, Stereo, and RGB-D Cameras", NeurIPS 2021.
 - Teed y Deng, "RAFT", ECCV 2020.

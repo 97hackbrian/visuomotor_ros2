@@ -675,6 +675,25 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         `.agents/skills/droid-slam-offline-vio/SKILL.md`.
       - Los datos crudos (bags, odometrías reprocesadas y frames exportados, ~22 GB fuera de git) son la evidencia del
         paper: no borrarlos.
+49. **Anclaje con la pose REAL de inicio, con ArUco + IMU (2026-11-25):**
+    - *El supuesto que se cae:* el conversor ponía el primer frame de cada demo en HOME3. En v7 el inicio estaba a
+      32° ± 6° de inclinación (HOME3: 24,6°), y 5° en una aproximación de 0,6 m son ~5 cm al final. El IMU de v7 no
+      corregía nada: RTAB-Map lo usaba solo al arrancar la sesión, el conversor descarta la orientación absoluta, y v7
+      no guardó el IMU.
+    - *Ahora* (`start_anchor.py`, `calibrate_table_markers.py`, `estimate_start_poses.py`, conversor v3
+      `--start-poses`):
+      - Las esquinas de los ArUco se triangulan en `link_base` con el robot (lados de 51,2 y 50,6 mm), y se calcula
+        la vertical real de la base (0,86°).
+      - En cada demo: PnP en la ventana quieta del inicio, con la inclinación del acelerómetro.
+    - *Validación contra el robot:*
+      - Dejando una vista fuera: 11 mm / 0,63° de mediana (máx. 34 mm / 0,89°, con un solo marcador de lado).
+      - Prueba nula en 8 inicios en HOME3: 5,2 mm / 0,55°.
+      - La profundidad 3D-3D empeora (63 mm). A la resolución de v7 (256 px, sin IMU): 33 mm / 4°, con fallas, así
+        que v7 no se reancla.
+    - *Protocolo:* quedarse quieto ~0,5 s después del pitido de inicio. No mover los ArUco ni el robot respecto de la
+      mesa, o hay que recalibrar.
+    - *Pendiente:* validar con inicios deliberadamente fuera de HOME3 (próxima sesión con el robot) e integrarlo en
+      `build_dataset_from_bags.py` con DROID.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

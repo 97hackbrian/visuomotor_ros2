@@ -56,6 +56,24 @@ docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup
 keyframe, una pose por frame. El tiempo es el sello del bag. Para `camera_link`:
 `T_world_link = T_world_opt · inv(T_link_opt)`, con `T_link_opt` de `calib.json`.
 
+### 3b. Anclaje con la pose REAL de inicio (ArUco + IMU)
+DROID da el movimiento RELATIVO dentro del episodio. Para anclarlo en `link_base` no hay que suponer que la demo
+empezó exactamente en HOME3: con la pose medida al inicio, la inclinación baja de ~7° ± 6° (v7) a ~0,6°, y la
+posición queda en ~1 cm. Validado contra el robot.
+```bash
+# Pose de inicio de cada episodio (exporta los bags crudos si hace falta) -> JSON para el conversor
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && \
+  python3 tools/xarm5/estimate_start_poses.py --zarr datasets/demonstrations_real_v8.zarr --out <start_poses.json>"
+python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src <dataset> --dst <nuevo> --drop-flagged --start-poses <start_poses.json>
+```
+- **Requisitos:**
+  - `visuomotor_bringup/config/realsense/table_markers.yaml`: esquinas de los ArUco en la base y vertical real,
+    calibradas con el robot (`tools/xarm5/vio_gt/calibrate_table_markers.py`). Recalibrar si se mueven los
+    marcadores o el robot respecto de la mesa.
+  - Tras el pitido de inicio, quedarse quieto ~0,5 s: la ventana quieta da los frames y el acelerómetro.
+- **Fallback:** episodios sin marcadores, o con PnP e IMU discrepando > 3°, quedan con `usable: false` y se anclan en
+  HOME (con aviso).
+
 ## 4. Parámetros
 | Parámetro | Valor | Motivo |
 |---|---|---|
