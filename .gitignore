@@ -123,3 +123,6 @@ experiments/vio_gt/*/replay*/
 !experiments/vio_gt/*/runs/
 datasets/vio_frames/
 experiments/vio_gt/*/frameworks/*/traj_work/
+# Figuras de los experimentos de odometría con el robot (evidencia para el paper): sí van a git
+!experiments/vio_gt/**/*.png
+!experiments/collection_schedules/*.png
