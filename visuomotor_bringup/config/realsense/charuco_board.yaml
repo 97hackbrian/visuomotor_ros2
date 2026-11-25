@@ -29,9 +29,14 @@ charuco_board:
   dictionary: "DICT_5X5_100"
   squares_x: 9
   squares_y: 7
-  square_length_m: 0.036        # NOMINAL (A3 apaisado): reemplazar por la medida con calibre
-  marker_length_m: 0.027        # NOMINAL: reemplazar por la medida con calibre
-  measured: false
+  # MEDIDO (2026-11-24, impreso en A3 y pegado sobre placa): los 9 cuadros miden 324 mm de punta a punta (36,0 mm por
+  # cuadro) y la regla impresa de 100 mm mide 100 mm. Escala 1:1 verificada: el marcador queda en su valor de 27 mm.
+  # Con el robot como referencia, la calibración cámara-brida ajusta 35,1 mm por cuadro (-2,5 %). Como el tablero
+  # mide 36,0, esa diferencia viene de la cámara (focal de fábrica o profundidad), no de la impresión: ver
+  # context.md, lección 47.
+  square_length_m: 0.036
+  marker_length_m: 0.027
+  measured: true
 
   # Las escribe tools/xarm5/calibrate_hand_eye.py SOLO tras revisar el residuo (null = sin calibrar).
   # Pose del tablero en link_base del xArm5: p_base = R(q) p_board + xyz.
