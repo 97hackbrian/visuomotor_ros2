@@ -56,5 +56,6 @@ tail -n 0 -F "$LOG" 2>/dev/null | while IFS= read -r line; do
       if [ "$rejected" -eq 0 ]; then rejected=1; stamp "rechazada"; play dialog-error; say "Rechazada. S para guardar igual, D para descartar"; fi ;;
     *"episodio cancelado"*|*"no entregó poses válidas"*) stamp "cancelada"; play dialog-warning; say "Cancelada. Volver a la vista inicial" ;;
     *"[DISCARD]"*) stamp "descartada"; play dialog-warning; say "Descartada" ;;
+    *"[UNDO]"*) stamp "última guardada descartada"; play dialog-warning; say "Última demo descartada. Se vuelve a pedir" ;;
   esac
 done

@@ -125,5 +125,41 @@ class TestConvertVioDataset(unittest.TestCase):
         np.testing.assert_allclose(inv(t) @ t, np.eye(4), atol=1e-12)
 
 
+
+class DiscardedEpisodeTest(unittest.TestCase):
+    """Las demos marcadas ``discarded`` al grabar ([U] del recolector o a pedido del usuario, 2026-11-25) no se
+    convierten y el informe lo dice; las demás sí."""
+
+    def test_discarded_episode_is_skipped(self):
+        import json
+        import tempfile
+        import zarr
+        from convert_vio_dataset_to_xarm5 import main
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "src.zarr"
+        root = zarr.open_group(str(src), mode="w")
+        n = 60
+        for k, discarded in ((0, False), (1, True)):
+            ep = root.create_group(f"episode_{k}")
+            state = np.zeros((n, 8), np.float32)
+            state[:, 2] = np.linspace(0.0, 0.10, n)                 # la cámara avanza 10 cm por su eje óptico
+            state[:, 6] = 1.0
+            action = np.zeros((n, 9), np.float32)
+            action[:, :8] = state
+            action[-20:, 8] = 1.0
+            ep.create_dataset("state", data=state)
+            ep.create_dataset("action", data=action)
+            ep.create_dataset("image", data=np.zeros((n, 32, 32, 3), np.uint8))
+            ep.attrs.update({"sampling_rate_hz": 20.0, "relative_coordinates": True})
+            if discarded:
+                ep.attrs.update({"discarded": True, "discard_reason": "prueba"})
+        dst = tmp / "dst.zarr"
+        self.assertEqual(main(["--src", str(src), "--dst", str(dst)]), 0)
+        out = zarr.open_group(str(dst), mode="r")
+        self.assertEqual(sorted(out.group_keys()), ["episode_0"])
+        rep = json.loads((tmp / "dst_conversion_report.json").read_text())
+        self.assertEqual(rep["episodes"]["episode_1"], {"skipped": "discarded", "reason": "prueba"})
+
+
 if __name__ == "__main__":
     unittest.main()

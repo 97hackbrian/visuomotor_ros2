@@ -173,9 +173,12 @@ def schedule_id(path) -> str:
 
 def done_indices(episode_attrs: Iterable[dict], sched_id: str, legacy_id: Optional[str] = None) -> set:
     """Índices hechos del programa ``sched_id`` según los atributos de los episodios. Los episodios sin
-    ``schedule_id`` (recolector anterior al 2026-11-25) cuentan solo si ``legacy_id == sched_id``."""
+    ``schedule_id`` (recolector anterior al 2026-11-25) cuentan solo si ``legacy_id == sched_id``. Los marcados
+    ``discarded`` no cuentan."""
     out = set()
     for a in episode_attrs:
+        if (a or {}).get("discarded"):                         # descartada (p. ej. con [U]): se vuelve a pedir
+            continue
         sch = (a or {}).get("schedule") or {}
         if "index" not in sch:
             continue

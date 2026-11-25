@@ -288,6 +288,10 @@ def main(argv=None):
     for key in episode_keys(root):
         ep = root[key]
         attrs = dict(ep.attrs)
+        if attrs.get("discarded"):                            # descartada al grabar ([U] o a pedido): se omite
+            report["episodes"][key] = {"skipped": "discarded", "reason": attrs.get("discard_reason", "")}
+            print(f"  {key}: descartada ({attrs.get('discard_reason', '')}): se omite")
+            continue
         rate = float(attrs.get("sampling_rate_hz", 20.0))
         state, action = np.asarray(ep["state"]), np.asarray(ep["action"])
         if state.shape[1] != 8 or action.shape[1] < 8:
@@ -332,8 +336,10 @@ def main(argv=None):
     if report_path.exists():
         report_path = report_path.with_name(report_path.stem + f"_{int(time.time())}.json")
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False))
-    n_flag = sum(1 for e in report["episodes"].values() if e["flags"])
-    print(f"\n{len(report['episodes'])} episodios, {n_flag} marcados, {n_out} escritos"
+    n_flag = sum(1 for e in report["episodes"].values() if e.get("flags"))
+    n_skip = sum(1 for e in report["episodes"].values() if e.get("skipped"))
+    print(f"\n{len(report['episodes'])} episodios, {n_skip} descartados al grabar (omitidos), {n_flag} marcados, "
+          f"{n_out} escritos"
           + ("" if args.report_only else f" en {dst}") + f". Informe: {report_path}")
     if not conv.calibrated:
         print("AVISO: extrínseca cámara-TCP sin calibrar (extrinsic_calibrated: false): no entrenar con este resultado.")

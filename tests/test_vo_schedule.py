@@ -90,6 +90,8 @@ class BalancedScheduleTest(unittest.TestCase):
                  {"schedule": {"index": 3, "cell": 2, "schedule_id": "v8_schedule_v2"}}, {"schedule": None}, {}]
         self.assertEqual(done_indices(attrs, "v8_schedule_v2", "v8_schedule"), {3})
         self.assertEqual(done_indices(attrs, "v8_schedule", "v8_schedule"), {0})
+        attrs.append({"schedule": {"index": 5, "schedule_id": "v8_schedule_v2"}, "discarded": True})   # [U]
+        self.assertEqual(done_indices(attrs, "v8_schedule_v2", "v8_schedule"), {3})
         self.assertEqual(schedule_id("experiments/collection_schedules/v8_schedule_v2.csv"), "v8_schedule_v2")
 
 

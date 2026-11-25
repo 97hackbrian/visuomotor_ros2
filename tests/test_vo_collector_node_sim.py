@@ -273,6 +273,17 @@ class CollectorV3GuideTest(unittest.TestCase):
             stamps = [stamp_of(m) for _, m, _ in iter_messages(a["raw_bag"], ["/camera/camera/imu"])]
             t0 = float(np.asarray(ep["timestamp"])[0])
             self.assertGreater(t0 - min(stamps), 0.15, "el bag no tiene la ventana quieta de ARMING")
+            # [U] (2026-11-25): descarta la última guardada MARCÁNDOLA; su entrada se vuelve a pedir y los datos quedan
+            from visuomotor_data_collection.vo_schedule import next_pending
+            ok, msg = col._discard_last_saved("prueba")
+            self.assertTrue(ok, msg)
+            self.assertNotIn(first.index, col.sched_done)
+            self.assertEqual(next_pending(col.schedule, col.sched_done).index, first.index)
+            a2 = dict(zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"].attrs)
+            self.assertTrue(a2["discarded"])
+            self.assertEqual(a2["discard_reason"], "prueba")
+            self.assertEqual(col.storage.get_num_episodes(), 1)
+            self.assertFalse(col._discard_last_saved()[0])                  # no hay otra guardada que descartar
         finally:
             flags["stop"].value = 1
             proc.join(timeout=5)

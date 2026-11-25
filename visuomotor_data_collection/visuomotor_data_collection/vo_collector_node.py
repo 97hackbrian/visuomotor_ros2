@@ -28,7 +28,7 @@ Cambios de v3 (2026-11-24, tras los 14 intentos en el xArm5; ``vo_start_guide.py
   guarda en el episodio ([N] salta una entrada).
 
 Controles: [ESPACIO] empezar · [I] empezar ignorando la guía · [H] llegada (HOLD) · [S] guardar · [F] forzar guardado
-· [D] descartar · [G] gripper · [1-9] celda del objeto (0 = ninguna) · [N] saltar entrada del programa · [Q] salir.
+· [D] descartar · [U] descartar la última demo guardada (la marca, no la borra) · [G] gripper · [1-9] celda del objeto (0 = ninguna) · [N] saltar entrada del programa · [Q] salir.
 """
 from __future__ import annotations
 
@@ -42,6 +42,7 @@ import termios
 import threading
 import time
 from collections import deque
+from datetime import datetime
 import tty
 from pathlib import Path
 from typing import Optional
@@ -200,6 +201,7 @@ class VOCollectorNode(Node):
         self.current_gripper = 0.0
         self.object_cell = 0
         self.t_reset = None
+        self.last_saved = None                  # (episode_N, índice del programa) para [U]
         # Sello del último mensaje de odometría, VÁLIDO O NULO. Si RTAB-Map ya estaba perdido al arrancar el
         # recolector, no hay ninguna pose válida guardada, pero sí llegan mensajes; el reinicio en ARMING la recupera.
         self.last_odom_stamp = None
@@ -298,7 +300,8 @@ class VOCollectorNode(Node):
         self.get_logger().info(f" VO Collector v{COLLECTOR_VERSION} | {self.rate} Hz | {g('image_size')} px | "
                                f"{self.storage_path} ({n_prev} episodios)")
         self.get_logger().info(" [ESPACIO] empezar  [I] empezar ignorando la guía  [H] llegada  [S] guardar  "
-                               "[F] forzar  [D] descartar  [G] gripper  [1-9] celda  [N] saltar  [Q] salir")
+                               "[F] forzar  [D] descartar  [U] descartar la última guardada  [G] gripper  [1-9] celda  [N] saltar  "
+                               "[Q] salir")
         if self.guide_ref is not None:
             self.get_logger().info(f" Guía de inicio a HOME3: tolerancia {g('start_guide_tolerance_px')} px "
                                    f"({'obligatoria' if g('start_guide_required') else 'solo aviso'}); imagen en "
@@ -550,6 +553,33 @@ class VOCollectorNode(Node):
         self.get_logger().info(f"[DISCARD] Episodio descartado ({n} frames).")
         return True, "Descartado"
 
+    def _discard_last_saved(self, reason: str = "descartada por el operador con [U]"):
+        """[U]: descarta la ÚLTIMA demo guardada en esta sesión (p. ej. el final no centró la herramienta). No borra
+        nada: la marca ``discarded`` en sus atributos, así no cuenta para el programa (su entrada se vuelve a pedir) y
+        el conversor y el armado del dataset la omiten. Los datos y el bag crudo quedan, por si se quiere revisar."""
+        with self.lock:
+            if self.state != IDLE:
+                self.get_logger().warn("[U] solo entre demos (no durante una grabación).")
+                return False, "En grabación"
+            last = self.last_saved
+            if last is None:
+                self.get_logger().warn("[U] no hay ninguna demo guardada en esta sesión.")
+                return False, "Nada que descartar"
+            key, index = last
+            ep = self.storage.root[key]
+            if dict(ep.attrs).get("discarded"):
+                self.get_logger().warn(f"[U] {key} ya estaba descartada.")
+                return False, "Ya descartada"
+            ep.attrs.update({"discarded": True, "discard_reason": reason,
+                             "discarded_at": datetime.now().isoformat(timespec="seconds")})
+            if index is not None:
+                self.sched_done.discard(index)
+            self.last_saved = None
+        self.get_logger().info(f"[UNDO] {key} descartada: no cuenta para el programa y su entrada se vuelve a pedir "
+                               "(los datos quedan, marcados).")
+        self._announce_schedule()
+        return True, f"{key} descartada"
+
     def _save(self, force: bool = False, auto_detect_hold: Optional[bool] = None, trigger: str = "manual"):
         with self.lock:
             if self.state != RECORDING:
@@ -701,6 +731,7 @@ class VOCollectorNode(Node):
             self.steady.reset()
             if entry is not None:
                 self.sched_done.add(entry.index)
+            self.last_saved = (f"episode_{ep_idx}", None if entry is None else entry.index)
         self.get_logger().info(f"[SAVE] episode_{ep_idx}: {len(frames)} frames ({len(frames) / self.rate:.1f} s), "
                                f"done {chk['hold_frames']} frames{' (auto)' if auto else ''}"
                                f"{', FORZADO con problemas' if force and problems else ''}. Total {total}. "
@@ -872,6 +903,8 @@ class VOCollectorNode(Node):
                     self._save(force=True)
                 elif ch == 'd':
                     self._discard()
+                elif ch == 'u':
+                    self._discard_last_saved()
                 elif ch == 'g':
                     self._toggle_gripper()
                 elif ch.isdigit():

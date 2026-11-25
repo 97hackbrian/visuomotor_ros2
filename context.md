@@ -711,6 +711,11 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       seguridad no se tocó. Con la grilla del usuario (x 0,402-0,70, y -0,374..+0,344) quedan 7 celdas completas y 2
       parciales (6 y 9: no llega a la esquina lejana derecha), y ninguna sin alcance. La guía y la voz dicen "final en
       diagonal" o "hacia el centro de la celda". Las celdas 7 y 9 contienen los ArUco: no taparlos.
+      Demos descartadas después de guardarlas: no se borran. Se marcan `discarded` en sus atributos (tecla [U] del
+      recolector, o a pedido); no cuentan para el programa (su entrada se vuelve a pedir), y el conversor y
+      `estimate_start_poses.py` las omiten. Primera: `episode_13`, porque el final dejaba la herramienta cortada.
+      Vigilante de la sesión: `tools/hardware/v8_watch.sh`; ojo: `pkill -f` con su nombre también mata al shell que
+      lo invoca.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

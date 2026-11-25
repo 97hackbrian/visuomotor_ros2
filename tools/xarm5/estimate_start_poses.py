@@ -121,6 +121,9 @@ def main(argv=None) -> int:
         z = zarr.open_group(str(REPO / a.zarr), mode="r")
         root = REPO / "datasets/vio_frames" / Path(a.zarr).stem
         for key in sorted(z.group_keys(), key=lambda k: int(k.split("_")[-1])):
+            if z[key].attrs.get("discarded"):
+                print(f"  {key}: descartada: se omite")
+                continue
             bag = z[key].attrs.get("raw_bag")
             if not bag:
                 print(f"  {key}: sin bag crudo (raw_bag_enabled: false al grabar)")
