@@ -84,6 +84,12 @@ class BalancedScheduleTest(unittest.TestCase):
         h = placement_hint({"reachable_fraction": 0.5, "center_reachable_fraction": 1.0, "tilt_needed_deg": 45.0})
         self.assertIn("centro de la celda", h)
         self.assertIn("45", h)
+        by = {"reachable_fraction": 0.5, "center_reachable_fraction": 1.0, "tilt_needed_deg": 45.0,
+              "by_yaw": {0: {"reachable_fraction": 1.0, "tilt_needed_deg": 0.0}, 180: {"reachable_fraction": 1.0,
+                                                                                  "tilt_needed_deg": 15.0}}}
+        self.assertEqual(placement_hint(by, 0.0), "")                       # esa orientación: justo encima
+        self.assertIn("15", placement_hint(by, 180.0))
+        self.assertIn("45", placement_hint(by))                             # sin orientación: el peor caso
 
     def test_done_only_counts_same_schedule(self):
         attrs = [{"schedule": {"index": 0, "cell": 1}},                          # programa v1, sin schedule_id

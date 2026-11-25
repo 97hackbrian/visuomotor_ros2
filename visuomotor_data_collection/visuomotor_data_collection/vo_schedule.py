@@ -67,13 +67,18 @@ def cells_from_edges(x_edges: Sequence[float], y_edges: Sequence[float]) -> Dict
     return out
 
 
-def placement_hint(cell_info: Optional[dict]) -> str:
-    """Pista para la vista final de una celda, desde ``v8_cells_home3.yaml`` (``make_v8_cells.py``):
+def placement_hint(cell_info: Optional[dict], yaw_deg: Optional[float] = None) -> str:
+    """Pista para la vista final de una celda, desde ``v8_cells_home3.yaml`` (``make_v8_cells.py``). Con ``yaw_deg`` y
+    ``by_yaw`` en la celda (cámara alineada con las hojas), usa el alcance de ESA orientación:
     * ``tilt_needed_deg`` > 0: el robot solo llega mirando EN DIAGONAL desde más cerca de la base;
     * ``reachable_fraction`` < 1 con el centro alcanzable: no llega a alguna esquina, herramienta hacia el centro.
     Vacía si basta con la cámara justo encima de cualquier punto de la celda."""
     if not cell_info:
         return ""
+    by = cell_info.get("by_yaw") if yaw_deg is not None else None
+    if isinstance(by, dict):
+        y = int(round(float(yaw_deg)))
+        cell_info = by.get(y, by.get(str(y), cell_info))
     out = []
     if float(cell_info.get("reachable_fraction", 1.0)) < 1.0 and float(cell_info.get("center_reachable_fraction", 1.0)) >= 1.0:
         out.append("herramienta hacia el centro de la celda")

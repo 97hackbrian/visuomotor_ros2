@@ -183,6 +183,12 @@ def main(argv=None) -> int:
     # con las hojas)
     model = ReachModel(a.bridge, a.alignment, a.calib, zt, cfg["check_heights_m"], cfg.get("check_camera_yaws_deg", [0.0]),
                        cfg.get("check_max_tilt_deg", 0.0), cfg.get("check_tilt_step_deg", 15.0))
+    # Con la cámara alineada con las hojas, cada demo tiene UNA orientación: el alcance y la pista (diagonal, hacia el
+    # centro) se guardan también por orientación, para que el recolector diga solo lo de esa demo.
+    cam_yaws = [float(y) for y in cfg.get("check_camera_yaws_deg", [0.0])]
+    by_yaw_models = ({y: ReachModel(a.bridge, a.alignment, a.calib, zt, cfg["check_heights_m"], [y],
+                                    cfg.get("check_max_tilt_deg", 0.0), cfg.get("check_tilt_step_deg", 15.0))
+                      for y in cam_yaws} if len(cam_yaws) > 1 else {})
     cal = json.loads(Path(a.calib).read_text())
     K = np.array(cal["K"]).reshape(3, 3)
     h3 = json.loads(Path(a.home3_tcp).read_text())
@@ -214,6 +220,13 @@ def main(argv=None) -> int:
                           "polygon_home3_px": np.round(poly, 1).tolist(), "reachable_fraction": round(frac, 3),
                           "center_reachable_fraction": round(det["center"], 3), "tilt_needed_deg": det["tilt_deg"],
                           "max_clamp_m": round(max_clamp, 4)}
+            if by_yaw_models:
+                cells[cid]["by_yaw"] = {}
+                for y, my in by_yaw_models.items():
+                    dy = my.cell_detail(x_lo, x_hi, y_lo, y_hi)
+                    cells[cid]["by_yaw"][int(round(y))] = {"reachable_fraction": round(dy["worst"], 3),
+                                                           "center_reachable_fraction": round(dy["center"], 3),
+                                                           "tilt_needed_deg": dy["tilt_deg"]}
             color = (40, 170, 40) if frac == 1.0 else (0, 0, 220)
             cv2.polylines(over, [poly.astype(np.int32)], True, color, 2, cv2.LINE_AA)
             c = poly.mean(0).astype(int)

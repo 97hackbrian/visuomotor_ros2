@@ -31,9 +31,10 @@ v8_cells:
   # 180 = hacia la base. Antes: [0, 45, -45, 90] con "positivo = antihorario". El programa (make_collection_schedule.py)
   # y la comprobación de alcance usan esta lista.
   tool_yaws_deg: [-90, -45, 0, 45, 90, 180]
-  # Orientación de la CÁMARA al final con la que se comprueba el alcance: [0] = la de HOME3 (protocolo: no girarla
-  # siguiendo las hojas; girada, el robot no llega en las celdas lejanas con -90 o 180).
-  check_camera_yaws_deg: [0]
+  # Orientación de la CÁMARA al final con la que se comprueba el alcance (convención de las hojas: +90 = derecha).
+  # Cámara ALINEADA con las hojas al final (decisión del usuario 2026-11-25): se comprueba cada orientación; la peor
+  # manda (antes [0] = la de HOME3).
+  check_camera_yaws_deg: [-90, -45, 0, 45, 90, 180]
   # La vista final puede ser en DIAGONAL: cámara a 25-30 cm de la herramienta, inclinada hacia la base hasta este
   # ángulo desde la vertical (la vista de HOME3 ya es inclinada). Así mira un brazo estirado hacia los bordes y lo
   # lejos; exigir la cámara justo encima marcaba "no llega" celdas a las que el robot llega (2026-11-25).

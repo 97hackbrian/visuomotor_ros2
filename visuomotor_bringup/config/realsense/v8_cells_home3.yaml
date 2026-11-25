@@ -27,8 +27,33 @@ v8_cells_home3:
         - 389.6
       reachable_fraction: 1.0
       center_reachable_fraction: 1.0
-      tilt_needed_deg: 0.0
+      tilt_needed_deg: 45.0
       max_clamp_m: 0.009
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
     2:
       name: cerca-centro, junto a la base
       x_m:
@@ -53,6 +78,31 @@ v8_cells_home3:
       center_reachable_fraction: 1.0
       tilt_needed_deg: 0.0
       max_clamp_m: 0.0
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
     3:
       name: cerca-derecha, junto a la base
       x_m:
@@ -76,7 +126,32 @@ v8_cells_home3:
       reachable_fraction: 1.0
       center_reachable_fraction: 1.0
       tilt_needed_deg: 45.0
-      max_clamp_m: 0.0
+      max_clamp_m: 0.0019
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
     4:
       name: medio-izquierda
       x_m:
@@ -99,8 +174,33 @@ v8_cells_home3:
         - 313.5
       reachable_fraction: 1.0
       center_reachable_fraction: 1.0
-      tilt_needed_deg: 0.0
+      tilt_needed_deg: 45.0
       max_clamp_m: 0.009
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
     5:
       name: centro
       x_m:
@@ -123,8 +223,33 @@ v8_cells_home3:
         - 311.8
       reachable_fraction: 1.0
       center_reachable_fraction: 1.0
-      tilt_needed_deg: 0.0
-      max_clamp_m: 0.0
+      tilt_needed_deg: 15.0
+      max_clamp_m: 0.008
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
     6:
       name: medio-derecha
       x_m:
@@ -145,10 +270,35 @@ v8_cells_home3:
         - 244.3
       - - 577.3
         - 310.2
-      reachable_fraction: 1.0
+      reachable_fraction: 0.833
       center_reachable_fraction: 1.0
       tilt_needed_deg: 45.0
-      max_clamp_m: 0.0
+      max_clamp_m: 0.0191
+      by_yaw:
+        -90:
+          reachable_fraction: 0.5
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        -45:
+          reachable_fraction: 0.5
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
     7:
       name: lejos-izquierda
       x_m:
@@ -169,10 +319,35 @@ v8_cells_home3:
         - 184.3
       - - 231.5
         - 245.4
-      reachable_fraction: 1.0
+      reachable_fraction: 0.917
       center_reachable_fraction: 1.0
-      tilt_needed_deg: 15.0
-      max_clamp_m: 0.009
+      tilt_needed_deg: 45.0
+      max_clamp_m: 0.0157
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        90:
+          reachable_fraction: 0.5
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
     8:
       name: lejos-centro
       x_m:
@@ -195,8 +370,33 @@ v8_cells_home3:
         - 244.9
       reachable_fraction: 1.0
       center_reachable_fraction: 1.0
-      tilt_needed_deg: 0.0
-      max_clamp_m: 0.0054
+      tilt_needed_deg: 30.0
+      max_clamp_m: 0.008
+      by_yaw:
+        -90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        -45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 0.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
     9:
       name: lejos-derecha
       x_m:
@@ -217,7 +417,32 @@ v8_cells_home3:
         - 184.9
       - - 562.1
         - 244.3
-      reachable_fraction: 1.0
+      reachable_fraction: 0.75
       center_reachable_fraction: 1.0
       tilt_needed_deg: 45.0
-      max_clamp_m: 0.0054
+      max_clamp_m: 0.0309
+      by_yaw:
+        -90:
+          reachable_fraction: 0.5
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        -45:
+          reachable_fraction: 0.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        0:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0
+        45:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 15.0
+        90:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 30.0
+        180:
+          reachable_fraction: 1.0
+          center_reachable_fraction: 1.0
+          tilt_needed_deg: 45.0

@@ -778,7 +778,7 @@ class VOCollectorNode(Node):
                     # (las fuentes de OpenCV son ASCII)
                     target = {"cells_m": self.cells_m, "table_xy": self.table_xy, "cell": e.cell, "yaw_deg": e.yaw_deg,
                               "label": f"COLOCAR #{e.index}: celda {e.cell} | hojas {yaw_words(e.yaw_deg)}"
-                                       + (f" | {hint}" if (hint := placement_hint(self.cells_info.get(e.cell))) else "")}
+                                       + (f" | {hint}" if (hint := placement_hint(self.cells_info.get(e.cell), e.yaw_deg)) else "")}
                 elif e is not None and e.cell in self.cells_px:
                     target = {"polygon_px": self.cells_px[e.cell], "yaw_deg": e.yaw_deg,
                               "label": f"#{e.index}: celda {e.cell}, hojas {yaw_words(e.yaw_deg).replace('°', ' grados')}"}
@@ -791,7 +791,7 @@ class VOCollectorNode(Node):
             cv2.rectangle(out, (w // 2 - bw, h // 2 - bh), (w // 2 + bw, h // 2 + bh), (0, 200, 255), 2, cv2.LINE_AA)
             cv2.drawMarker(out, (w // 2, h // 2), (0, 200, 255), cv2.MARKER_CROSS, 24, 2, cv2.LINE_AA)
             txt = "QUIETA: reiniciando odometria" if state == ARMING else (
-                "REC  HOLD" if self.hold else "REC  llegar con la herramienta centrada en el recuadro")
+                "REC  HOLD" if self.hold else "REC  final: herramienta centrada y HOJAS hacia ARRIBA")
             cv2.rectangle(out, (0, 0), (w, 26), (0, 0, 170) if state == RECORDING else (0, 120, 200), -1)
             cv2.putText(out, txt, (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             self._publish_guide(out, stamp)
@@ -818,7 +818,7 @@ class VOCollectorNode(Node):
         if e is None:
             self.get_logger().info(f"[PROGRAMA] Completo: {len(self.sched_done)} demos hechas.")
         else:
-            hint = placement_hint(self.cells_info.get(e.cell))
+            hint = placement_hint(self.cells_info.get(e.cell), e.yaw_deg)
             self.get_logger().info(f"[PROGRAMA] Siguiente {e.describe()} ({len(self.sched_done)}/{len(self.schedule)} "
                                    f"hechas). [N] saltar." + (f" Ojo: {hint}." if hint else ""))
 

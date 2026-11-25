@@ -51,8 +51,9 @@ cat <<'EOF'
   3. "QUIETA: reiniciando odometría": NO moverse (estos frames dan la pose real de inicio).
   4. Pitido "Grabando": bajar suave (<= 15 cm/s) hacia la herramienta.
   5. Terminar a 25-30 cm SOBRE la herramienta, centrada en el recuadro, y quedarse quieta ~2,5 s -> guarda sola.
-     Mantener la cámara con la orientación de HOME3 (arriba de la imagen = lejos de la base): NO girarla siguiendo las
-     hojas. En las celdas de los bordes y lejanas, terminar EN DIAGONAL desde más cerca del robot (la guía y la voz lo
+     Al final, GIRAR la cámara hasta que las HOJAS queden hacia ARRIBA en la imagen (alineada con la herramienta; decidido
+     el 2026-11-25: la vista final es siempre igual y el robot gira la muñeca hacia la herramienta). En las celdas de
+     los bordes y lejanas, terminar EN DIAGONAL desde más cerca del robot (la guía y la voz lo
      dicen: "final en diagonal"), no justo encima: así es como el robot llega. Si dice "hacia el centro de la celda",
      no poner la herramienta en la esquina lejana. Las celdas 7 y 9 contienen los ArUco: nunca taparlos.
      Respaldo: si no guarda en ~5 s, UNA tecla [S]: guarda siempre (los problemas del final quedan como aviso).

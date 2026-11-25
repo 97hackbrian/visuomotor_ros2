@@ -716,6 +716,11 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       `estimate_start_poses.py` las omiten. Primera: `episode_13`, porque el final dejaba la herramienta cortada.
       Vigilante de la sesión: `tools/hardware/v8_watch.sh`; ojo: `pkill -f` con su nombre también mata al shell que
       lo invoca.
+      Orientación final de la cámara (decisión del usuario, 2026-11-25): ALINEADA con la herramienta, con las hojas
+      hacia arriba en la imagen. Es lo que hizo naturalmente en las primeras demos; la vista final queda siempre igual
+      y el robot gira la muñeca hacia la herramienta. Con la vista en diagonal, el robot llega a las 54 combinaciones
+      de celda y ángulo: 49 completas y 5 parciales (celdas 6 y 9 con −90/−45, celda 7 con +90). `make_v8_cells.py`
+      guarda el alcance por orientación (`by_yaw`), y la pista de cada demo usa la de SU ángulo.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).
