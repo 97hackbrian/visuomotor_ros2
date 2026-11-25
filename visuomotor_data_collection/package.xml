@@ -19,7 +19,8 @@
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
   <exec_depend>python3-scipy</exec_depend>
-  <exec_depend>visuomotor_bringup</exec_depend>  <!-- xarm5_interface: monitor de alcance (reach_monitor.py) -->
+  <!-- reach_monitor.py importa visuomotor_bringup.xarm5_interface, pero NO se declara: visuomotor_bringup ya depende
+       de este paquete y el ciclo impide compilar (colcon: "Unable to order packages topologically"). -->
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
