@@ -53,13 +53,41 @@ def cam_looking_down(p, yaw_deg):
     return T
 
 
-class ReachModel:
-    """¿Llega el robot a la vista final sobre un punto de la mesa? Pone la cámara sobre el punto mirando hacia abajo
-    (alturas ``heights``, orientaciones de cámara ``cam_yaws`` con "+90 = derecha"), calcula el TCP con la extrínseca
-    medida y aplica la MISMA caja, alcance y proyección de 5 GDL que el puente. Lo usan este script y
-    ``adjust_v8_grid.py``."""
+def cam_oblique(p_xy, table_z: float, dist: float, tilt_deg: float, yaw_deg: float) -> np.ndarray:
+    """Cámara (óptica) a ``dist`` del punto de la mesa ``p_xy`` y MIRÁNDOLO, inclinada ``tilt_deg`` desde la vertical
+    hacia la base del robot (en el plano vertical radial: así mira un brazo que se estira hacia afuera). Arriba de la
+    imagen ~ dirección ``yaw_deg`` (convención de ``cam_looking_down``: 0 = +x, positivo = antihorario). Con
+    ``tilt_deg = 0`` es exactamente ``cam_looking_down``."""
+    t = math.radians(tilt_deg)
+    r = np.array([p_xy[0], p_xy[1], 0.0])
+    r = r / max(np.linalg.norm(r), 1e-9)
+    pw = np.array([p_xy[0], p_xy[1], table_z])
+    c = pw + dist * (-math.sin(t) * r + math.cos(t) * np.array([0.0, 0.0, 1.0]))
+    z = (pw - c) / np.linalg.norm(pw - c)
+    up = np.array([math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg)), 0.0])
+    u = up - np.dot(up, z) * z
+    u = u / np.linalg.norm(u)
+    y = -u
+    T = np.eye(4)
+    T[:3, :3] = np.c_[np.cross(y, z), y, z]
+    T[:3, 3] = c
+    return T
 
-    def __init__(self, bridge_yaml, alignment_yaml, calib_json, table_z: float, heights, cam_yaws=(0.0,)):
+
+class ReachModel:
+    """¿Llega el robot a la vista final de un punto de la mesa? Pone la cámara a ``heights`` del punto, mirándolo:
+    justo encima o, si no llega así, inclinada hacia la base hasta ``max_tilt_deg`` (de ``tilt_step_deg`` en
+    ``tilt_step_deg``). Orientaciones de cámara ``cam_yaws`` con "+90 = derecha". Calcula el TCP con la extrínseca
+    medida y aplica la MISMA caja, alcance y proyección de 5 GDL que el puente. Lo usan este script y
+    ``adjust_v8_grid.py``.
+
+    2026-11-25: antes se exigía la cámara JUSTO ENCIMA de cada esquina. Así, en los bordes de la mesa el TCP salía de
+    la caja (|y| <= 0,30) o del radio de 0,65 m, y celdas a las que el robot sí llega (el usuario lo comprobó) salían
+    "no llega". Mirando en diagonal desde más cerca de la base (como ya mira la vista de HOME3) llega a casi todas,
+    sin tocar la caja."""
+
+    def __init__(self, bridge_yaml, alignment_yaml, calib_json, table_z: float, heights, cam_yaws=(0.0,),
+                 max_tilt_deg: float = 0.0, tilt_step_deg: float = 15.0):
         g = yaml.safe_load(open(bridge_yaml))["xarm5_bridge"]["ros__parameters"]
         self.box = WorkspaceLimits(g["workspace_x_min"], g["workspace_x_max"], g["workspace_y_min"],
                                    g["workspace_y_max"], g["workspace_z_min"], g["workspace_z_max"],
@@ -73,30 +101,56 @@ class ReachModel:
         self.zt = float(table_z)
         # cam_looking_down usa "positivo = antihorario"; la configuración, "+90 = derecha"
         self.combos = [(float(h), -float(yw)) for h in heights for yw in cam_yaws]
+        step = max(float(tilt_step_deg), 1.0)
+        self.tilts = [0.0] + [float(t) for t in np.arange(step, float(max_tilt_deg) + 1e-9, step)]
+
+    def _pose_ok(self, T_opt):
+        """(alcanzable, recorte en m) del TCP para la cámara en ``T_opt``."""
+        T_tcp = T_opt @ inv_T(self.T_link_opt) @ inv_T(self.T_tcp_link)
+        xyz, q = T_tcp[:3, 3], matrix_to_quat(T_tcp[:3, :3])
+        az = arm_azimuth(xyz)
+        pitch, yaw = arm_plane_params(q, az)
+        pitch_c = min(max(pitch, self.pl[0]), self.pl[1])
+        Rq, Rr = T_tcp[:3, :3], q2m(arm_plane_quat(az, pitch_c, yaw))
+        dev = math.degrees(math.acos(min(1.0, (np.trace(Rq.T @ Rr) - 1) / 2)))
+        out, _, valid = clamp_to_workspace(xyz, pitch_c, self.box, self.reach)
+        clamp = float(np.linalg.norm(out - xyz))
+        return bool(valid and clamp < 0.01 and dev < 8.0), clamp
+
+    def point_detail(self, p_xy):
+        """(fracción de alturas×orientaciones alcanzables, recorte mínimo del peor caso en m, inclinación máxima
+        necesaria en grados) para la vista final de ``p_xy``."""
+        ok, worst, tilt_needed = 0, 0.0, 0.0
+        for h, yw in self.combos:
+            best = None
+            for t in self.tilts:
+                good, clamp = self._pose_ok(cam_oblique(p_xy, self.zt, h, t, yw))
+                best = clamp if best is None else min(best, clamp)
+                if good:
+                    ok += 1
+                    tilt_needed = max(tilt_needed, t)
+                    best = 0.0 if t > 0 else clamp
+                    break
+            worst = max(worst, best)
+        return ok / len(self.combos), worst, tilt_needed
 
     def point(self, p_xy):
-        """(fracción de combinaciones alcanzables, recorte máximo en m) para la cámara sobre ``p_xy``."""
-        ok, worst = 0, 0.0
-        for h, yw in self.combos:
-            T_opt = cam_looking_down([p_xy[0], p_xy[1], self.zt + h], yw)
-            T_tcp = T_opt @ inv_T(self.T_link_opt) @ inv_T(self.T_tcp_link)
-            xyz, q = T_tcp[:3, 3], matrix_to_quat(T_tcp[:3, :3])
-            az = arm_azimuth(xyz)
-            pitch, yaw = arm_plane_params(q, az)
-            pitch_c = min(max(pitch, self.pl[0]), self.pl[1])
-            Rq, Rr = T_tcp[:3, :3], q2m(arm_plane_quat(az, pitch_c, yaw))
-            dev = math.degrees(math.acos(min(1.0, (np.trace(Rq.T @ Rr) - 1) / 2)))
-            out, _, valid = clamp_to_workspace(xyz, pitch_c, self.box, self.reach)
-            clamp = float(np.linalg.norm(out - xyz))
-            ok += valid and clamp < 0.01 and dev < 8.0
-            worst = max(worst, clamp)
-        return ok / len(self.combos), worst
+        """(fracción de combinaciones alcanzables, recorte en m) para la vista final de ``p_xy``."""
+        frac, worst, _ = self.point_detail(p_xy)
+        return frac, worst
+
+    def cell_detail(self, x_lo, x_hi, y_lo, y_hi) -> dict:
+        """Centro y 4 esquinas: ``center`` (fracción del centro), ``worst`` (peor punto), ``clamp_m`` e
+        ``tilt_deg`` (inclinación máxima necesaria)."""
+        pts = [((x_lo + x_hi) / 2, (y_lo + y_hi) / 2), (x_lo, y_hi), (x_hi, y_hi), (x_hi, y_lo), (x_lo, y_lo)]
+        fr = [self.point_detail(p) for p in pts]
+        return {"center": fr[0][0], "worst": min(f[0] for f in fr), "clamp_m": max(f[1] for f in fr),
+                "tilt_deg": max(f[2] for f in fr)}
 
     def cell(self, x_lo, x_hi, y_lo, y_hi):
         """Peor caso entre el centro y las 4 esquinas de la celda: (fracción alcanzable, recorte máximo en m)."""
-        pts = [((x_lo + x_hi) / 2, (y_lo + y_hi) / 2), (x_lo, y_hi), (x_hi, y_hi), (x_hi, y_lo), (x_lo, y_lo)]
-        fr = [self.point(p) for p in pts]
-        return min(f[0] for f in fr), max(f[1] for f in fr)
+        d = self.cell_detail(x_lo, x_hi, y_lo, y_hi)
+        return d["worst"], d["clamp_m"]
 
 
 def default_paths() -> dict:
@@ -127,7 +181,8 @@ def main(argv=None) -> int:
     xe, ye, zt = cfg["x_edges_m"], cfg["y_edges_m"], float(cfg["table_z_m"])
     # Orientación de la CÁMARA al final según el protocolo (check_camera_yaws_deg; [0] = la de HOME3, sin girarla
     # con las hojas)
-    model = ReachModel(a.bridge, a.alignment, a.calib, zt, cfg["check_heights_m"], cfg.get("check_camera_yaws_deg", [0.0]))
+    model = ReachModel(a.bridge, a.alignment, a.calib, zt, cfg["check_heights_m"], cfg.get("check_camera_yaws_deg", [0.0]),
+                       cfg.get("check_max_tilt_deg", 0.0), cfg.get("check_tilt_step_deg", 15.0))
     cal = json.loads(Path(a.calib).read_text())
     K = np.array(cal["K"]).reshape(3, 3)
     h3 = json.loads(Path(a.home3_tcp).read_text())
@@ -151,20 +206,21 @@ def main(argv=None) -> int:
             y_hi, y_lo = ye[3 - ci], ye[2 - ci]
             x_lo, x_hi = xe[ri], xe[ri + 1]
             corners = [(x_lo, y_hi), (x_hi, y_hi), (x_hi, y_lo), (x_lo, y_lo)]
-            frac, max_clamp = model.cell(x_lo, x_hi, y_lo, y_hi)
-            d_mark = min(np.min(np.abs(np.array([[m[:, 0].min() - x_hi, x_lo - m[:, 0].max()]]))) if
-                         (m[:, 1].min() <= y_hi and m[:, 1].max() >= y_lo) else 1.0 for m in markers.values())
+            det = model.cell_detail(x_lo, x_hi, y_lo, y_hi)
+            frac, max_clamp = det["worst"], det["clamp_m"]
             poly = project([[x, y, zt] for x, y in corners])
             cells[cid] = {"name": CELL_NAMES[cid], "x_m": [x_lo, x_hi], "y_m": [y_lo, y_hi],
                           "center_m": [round((x_lo + x_hi) / 2, 3), round((y_lo + y_hi) / 2, 3)],
                           "polygon_home3_px": np.round(poly, 1).tolist(), "reachable_fraction": round(frac, 3),
+                          "center_reachable_fraction": round(det["center"], 3), "tilt_needed_deg": det["tilt_deg"],
                           "max_clamp_m": round(max_clamp, 4)}
             color = (40, 170, 40) if frac == 1.0 else (0, 0, 220)
             cv2.polylines(over, [poly.astype(np.int32)], True, color, 2, cv2.LINE_AA)
             c = poly.mean(0).astype(int)
             cv2.putText(over, str(cid), (c[0] - 8, c[1] + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2, cv2.LINE_AA)
             print(f"celda {cid} ({CELL_NAMES[cid]:34s}) x {x_lo:.2f}-{x_hi:.2f} y {y_lo:+.2f}..{y_hi:+.2f} | "
-                  f"alcanzable {100 * frac:5.1f} % | recorte máx {1000 * cells[cid]['max_clamp_m']:.0f} mm")
+                  f"alcanzable {100 * frac:5.1f} % (centro {100 * det['center']:.0f} %) | inclinación {det['tilt_deg']:.0f}° | "
+                  f"recorte máx {1000 * cells[cid]['max_clamp_m']:.0f} mm")
     for m in markers.values():
         cv2.polylines(over, [project(m).astype(np.int32)], True, (220, 120, 0), 2, cv2.LINE_AA)
     # Comprobación cruzada (2026-11-25): la guía en vivo proyecta la grilla con la homografía de los ArUco detectados

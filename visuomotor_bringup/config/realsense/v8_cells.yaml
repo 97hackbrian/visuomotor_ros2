@@ -19,8 +19,8 @@ v8_cells:
   # * a lo ancho es ASIMÉTRICO: la cámara va ~1,6 cm a un lado del TCP. Por la izquierda el robot llega hasta +0,33
   #   (se deja +0,31: ~3 cm al borde del mantel); por la derecha se deja -0,27 (a -0,275 el TCP ya se recorta 6 mm; a -0,28, 1 cm).
   #   Más a la derecha exige ampliar la caja del puente, y aun con |y| <= 0,36 la celda 9 falla por el radio de 0,65 m.
-  x_edges_m: [0.405, 0.481, 0.557, 0.633]   # cerca | medio | lejos (3 filas iguales de 7,6 cm)
-  y_edges_m: [-0.27, -0.077, 0.117, 0.31]   # derecha | centro | izquierda (3 columnas iguales de 19,3 cm)
+  x_edges_m: [0.402, 0.5013, 0.6007, 0.7]   # ajustada con adjust_v8_grid.py el 2026-11-25 19:44
+  y_edges_m: [-0.374, -0.1347, 0.1047, 0.344]   # ajustada con adjust_v8_grid.py el 2026-11-25 19:44
   table_z_m: 0.020                        # plano de la mesa (esquinas de los ArUco, table_markers.yaml)
   marker_clearance_m: 0.03                # no tapar los ArUco: la herramienta debe quedar a >= 3 cm de ellos
   # Vista final con la que se comprueba que el robot llega: cámara sobre el centro de la celda, a esta altura,
@@ -34,3 +34,8 @@ v8_cells:
   # Orientación de la CÁMARA al final con la que se comprueba el alcance: [0] = la de HOME3 (protocolo: no girarla
   # siguiendo las hojas; girada, el robot no llega en las celdas lejanas con -90 o 180).
   check_camera_yaws_deg: [0]
+  # La vista final puede ser en DIAGONAL: cámara a 25-30 cm de la herramienta, inclinada hacia la base hasta este
+  # ángulo desde la vertical (la vista de HOME3 ya es inclinada). Así mira un brazo estirado hacia los bordes y lo
+  # lejos; exigir la cámara justo encima marcaba "no llega" celdas a las que el robot llega (2026-11-25).
+  check_max_tilt_deg: 45
+  check_tilt_step_deg: 15

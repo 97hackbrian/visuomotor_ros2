@@ -41,8 +41,9 @@ tail -n 0 -F "$LOG" 2>/dev/null | while IFS= read -r line; do
       cell=$(sed -nE 's/.*celda ([0-9]+).*/\1/p' <<<"$line")
       yaw=$(sed -nE 's/.*hojas (.*) \(([0-9]+)\/([0-9]+) hechas.*/\1/p' <<<"$line"); yaw=${yaw//°/ grados}
       cnt=$(sed -nE 's/.*\(([0-9]+)\/([0-9]+) hechas.*/\1 de \2/p' <<<"$line")
-      stamp "siguiente: celda $cell, hojas $yaw"; play dialog-information
-      say "Siguiente: celda $cell. Hojas $yaw. Llevan $cnt" ;;
+      hint=$(sed -nE 's/.*Ojo: (.*)\.$/\1/p' <<<"$line"); hint=${hint//°/ grados}; hint=${hint//\~/}
+      stamp "siguiente: celda $cell, hojas $yaw${hint:+ ($hint)}"; play dialog-information
+      say "Siguiente: celda $cell. Hojas $yaw.${hint:+ Ojo: $hint.} Llevan $cnt" ;;
     *"[PROGRAMA] Completo"*) stamp "programa completo"; play complete; say "Programa completo" ;;
     *"Vista de HOME3 alineada y quieta"*) stamp "alineada: quieta"; play bell; say "Quieta" ;;
     *">>> [REC] Grabando"*) rejected=0; stamp "grabando"; play camera-shutter; say "Grabando" ;;

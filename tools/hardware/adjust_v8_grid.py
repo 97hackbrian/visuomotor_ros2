@@ -8,11 +8,13 @@ Muestra la grilla numerada con la homografía de los ArUco de la mesa (la misma 
 Cuatro barras, en mm de ``link_base``: CERCA (borde del lado de la base), LEJOS (lado de los ArUco), IZQUIERDA (+y) y
 DERECHA (-y, en positivo). Las filas y las columnas quedan iguales.
 
-Cada celda se pinta según si el robot llega a su vista final: cámara a 25-30 cm sobre el centro y las esquinas de la
-celda, con la orientación de HOME3. Usa la misma caja, alcance y proyección de 5 GDL que el puente
+Cada celda se pinta según si el robot llega a su vista final: cámara a 25-30 cm del centro y de las esquinas de la
+celda, justo encima o en diagonal desde más cerca de la base (hasta check_max_tilt_deg), con la orientación de HOME3.
+Usa la misma caja, alcance y proyección de 5 GDL que el puente
 (``make_v8_cells.ReachModel``).
-* verde = llega;
-* rojo = no llega (esas demos se recortarían o descartarían al convertir).
+* verde = llega a toda la celda (si dice "diagonal N grados", la vista final debe ser inclinada);
+* amarillo = llega al centro pero no a alguna esquina (poner la herramienta hacia el centro);
+* rojo = no llega ni al centro (esas demos se recortarían o descartarían al convertir).
 La línea roja marca el límite de los ArUco (``marker_clearance_m``): la grilla no debe pasarla.
 
 Teclas (con la ventana activa):
@@ -111,9 +113,20 @@ def _text(img, txt, org, scale=0.5, col=(255, 255, 255), thick=1):
     cv2.putText(img, txt, org, cv2.FONT_HERSHEY_SIMPLEX, scale, col, thick, cv2.LINE_AA)
 
 
-def draw_overlay(img_bgr: np.ndarray, H: np.ndarray, cells_m: Dict[int, Sequence[float]], reach: Dict[int, Tuple],
+def cell_status(det: dict) -> str:
+    """"ok" (llega a toda la celda), "parcial" (al centro sí, a alguna esquina no) o "no" (ni al centro)."""
+    if det.get("worst", 0.0) >= 1.0:
+        return "ok"
+    return "parcial" if det.get("center", 0.0) >= 1.0 else "no"
+
+
+COLORS = {"ok": (60, 190, 60), "parcial": (0, 200, 230), "no": (40, 40, 230)}
+
+
+def draw_overlay(img_bgr: np.ndarray, H: np.ndarray, cells_m: Dict[int, Sequence[float]], reach: Dict[int, dict],
                  x_limit: float, lines: Sequence[str]) -> np.ndarray:
-    """Grilla con celdas verdes (el robot llega) o rojas (no llega), número y medidas, y el límite de los ArUco."""
+    """Grilla con celdas verdes (el robot llega a toda la celda), amarillas (al centro sí, a alguna esquina no) o
+    rojas (ni al centro), con número e inclinación necesaria de la vista final, y el límite de los ArUco."""
     import cv2
     out = img_bgr.copy()
     layer = out.copy()
@@ -121,17 +134,19 @@ def draw_overlay(img_bgr: np.ndarray, H: np.ndarray, cells_m: Dict[int, Sequence
     for cid, (x0, x1, y0, y1) in cells_m.items():
         poly = project_table_xy(H, [(x0, y1), (x1, y1), (x1, y0), (x0, y0)]).astype(np.int32)
         polys[cid] = poly
-        ok = reach.get(cid, (0.0, 0.0))[0] >= 1.0
-        cv2.fillPoly(layer, [poly], (60, 190, 60) if ok else (40, 40, 230))
+        cv2.fillPoly(layer, [poly], COLORS[cell_status(reach.get(cid, {}))])
     cv2.addWeighted(layer, 0.30, out, 0.70, 0, dst=out)
     for cid, poly in polys.items():
         cv2.polylines(out, [poly], True, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.polylines(out, [poly], True, (255, 255, 255), 1, cv2.LINE_AA)
         c = poly.mean(axis=0).astype(int)
-        frac, clamp = reach.get(cid, (0.0, 0.0))
+        det = reach.get(cid, {})
+        st = cell_status(det)
         _text(out, str(cid), (int(c[0]) - 7, int(c[1]) + 2), 0.7, (255, 255, 255), 2)
-        if frac < 1.0:
-            _text(out, f"no llega ({clamp * 1000:.0f} mm)", (int(c[0]) - 45, int(c[1]) + 20), 0.38, (180, 180, 255))
+        sub = {"ok": (f"diagonal {det.get('tilt_deg', 0):.0f} grados" if det.get("tilt_deg", 0) > 0 else ""),
+               "parcial": "una esquina no", "no": f"no llega ({det.get('clamp_m', 0) * 1000:.0f} mm)"}[st]
+        if sub:
+            _text(out, sub, (int(c[0]) - 45, int(c[1]) + 20), 0.38, (255, 255, 255))
     ys = np.linspace(-0.5, 0.5, 60)
     lim = project_table_xy(H, np.c_[np.full_like(ys, x_limit), ys]).astype(np.int32)
     cv2.polylines(out, [lim], False, (0, 0, 255), 2, cv2.LINE_AA)
@@ -183,7 +198,8 @@ def main(argv=None) -> int:
     cells_path = Path(a.cells)
     cfg = yaml.safe_load(cells_path.read_text())["v8_cells"]
     model = ReachModel(a.bridge, a.alignment, a.calib, float(cfg["table_z_m"]), cfg["check_heights_m"],
-                       cfg.get("check_camera_yaws_deg", [0.0]))
+                       cfg.get("check_camera_yaws_deg", [0.0]), cfg.get("check_max_tilt_deg", 0.0),
+                       cfg.get("check_tilt_step_deg", 15.0))
     mk = yaml.safe_load(open(a.table))["table_markers"]["corners_base_m"]
     table_xy = {int(i): np.asarray(c, float)[:, :2] for i, c in mk.items()}
     x_limit = marker_limit_x(table_xy, float(cfg.get("marker_clearance_m", 0.03)))
@@ -209,7 +225,7 @@ def main(argv=None) -> int:
         cv2.createTrackbar(name, WIN, 0, span, lambda _v: None)
     set_bars(saved)
 
-    cache: Dict[Tuple, Dict[int, Tuple]] = {}
+    cache: Dict[Tuple, Dict[int, dict]] = {}
     confirm_until, msg, msg_until = 0.0, "", 0.0
     print("Ajuste de la grilla v8: barras en la ventana; [G] guardar, [R] restaurar, [Q]/[Esc] salir.")
     while True:
@@ -220,9 +236,10 @@ def main(argv=None) -> int:
         cells_m = cells_from_edges(xe, ye) if bad is None else {}
         key = (tuple(xe), tuple(ye))
         if bad is None and key not in cache:
-            cache[key] = {cid: model.cell(*b) for cid, b in cells_m.items()}
+            cache[key] = {cid: model.cell_detail(*b) for cid, b in cells_m.items()}
         reach = cache.get(key, {})
-        n_ok = sum(1 for r in reach.values() if r[0] >= 1.0)
+        states = [cell_status(r) for r in reach.values()]
+        n_ok, n_part, n_no = states.count("ok"), states.count("parcial"), states.count("no")
         over_markers = far > x_limit + 1e-6
 
         frame, H, src = None, None, "imagen de HOME3 (camara en el TCP)"
@@ -237,8 +254,8 @@ def main(argv=None) -> int:
         lines = [f"Grilla: alto {(far - near) * 100:.1f} cm (x {near * 1000:.0f}-{far * 1000:.0f} mm), ancho "
                  f"{(left + right) * 100:.1f} cm (y {-right * 1000:+.0f}..{left * 1000:+.0f} mm) | celda "
                  f"{(far - near) / 3 * 100:.1f} x {(left + right) / 3 * 100:.1f} cm",
-                 (bad or f"El robot llega a {n_ok}/9 celdas" + (" | PASA EL LIMITE DE LOS ARUCO" if over_markers
-                                                                 else "")) + f" | {src}",
+                 (bad or f"Robot: {n_ok} completas, {n_part} parciales, {n_no} no llega" +
+                  (" | PASA EL LIMITE DE LOS ARUCO" if over_markers else "")) + f" | {src}",
                  "G guardar | R restaurar | Q salir" + (f" | {msg}" if time.time() < msg_until else "")]
         out = draw_overlay(frame, H, cells_m, reach, x_limit, lines) if cells_m else frame.copy()
         cv2.imshow(WIN, out)
@@ -253,10 +270,10 @@ def main(argv=None) -> int:
             if bad is not None:
                 msg, msg_until = bad, time.time() + 3.0
                 continue
-            risky = n_ok < 9 or over_markers
+            risky = n_no > 0 or over_markers
             if risky and time.time() > confirm_until:
                 confirm_until = time.time() + 4.0
-                msg, msg_until = "hay celdas rojas o tapa los ArUco: G otra vez para guardar igual", confirm_until
+                msg, msg_until = "hay celdas rojas o pasa el limite de los ArUco: G otra vez para guardar igual", confirm_until
                 continue
             note = f"ajustada con adjust_v8_grid.py el {datetime.now():%Y-%m-%d %H:%M}"
             cells_path.write_text(write_edges_yaml(cells_path.read_text(), xe, ye, note))
@@ -267,7 +284,8 @@ def main(argv=None) -> int:
             confirm_until = 0.0
             msg, msg_until = ("GUARDADA (reiniciar el recolector)" if rc == 0 else "guardada, pero falló "
                               "make_v8_cells.py"), time.time() + 4.0
-            print(f"Guardada: x {xe} y {ye} ({n_ok}/9 celdas alcanzables). Reiniciar el recolector para usarla.")
+            print(f"Guardada: x {xe} y {ye} ({n_ok} completas, {n_part} parciales, {n_no} sin alcance). Reiniciar el "
+                  "recolector para usarla.")
     cv2.destroyAllWindows()
     return 0
 

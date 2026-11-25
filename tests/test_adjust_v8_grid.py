@@ -12,9 +12,9 @@ sys.path.insert(0, str(ROOT / "tools" / "hardware"))
 sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
 try:
-    from adjust_v8_grid import (check_limits, draw_overlay, edges_from_limits, limits_from_edges,  # noqa: E402
-                                marker_limit_x, write_edges_yaml)
-    from make_v8_cells import ReachModel, default_paths  # noqa: E402
+    from adjust_v8_grid import (cell_status, check_limits, draw_overlay, edges_from_limits,  # noqa: E402
+                                limits_from_edges, marker_limit_x, write_edges_yaml)
+    from make_v8_cells import ReachModel, cam_looking_down, cam_oblique, default_paths  # noqa: E402
     HAVE = True
 except Exception as e:  # noqa: BLE001 (xarm5_interface u otras dependencias del contenedor)
     HAVE, ERR = False, e
@@ -55,21 +55,40 @@ class GridToolTest(unittest.TestCase):
         if not Path(d["calib"]).is_file():
             self.skipTest("falta la calibración de la cámara (datasets/vio_frames)")
         cfg = yaml.safe_load(CELLS_YAML.read_text())["v8_cells"]
-        m = ReachModel(d["bridge"], d["alignment"], d["calib"], cfg["table_z_m"], cfg["check_heights_m"],
-                       cfg.get("check_camera_yaws_deg", [0.0]))
-        self.assertEqual(m.cell(0.42, 0.49, -0.07, 0.07)[0], 1.0)          # cerca, al centro: llega
-        frac, clamp = m.cell(0.56, 0.63, -0.40, -0.30)                      # fuera de la caja |y| <= 0,30
-        self.assertLess(frac, 1.0)
-        self.assertGreater(clamp, 0.01)
+        args = (d["bridge"], d["alignment"], d["calib"], cfg["table_z_m"], cfg["check_heights_m"], [0.0])
+        above, diag = ReachModel(*args, max_tilt_deg=0.0), ReachModel(*args, max_tilt_deg=45.0)
+        self.assertEqual(above.cell(0.42, 0.49, -0.07, 0.07)[0], 1.0)      # cerca, al centro: llega encima
+        # 2026-11-25: esquina del borde izquierdo de la mesa. Justo encima, el TCP sale de la caja (|y| <= 0,30);
+        # en diagonal desde más cerca de la base, el robot llega (el usuario lo comprobó)
+        self.assertLess(above.point((0.501, 0.344))[0], 1.0)
+        frac, _clamp, tilt = diag.point_detail((0.501, 0.344))
+        self.assertEqual(frac, 1.0)
+        self.assertGreater(tilt, 0.0)
+        far = diag.cell_detail(0.75, 0.85, -0.45, -0.35)                    # fuera del todo: ni en diagonal
+        self.assertLess(far["center"], 1.0)
+        self.assertEqual(cell_status(far), "no")
         mk = yaml.safe_load((ROOT / "visuomotor_bringup/config/realsense/table_markers.yaml").read_text())
         txy = {int(i): np.asarray(c, float)[:, :2] for i, c in mk["table_markers"]["corners_base_m"].items()}
         self.assertAlmostEqual(marker_limit_x(txy, 0.03), 0.6335, places=3)
+
+    def test_oblique_view_with_zero_tilt_is_the_straight_down_view(self):
+        for yaw in (0.0, 45.0, -90.0, 180.0):
+            np.testing.assert_allclose(cam_oblique((0.5, 0.1), 0.02, 0.3, 0.0, yaw),
+                                       cam_looking_down([0.5, 0.1, 0.32], yaw), atol=1e-12)
+        T = cam_oblique((0.6, 0.0), 0.02, 0.3, 30.0, 0.0)                  # inclinada: más cerca de la base
+        self.assertLess(T[0, 3], 0.6)
+        z = T[:3, 2]
+        p = np.array([0.6, 0.0, 0.02])
+        np.testing.assert_allclose((p - T[:3, 3]) / np.linalg.norm(p - T[:3, 3]), z, atol=1e-12)   # mira al punto
 
     def test_draw_overlay_colors(self):
         img = np.full((480, 640, 3), 200, np.uint8)
         H = np.array([[0.0, -1000.0, 320.0], [-1000.0, 0.0, 800.0], [0.0, 0.0, 1.0]])   # mesa vista desde arriba
         cells = {1: (0.40, 0.48, 0.05, 0.15), 3: (0.40, 0.48, -0.15, -0.05)}
-        out = draw_overlay(img, H, cells, {1: (1.0, 0.0), 3: (0.0, 0.05)}, 0.63, ["linea"])
+        ok = {"center": 1.0, "worst": 1.0, "clamp_m": 0.0, "tilt_deg": 0.0}
+        no = {"center": 0.0, "worst": 0.0, "clamp_m": 0.05, "tilt_deg": 0.0}
+        self.assertEqual((cell_status(ok), cell_status(no), cell_status(dict(ok, worst=0.5))), ("ok", "no", "parcial"))
+        out = draw_overlay(img, H, cells, {1: ok, 3: no}, 0.63, ["linea"])
         # u = 320 - 1000 y, v = 800 - 1000 x: un punto del relleno (no el centro, donde va el número)
         v, u1, u3 = 800 - 420, 320 - 130, 320 + 130
         self.assertGreater(int(out[v, u1, 1]) - int(out[v, u1, 2]), 20)                # celda 1 verde

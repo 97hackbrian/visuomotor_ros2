@@ -67,6 +67,22 @@ def cells_from_edges(x_edges: Sequence[float], y_edges: Sequence[float]) -> Dict
     return out
 
 
+def placement_hint(cell_info: Optional[dict]) -> str:
+    """Pista para la vista final de una celda, desde ``v8_cells_home3.yaml`` (``make_v8_cells.py``):
+    * ``tilt_needed_deg`` > 0: el robot solo llega mirando EN DIAGONAL desde más cerca de la base;
+    * ``reachable_fraction`` < 1 con el centro alcanzable: no llega a alguna esquina, herramienta hacia el centro.
+    Vacía si basta con la cámara justo encima de cualquier punto de la celda."""
+    if not cell_info:
+        return ""
+    out = []
+    if float(cell_info.get("reachable_fraction", 1.0)) < 1.0 and float(cell_info.get("center_reachable_fraction", 1.0)) >= 1.0:
+        out.append("herramienta hacia el centro de la celda")
+    tilt = float(cell_info.get("tilt_needed_deg", 0.0))
+    if tilt > 0:
+        out.append(f"final en diagonal (~{tilt:.0f}°) desde más cerca del robot")
+    return "; ".join(out)
+
+
 @dataclass
 class ScheduleEntry:
     index: int

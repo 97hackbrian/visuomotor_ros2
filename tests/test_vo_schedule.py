@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_schedule import (  # noqa: E402
     blade_direction_xy, cells_from_edges, done_indices, load_csv, make_balanced_schedule, make_schedule, next_pending,
-    save_csv, schedule_id, yaw_words)
+    placement_hint, save_csv, schedule_id, yaw_words)
 
 
 class ScheduleTest(unittest.TestCase):
@@ -76,6 +76,14 @@ class BalancedScheduleTest(unittest.TestCase):
         self.assertEqual(c[1], (0.42, 0.49, 0.07, 0.21))                # cerca de la base, izquierda (+y)
         self.assertEqual(c[3], (0.42, 0.49, -0.21, -0.07))              # cerca, derecha
         self.assertEqual(c[8], (0.555, 0.615, -0.07, 0.07))             # lejos, centro
+
+    def test_placement_hint(self):
+        self.assertEqual(placement_hint(None), "")
+        self.assertEqual(placement_hint({"reachable_fraction": 1.0, "tilt_needed_deg": 0.0}), "")
+        self.assertIn("diagonal", placement_hint({"reachable_fraction": 1.0, "tilt_needed_deg": 15.0}))
+        h = placement_hint({"reachable_fraction": 0.5, "center_reachable_fraction": 1.0, "tilt_needed_deg": 45.0})
+        self.assertIn("centro de la celda", h)
+        self.assertIn("45", h)
 
     def test_done_only_counts_same_schedule(self):
         attrs = [{"schedule": {"index": 0, "cell": 1}},                          # programa v1, sin schedule_id

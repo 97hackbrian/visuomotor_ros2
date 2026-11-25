@@ -705,6 +705,12 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       Para ajustarla a mano: `tools/hardware/v8_tmux.sh grid` (`adjust_v8_grid.py`, mismo modelo de alcance que
       `make_v8_cells.py`: `ReachModel`). Cada episodio guarda su celda en metros (`schedule.cell_bounds_m`), porque
       el número de celda solo no basta si la grilla cambia a mitad del dataset.
+      Alcance de la vista final (corregido a pedido del usuario, que comprobó que el robot llegaba a celdas marcadas
+      "no llega"): se exigía la cámara JUSTO ENCIMA de cada esquina, y en los bordes el TCP salía de la caja o del
+      radio. Ahora vale mirar en diagonal desde más cerca de la base, hasta 45° (`check_max_tilt_deg`); la caja de
+      seguridad no se tocó. Con la grilla del usuario (x 0,402-0,70, y -0,374..+0,344) quedan 7 celdas completas y 2
+      parciales (6 y 9: no llega a la esquina lejana derecha), y ninguna sin alcance. La guía y la voz dicen "final en
+      diagonal" o "hacia el centro de la celda". Las celdas 7 y 9 contienen los ArUco: no taparlos.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

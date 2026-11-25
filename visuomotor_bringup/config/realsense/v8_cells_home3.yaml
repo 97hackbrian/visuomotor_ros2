@@ -8,198 +8,216 @@ v8_cells_home3:
     1:
       name: cerca-izquierda, junto a la base
       x_m:
-      - 0.405
-      - 0.481
+      - 0.402
+      - 0.5013
       y_m:
-      - 0.117
-      - 0.31
+      - 0.1047
+      - 0.344
       center_m:
-      - 0.443
-      - 0.213
+      - 0.452
+      - 0.224
       polygon_home3_px:
-      - - 57.3
-        - 390.6
-      - - 67.4
-        - 330.6
-      - - 222.0
-        - 328.9
-      - - 219.1
-        - 388.1
+      - - 27.8
+        - 393.6
+      - - 42.7
+        - 315.7
+      - - 232.4
+        - 313.9
+      - - 229.2
+        - 390.4
       reachable_fraction: 1.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 15.0
       max_clamp_m: 0.0
     2:
       name: cerca-centro, junto a la base
       x_m:
-      - 0.405
-      - 0.481
+      - 0.402
+      - 0.5013
       y_m:
-      - -0.077
-      - 0.117
+      - -0.1347
+      - 0.1047
       center_m:
-      - 0.443
-      - 0.02
+      - 0.452
+      - -0.015
       polygon_home3_px:
-      - - 219.1
-        - 388.1
-      - - 222.0
-        - 328.9
-      - - 373.4
-        - 327.4
-      - - 377.4
-        - 385.6
+      - - 229.2
+        - 390.4
+      - - 232.4
+        - 313.9
+      - - 416.2
+        - 312.2
+      - - 423.9
+        - 387.3
       reachable_fraction: 1.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 0.0
       max_clamp_m: 0.0
     3:
       name: cerca-derecha, junto a la base
       x_m:
-      - 0.405
-      - 0.481
+      - 0.402
+      - 0.5013
       y_m:
-      - -0.27
-      - -0.077
+      - -0.374
+      - -0.1347
       center_m:
-      - 0.443
-      - -0.174
+      - 0.452
+      - -0.254
       polygon_home3_px:
-      - - 377.4
-        - 385.6
-      - - 373.4
-        - 327.4
-      - - 520.2
-        - 325.8
-      - - 530.7
-        - 383.3
+      - - 423.9
+        - 387.3
+      - - 416.2
+        - 312.2
+      - - 594.3
+        - 310.6
+      - - 612.3
+        - 384.4
       reachable_fraction: 1.0
-      max_clamp_m: 0.001
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 45.0
+      max_clamp_m: 0.0
     4:
       name: medio-izquierda
       x_m:
-      - 0.481
-      - 0.557
+      - 0.5013
+      - 0.6007
       y_m:
-      - 0.117
-      - 0.31
+      - 0.1047
+      - 0.344
       center_m:
-      - 0.519
-      - 0.213
+      - 0.551
+      - 0.224
       polygon_home3_px:
-      - - 67.4
-        - 330.6
-      - - 76.7
-        - 275.7
-      - - 224.7
-        - 274.8
-      - - 222.0
-        - 328.9
+      - - 42.7
+        - 315.7
+      - - 55.9
+        - 246.2
+      - - 235.2
+        - 245.6
+      - - 232.4
+        - 313.9
       reachable_fraction: 1.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 15.0
       max_clamp_m: 0.0
     5:
       name: centro
       x_m:
-      - 0.481
-      - 0.557
+      - 0.5013
+      - 0.6007
       y_m:
-      - -0.077
-      - 0.117
+      - -0.1347
+      - 0.1047
       center_m:
-      - 0.519
-      - 0.02
+      - 0.551
+      - -0.015
       polygon_home3_px:
-      - - 222.0
-        - 328.9
-      - - 224.7
-        - 274.8
-      - - 369.7
-        - 273.9
-      - - 373.4
-        - 327.4
+      - - 232.4
+        - 313.9
+      - - 235.2
+        - 245.6
+      - - 409.2
+        - 245.0
+      - - 416.2
+        - 312.2
       reachable_fraction: 1.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 0.0
       max_clamp_m: 0.0
     6:
       name: medio-derecha
       x_m:
-      - 0.481
-      - 0.557
+      - 0.5013
+      - 0.6007
       y_m:
-      - -0.27
-      - -0.077
+      - -0.374
+      - -0.1347
       center_m:
-      - 0.519
-      - -0.174
+      - 0.551
+      - -0.254
       polygon_home3_px:
-      - - 373.4
-        - 327.4
-      - - 369.7
-        - 273.9
-      - - 510.5
-        - 273.1
-      - - 520.2
-        - 325.8
-      reachable_fraction: 1.0
-      max_clamp_m: 0.001
+      - - 416.2
+        - 312.2
+      - - 409.2
+        - 245.0
+      - - 578.1
+        - 244.4
+      - - 594.3
+        - 310.6
+      reachable_fraction: 0.5
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 45.0
+      max_clamp_m: 0.0177
     7:
       name: lejos-izquierda
       x_m:
-      - 0.557
-      - 0.633
+      - 0.6007
+      - 0.7
       y_m:
-      - 0.117
-      - 0.31
+      - 0.1047
+      - 0.344
       center_m:
-      - 0.595
-      - 0.213
+      - 0.65
+      - 0.224
       polygon_home3_px:
-      - - 76.7
-        - 275.7
-      - - 85.3
-        - 225.2
-      - - 227.1
-        - 225.0
-      - - 224.7
-        - 274.8
+      - - 55.9
+        - 246.2
+      - - 67.8
+        - 184.0
+      - - 237.8
+        - 184.3
+      - - 235.2
+        - 245.6
       reachable_fraction: 1.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 15.0
       max_clamp_m: 0.0
     8:
       name: lejos-centro
       x_m:
-      - 0.557
-      - 0.633
+      - 0.6007
+      - 0.7
       y_m:
-      - -0.077
-      - 0.117
+      - -0.1347
+      - 0.1047
       center_m:
-      - 0.595
-      - 0.02
+      - 0.65
+      - -0.015
       polygon_home3_px:
-      - - 224.7
-        - 274.8
-      - - 227.1
-        - 225.0
-      - - 366.4
-        - 224.8
-      - - 369.7
-        - 273.9
+      - - 235.2
+        - 245.6
+      - - 237.8
+        - 184.3
+      - - 403.0
+        - 184.6
+      - - 409.2
+        - 245.0
       reachable_fraction: 1.0
-      max_clamp_m: 0.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 0.0
+      max_clamp_m: 0.0087
     9:
       name: lejos-derecha
       x_m:
-      - 0.557
-      - 0.633
+      - 0.6007
+      - 0.7
       y_m:
-      - -0.27
-      - -0.077
+      - -0.374
+      - -0.1347
       center_m:
-      - 0.595
-      - -0.174
+      - 0.65
+      - -0.254
       polygon_home3_px:
-      - - 369.7
-        - 273.9
-      - - 366.4
-        - 224.8
-      - - 501.6
-        - 224.5
-      - - 510.5
-        - 273.1
-      reachable_fraction: 1.0
-      max_clamp_m: 0.001
+      - - 409.2
+        - 245.0
+      - - 403.0
+        - 184.6
+      - - 563.6
+        - 184.9
+      - - 578.1
+        - 244.4
+      reachable_fraction: 0.0
+      center_reachable_fraction: 1.0
+      tilt_needed_deg: 45.0
+      max_clamp_m: 0.0284

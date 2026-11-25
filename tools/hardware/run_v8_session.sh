@@ -52,7 +52,9 @@ cat <<'EOF'
   4. Pitido "Grabando": bajar suave (<= 15 cm/s) hacia la herramienta.
   5. Terminar a 25-30 cm SOBRE la herramienta, centrada en el recuadro, y quedarse quieta ~2,5 s -> guarda sola.
      Mantener la cámara con la orientación de HOME3 (arriba de la imagen = lejos de la base): NO girarla siguiendo las
-     hojas (girada, el robot no llega en las celdas 4, 7, 8 y 9 con -90 o 180).
+     hojas. En las celdas de los bordes y lejanas, terminar EN DIAGONAL desde más cerca del robot (la guía y la voz lo
+     dicen: "final en diagonal"), no justo encima: así es como el robot llega. Si dice "hacia el centro de la celda",
+     no poner la herramienta en la esquina lejana. Las celdas 7 y 9 contienen los ArUco: nunca taparlos.
      Respaldo: si no guarda en ~5 s, UNA tecla [S]: guarda siempre (los problemas del final quedan como aviso).
   6. Si la demo salió mal: [D] y repetir. [N] salta la entrada del programa.
      (Si la odometría en vivo se pierde cerca de la mesa: es un AVISO, la demo se guarda igual; el final quieto

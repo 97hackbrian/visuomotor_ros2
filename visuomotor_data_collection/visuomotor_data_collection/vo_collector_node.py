@@ -63,8 +63,8 @@ from visuomotor_data_collection.vo_episode_logic import (
     imu_still_since,
     detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
 from visuomotor_data_collection.vo_schedule import (
-    YAW_CONVENTION, cells_from_edges, done_indices, load_csv as load_schedule, next_pending, schedule_id,
-    yaw_words)
+    YAW_CONVENTION, cells_from_edges, done_indices, load_csv as load_schedule, next_pending, placement_hint,
+    schedule_id, yaw_words)
 from visuomotor_data_collection.vo_start_guide import (
     SteadyAlignment, ViewReference, detect_markers, draw_guide, summary_line, view_alignment)
 
@@ -264,13 +264,14 @@ class VOCollectorNode(Node):
             mk = yaml.safe_load(tm.read_text())["table_markers"]["corners_base_m"]
             self.table_xy = {int(i): np.asarray(c, float)[:, :2] for i, c in mk.items()}
         # Celdas en la vista de HOME3 (make_v8_cells.py): la guía dibuja dónde va la herramienta y su orientación
-        self.cells_px = {}
+        self.cells_px, self.cells_info = {}, {}
         cp = Path(str(g('schedule_cells_file')).strip() or "/nonexistent")
         cp = cp if cp.is_absolute() else self.repo / cp
         if self.schedule and cp.is_file():
             import yaml
             cells = (yaml.safe_load(cp.read_text()) or {}).get("v8_cells_home3", {}).get("cells", {})
             self.cells_px = {int(k): v["polygon_home3_px"] for k, v in cells.items()}
+            self.cells_info = {int(k): v for k, v in cells.items()}         # alcance: pista de la vista final
 
         self.create_subscription(Image, g('camera_topic'), self._img_cb, 10, callback_group=self.cb_data)
         self.create_subscription(Odometry, g('odom_topic'), self._odom_cb, 50, callback_group=self.cb_data)
@@ -745,7 +746,8 @@ class VOCollectorNode(Node):
                     # Grilla numerada sobre la mesa (homografía de los ArUco en vivo); texto sin tildes ni grados
                     # (las fuentes de OpenCV son ASCII)
                     target = {"cells_m": self.cells_m, "table_xy": self.table_xy, "cell": e.cell, "yaw_deg": e.yaw_deg,
-                              "label": f"COLOCAR #{e.index}: celda {e.cell} | hojas {yaw_words(e.yaw_deg)}"}
+                              "label": f"COLOCAR #{e.index}: celda {e.cell} | hojas {yaw_words(e.yaw_deg)}"
+                                       + (f" | {hint}" if (hint := placement_hint(self.cells_info.get(e.cell))) else "")}
                 elif e is not None and e.cell in self.cells_px:
                     target = {"polygon_px": self.cells_px[e.cell], "yaw_deg": e.yaw_deg,
                               "label": f"#{e.index}: celda {e.cell}, hojas {yaw_words(e.yaw_deg).replace('°', ' grados')}"}
@@ -785,8 +787,9 @@ class VOCollectorNode(Node):
         if e is None:
             self.get_logger().info(f"[PROGRAMA] Completo: {len(self.sched_done)} demos hechas.")
         else:
+            hint = placement_hint(self.cells_info.get(e.cell))
             self.get_logger().info(f"[PROGRAMA] Siguiente {e.describe()} ({len(self.sched_done)}/{len(self.schedule)} "
-                                   "hechas). [N] saltar.")
+                                   f"hechas). [N] saltar." + (f" Ojo: {hint}." if hint else ""))
 
     def _skip_schedule(self):
         e = next_pending(self.schedule, self.sched_done, self.sched_skipped) if self.schedule else None
