@@ -721,6 +721,23 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       y el robot gira la muñeca hacia la herramienta. Con la vista en diagonal, el robot llega a las 54 combinaciones
       de celda y ángulo: 49 completas y 5 parciales (celdas 6 y 9 con −90/−45, celda 7 con +90). `make_v8_cells.py`
       guarda el alcance por orientación (`by_yaw`), y la pista de cada demo usa la de SU ángulo.
+    - *Toma del 2026-11-25:* programa v2 completo (108 entradas) en ~2 h 20 min. Hay 126 episodios: 9 descartados con
+      [U] (los guarda marcados) y 117 válidos (9 del programa v1 y 108 del v2). Ocupan 8,8 GB de Zarr y 20 GB de bags
+      crudos (~0,25 GB por demo). Cada 10 demos, `v8_watch.sh` + `audit_v8_episodes.py` controlaron:
+      - bags completos en todas (color = profundidad, IMU a 200 Hz, inicio en ARMING);
+      - el final siempre centrado y con las hojas arriba.
+      Lecciones:
+      - Con las hojas a 180°, la cámara gira media vuelta y la odometría en vivo se pierde en el 40-68 % de los
+        frames. DROID la recupera casi siempre; la excepción es `episode_71`, con un salto de 6 cm al girar sobre el
+        mantel blanco, que el IMU desmiente. Consejo: girar de a poco durante la bajada, con los ArUco a la vista.
+      - DROID puede oscilar al inicializarse (`episode_1`: 42 mm en 0,45 s, en reposo). Hay que anclar con la mediana
+        de las poses en reposo, no con el primer frame.
+      - El control del final con la odometría en vivo rechazaba demos buenas; ahora lo juzga el giróscopo
+        (`qa_hold_motion_source: imu`).
+      - tmux compara sesiones por prefijo: `v8` encontraba `v8_cam`. Ahora se usan objetivos exactos (`=v8`) y
+        la sesión de la cámara se llama `cam_v8`.
+      Validación offline: `validate_v8_batch.sh` + `validate_v8_episodes.py report`, con veredicto OK, REVISAR o
+      REPETIR por demo.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).
