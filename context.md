@@ -667,6 +667,14 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Límites:* robot a 3,5 cm/s (la mano va 2–3 veces más rápido), escala del tablero en la parte alta de la escena,
       sin herramienta en la mesa. La parte del error que viene de la extrínseca (~9 mm de incertidumbre) también entra
       en la ATE anclada.
+    - *Decisión (2026-11-25):*
+      - DROID-SLAM RGB-D offline (`filter_thresh` 1,0, profundidad ×0,986) para las poses del dataset; RTAB-Map con
+        ajuste de haces solo para la guía en vivo.
+      - Argumento práctico y teórico, y registro de experimentos para el paper:
+        `.agents/knowledge/18_vio_estimator_selection_droid_slam.md`. Uso: skill
+        `.agents/skills/droid-slam-offline-vio/SKILL.md`.
+      - Los datos crudos (bags, odometrías reprocesadas y frames exportados, ~22 GB fuera de git) son la evidencia del
+        paper: no borrarlos.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

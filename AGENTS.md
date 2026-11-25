@@ -232,7 +232,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
        - Solo offline: 3,9 GB de GPU y ~2 min por demo. La guía en vivo sigue con RTAB-Map.
        - ORB-SLAM3 se pierde cerca de la mesa (y sus modos inerciales no inicializan con el robot lento); Open3D
          deriva; DPVO no cabe en 8 GB.
-       - Detalle en `context.md`, lección 48.
+       - Detalle en `context.md`, lección 48. Decisión con argumento práctico y teórico, y registro de experimentos para el paper: `.agents/knowledge/18_vio_estimator_selection_droid_slam.md`. Uso: skill `.agents/skills/droid-slam-offline-vio/SKILL.md`.
      Imagen 256×256 RGB; estado 8D sin fuga causal; acción 9D. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.

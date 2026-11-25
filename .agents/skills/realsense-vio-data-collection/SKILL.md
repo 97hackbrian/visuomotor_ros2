@@ -196,6 +196,14 @@ Lógica en `visuomotor_data_collection/vo_episode_logic.py`, con pruebas en `tes
 * **Middleware:** usar CycloneDDS, como `run_vo_container.sh`. En la simulación, con FastDDS el suscriptor de
   imágenes en Python perdió ráfagas de ~300 ms; el control de calidad las marca, pero se pierden episodios.
 
+## 4a. Poses del dataset: DROID-SLAM offline (2026-11-25)
+
+La odometría en vivo (RTAB-Map) solo guía y alimenta el control de calidad. Las poses que van al dataset se calculan
+offline desde los bags crudos (`raw_bag_enabled: true`) con DROID-SLAM RGB-D: skill
+`.agents/skills/droid-slam-offline-vio/SKILL.md`. Medido contra el xArm5: 10,9 mm de mediana, 0 % de pérdidas y
+error final ≤ 2,6 mm, frente a 21,7 mm y hasta 33 % de pérdidas con la configuración de v7. Decisión:
+`.agents/knowledge/18_vio_estimator_selection_droid_slam.md`.
+
 ## 4b. Medición de la odometría sin el robot (2026-11-24)
 
 Referencia: tablero ChArUco **A3 9×7, cuadro de 36 mm**, medido con calibre (`measured: true`). En una aproximación
