@@ -91,6 +91,8 @@ if HAVE_ROS:
                 od.pose.covariance = [9999.0 if i % 7 == 0 else 0.0 for i in range(36)]
             else:
                 od.pose.pose.position.x = 0.3 + f["x"].value
+                if f.get("jumpy") is not None and f["jumpy"].value:      # saltos de 3 cm a 2 Hz (relocalización)
+                    od.pose.pose.position.x += 0.03 * (int(time.monotonic() * 4) % 2)
                 od.pose.pose.orientation.y = 0.7071068
                 od.pose.pose.orientation.w = 0.7071068
                 od.pose.covariance = [1e-4 if i % 7 == 0 else 0.0 for i in range(36)]
@@ -290,6 +292,51 @@ class CollectorV3GuideTest(unittest.TestCase):
             if rclpy.ok():
                 rclpy.shutdown()
 
+
+    def test_jumpy_then_lost_hold_is_judged_by_gyro(self):
+        """2026-11-25, celda lejana con la vista en diagonal: al quedarse quieta, la odometría en vivo salta
+        (relocalización) y después se pierde. El guardado lo dispara el giróscopo, pero el control con las poses
+        saltonas rechazaba la demo. Con qa_hold_motion_source: imu manda el giróscopo (quieto) y lo de la odometría
+        queda como aviso."""
+        import zarr
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        ctx = mp.get_context("spawn")
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode", "jumpy")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        try:
+            col = _make_collector(tmp, ["-p", "auto_save:=true", "-p", "min_hold_duration_s:=1.0",
+                                        "-p", "auto_save_margin_s:=0.4", "-p", "auto_save_min_travel_m:=0.05",
+                                        "-p", "terminal_bell:=false", "-p", "qa_tracking_blocking:=false",
+                                        "-p", "qa_hold_motion_source:=imu"])
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.poses.latest() is not None, 8.0))
+            self.assertTrue(col._start(override=True))
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 8.0))
+            flags["moving"].value = 1
+            time.sleep(1.6)                                          # ~8 cm
+            flags["moving"].value = 0                                # quieta (giróscopo en 0)...
+            flags["jumpy"].value = 1                                 # ...pero la odometría salta 3 cm
+            time.sleep(0.8)
+            flags["null"].value = 1                                  # y luego se pierde
+            self.assertTrue(_wait(lambda: col.storage.get_num_episodes() == 1 and col.state == "IDLE", 6.0), "no guardó")
+            ex.shutdown()
+            a = dict(zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"].attrs)
+            self.assertIn("done_source", a, f"atributos: {sorted(a)} / {col.storage_path}")
+            self.assertEqual(a["done_source"], "imu")
+            self.assertEqual(a["qa_problems"], [])
+            self.assertTrue(any("según la odometría en vivo" in w for w in a["qa_warnings"]), a["qa_warnings"])
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
 
     def test_manual_save_always_saves_with_warnings(self):
         """2026-11-25: con la cámara en la mano, [S] no dejaba guardar si el tramo final no pasaba el control. Ahora [S]

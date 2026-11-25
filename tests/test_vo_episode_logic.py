@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_episode_logic import (  # noqa: E402
+    imu_moving_fraction,
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, check_done_segment, continuous_quat, detect_hold_start,
     episode_quality, imu_still_since, is_null_odometry)
 
@@ -170,6 +171,19 @@ class ImuStillnessTest(unittest.TestCase):
     def test_always_still(self):
         t = np.arange(0, 1, 0.005)
         self.assertEqual(imu_still_since(t, np.zeros((len(t), 3)), 0.08), t[0])
+
+
+
+class ImuMovingFractionTest(unittest.TestCase):
+    def test_fraction_of_turning_frames(self):
+        t = np.arange(0.0, 3.0, 0.005)                                # IMU a 200 Hz
+        w = np.zeros((len(t), 3))
+        w[(t > 1.0) & (t < 1.5), 2] = 0.6                             # gira medio segundo
+        frames = np.arange(0.5, 2.5, 0.05)                            # 2 s de frames a 20 Hz
+        frac = imu_moving_fraction(frames, t, w, 0.08, 0.15)
+        self.assertAlmostEqual(frac, (0.5 + 0.15) / 2.0, delta=0.03)          # el suavizado alarga el giro 0,15 s
+        self.assertEqual(imu_moving_fraction(frames, t, np.zeros_like(w), 0.08), 0.0)
+        self.assertIsNone(imu_moving_fraction(frames + 5.0, t, w, 0.08))       # el IMU no cubre esos frames
 
 
 if __name__ == "__main__":

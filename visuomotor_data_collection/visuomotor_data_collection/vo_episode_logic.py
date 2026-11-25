@@ -310,6 +310,25 @@ def imu_still_since(t: np.ndarray, gyro: np.ndarray, gyro_thr: float, smooth_s: 
     return float(t[moving[-1] + 1])
 
 
+def imu_moving_fraction(t_frames, imu_t, gyro, gyro_thr: float, smooth_s: float = 0.15) -> Optional[float]:
+    """Fracción de los instantes ``t_frames`` en que la cámara GIRA según el giróscopo (|w| suavizado > ``gyro_thr``).
+    ``None`` si el IMU no cubre esos instantes.
+
+    Control del tramo final independiente de la imagen (2026-11-25): cerca de la mesa, y con la vista final en
+    diagonal, la odometría en vivo se pierde y sus poses saltan, así que una cámara quieta parecía moverse y el
+    control rechazaba demos buenas."""
+    t_frames = np.asarray(t_frames, float)
+    t = np.asarray(imu_t, float)
+    if len(t) < 5 or len(t_frames) == 0 or t[0] > t_frames[0] + 1e-6 or t[-1] < t_frames[-1] - 0.1:
+        return None
+    g = np.asarray(gyro, float)
+    w = np.linalg.norm(g, axis=1) if g.ndim == 2 else np.abs(g)
+    dt = float(np.median(np.diff(t)))
+    k = max(1, int(round(smooth_s / max(dt, 1e-4))))
+    ws = np.convolve(w, np.ones(k) / k, mode="same")
+    return float((np.interp(t_frames, t, ws) > gyro_thr).mean())
+
+
 def auto_save_ready(p: np.ndarray, rate_hz: float, min_travel_m: float, min_hold_s: float, margin_s: float,
                     static_speed: float, window_s: float) -> bool:
     """Guardado automático: la cámara ya se alejó del inicio al menos ``min_travel_m`` (al empezar también está

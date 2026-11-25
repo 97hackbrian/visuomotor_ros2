@@ -49,6 +49,9 @@ vo_collector_node:
     # Tramo done "quieto": a lo más esta fracción de sus frames sobre static_speed_m_s (picos de la mano y del ruido de
     # la odometría cerca de la mesa; antes 0: 1-3 frames de ~50 rechazaban demos buenas, 2026-11-25).
     qa_hold_max_moving_frac: 0.2
+    # "imu" (v8, lo pone run_v8_session.sh): el movimiento dentro del tramo final lo decide el giróscopo; lo de la
+    # odometría en vivo (se pierde y salta cerca de la mesa y con la vista en diagonal) queda como aviso.
+    qa_hold_motion_source: "odometry"
     # [S] = decisión del operador: los problemas del tramo final quedan como avisos y la demo se guarda (sin tramo
     # quieto, done en los últimos min_hold_duration_s). El done del dataset final se recalcula offline con DROID.
     manual_save_overrides_hold_qa: true

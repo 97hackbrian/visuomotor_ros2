@@ -61,7 +61,7 @@ from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
 from visuomotor_data_collection.vo_episode_logic import (
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, check_done_segment, continuous_quat,
-    imu_still_since,
+    imu_moving_fraction, imu_still_since,
     detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
 from visuomotor_data_collection.vo_schedule import (
     YAW_CONVENTION, cells_from_edges, done_indices, load_csv as load_schedule, next_pending, placement_hint,
@@ -140,6 +140,9 @@ class VOCollectorNode(Node):
         # Tramo done "quieto" si a lo más esta fracción de sus frames supera static_speed_m_s (picos de la mano y del
         # ruido de la odometría cerca de la mesa). 0 = ninguno, como antes del 2026-11-25.
         d('qa_hold_max_moving_frac', 0.2)
+        # "imu" (v8, run_v8_session.sh): el movimiento dentro del tramo final lo decide el giróscopo; lo de la odometría en
+        # vivo, que se pierde y salta cerca de la mesa, queda como aviso. "odometry": como antes.
+        d('qa_hold_motion_source', 'odometry')
         # [S] es la decisión del operador: los problemas del tramo final (corto o con movimiento) quedan como avisos y
         # la demo se guarda. Si no hay ningún tramo quieto, el done se pone en los últimos min_hold_duration_s.
         d('manual_save_overrides_hold_qa', True)
@@ -642,13 +645,25 @@ class VOCollectorNode(Node):
         chk = check_done_segment(p_abs, hold, self.rate, float(self.p('min_hold_duration_s')),
                                  float(self.p('static_speed_m_s')), float(self.p('static_window_s')),
                                  float(self.p('qa_hold_max_moving_frac')))
+        if str(self.p('qa_hold_motion_source')) == "imu" and chk["hold_frames"] > 0 and len(self.imu_buf) > 10:
+            imu = np.array(self.imu_buf)
+            ts_hold = np.array([f.timestamp for f in frames])[np.asarray(chk["done"]) > 0.5]
+            frac = imu_moving_fraction(ts_hold, imu[:, 0], imu[:, 1:4], float(self.p('imu_still_gyro_rad_s')),
+                                       float(self.p('imu_still_smooth_s')))
+            if frac is not None:
+                odo = [pr for pr in chk["problems"] if "se mueven" in pr]
+                chk["problems"] = [pr for pr in chk["problems"] if "se mueven" not in pr]
+                hold_warn += [f"{pr} según la odometría en vivo (manda el giróscopo)" for pr in odo]
+                chk["imu_moving_frac"] = frac
+                if frac > float(self.p('qa_hold_max_moving_frac')):
+                    chk["problems"].append(f"la cámara gira en el {100 * frac:.0f} % del tramo final (giróscopo)")
         qual = episode_quality(frames, self.rate)
         problems = [] if manual_ok else list(chk["problems"])
         if manual_ok:
             hold_warn += list(chk["problems"])
         tracking, warnings = [], list(hold_warn)
         for wmsg in hold_warn:
-            self.get_logger().warn(f"[QA] aviso (guardado con [S]): {wmsg}")
+            self.get_logger().warn(f"[QA] aviso (no bloquea): {wmsg}")
         if qual["lost_frames"]:
             tracking.append(f"{qual['lost_frames']} frames con rastreo perdido o sin imagen")
         if qual["duplicate_images"]:
