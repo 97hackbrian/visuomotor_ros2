@@ -109,7 +109,20 @@ def cmd_report(a) -> int:
         t_d, p_d = tum[:, 0], tum[:, 1:4]
         frames_dir = REPO / "datasets/vio_frames" / ds / k
         n_img = sum(1 for _ in open(frames_dir / "rgb.txt")) if (frames_dir / "rgb.txt").is_file() else len(t_d)
-        jumps, max_step = jumps_vs_imu(t_d, p_d, frames_dir / "imu.csv", a.jump_mm / 1000.0, a.jump_acc)
+        # Inicialización de DROID (primeros frames, cámara quieta en ARMING): se mide aparte. Los saltos cuentan solo
+        # dentro de la demo, pasada esa inicialización (2026-11-25: episode_1 oscilaba 55 mm en los primeros 0,45 s).
+        t_init = max(float(ts[0]), float(t_d[0]) + a.init_s)
+        early = t_d <= max(float(ts[0]) + 0.2, float(t_d[0]) + a.init_s)
+        init_spread = (float(np.linalg.norm(p_d[early] - np.median(p_d[early], axis=0), axis=1).max())
+                       if early.sum() > 2 else 0.0)
+        gyro_early = float("nan")
+        if (frames_dir / "imu.csv").is_file() and early.any():
+            imu = np.genfromtxt(frames_dir / "imu.csv", delimiter=",", names=True)
+            m = imu["t"] <= t_d[early][-1]
+            if m.any():
+                gyro_early = float(np.linalg.norm(np.c_[imu["wx"][m], imu["wy"][m], imu["wz"][m]], axis=1).max())
+        win = t_d >= t_init
+        jumps, max_step = jumps_vs_imu(t_d[win], p_d[win], frames_dir / "imu.csv", a.jump_mm / 1000.0, a.jump_acc)
         bad_jumps = [j for j in jumps if j["imu_supports"] is not True]
         inside = (ts >= t_d[0]) & (ts <= t_d[-1])
         P = np.stack([np.interp(ts[inside], t_d, p_d[:, c]) for c in range(3)], 1)
@@ -121,6 +134,7 @@ def cmd_report(a) -> int:
         row = {"episode": k, "index": s.get("index"), "cell": s.get("cell"), "yaw_deg": s.get("yaw_deg"),
                "frames": int(len(ts)), "lost_live_pct": round(100 * float(lost.mean()), 1),
                "droid_poses": int(len(t_d)), "images": int(n_img), "max_step_mm": round(1000 * max_step, 1),
+               "init_spread_mm": round(1000 * init_spread, 1), "gyro_early_max_rad_s": round(gyro_early, 3),
                "jumps": len(jumps), "nonphysical_jumps": len(bad_jumps),
                "first_bad_jump": (f"{bad_jumps[0]['t_s']:.1f}s/{bad_jumps[0]['step_mm']:.0f}mm" if bad_jumps else ""),
                "live_vs_droid_p50_mm": round(1000 * float(np.nanmedian(res)), 1),
@@ -139,6 +153,9 @@ def cmd_report(a) -> int:
         if starts and not sp.get("usable"):
             why.append("sin pose de inicio")
         rev = []
+        if row["init_spread_mm"] > a.max_init_spread_mm:
+            rev.append(f"inicio inestable de DROID ({row['init_spread_mm']:.0f} mm; "
+                       f"giro {row['gyro_early_max_rad_s']:.2f} rad/s)")
         if row["live_vs_droid_p90_mm"] > a.max_disagreement_mm:
             rev.append(f"desacuerdo con la odometría en vivo (p90 {row['live_vs_droid_p90_mm']:.0f} mm)")
         if row["done_speed_p90_cm_s"] > a.max_done_speed_cm_s:
@@ -154,12 +171,12 @@ def cmd_report(a) -> int:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    print(f"{'episodio':11s} {'#':>4} {'c':>2} {'yaw':>5} {'perd%':>6} {'salto':>7} {'p90':>5} {'fin':>5} "
+    print(f"{'episodio':11s} {'#':>4} {'c':>2} {'yaw':>5} {'perd%':>6} {'ini':>5} {'salto':>7} {'p90':>5} {'fin':>5} "
           f"{'inicio':>8}  veredicto")
     for r in rows:
         st_txt = "-" if r["start_usable"] is None else (f"{r['start_offset_mm']:.0f}mm" if r["start_usable"] else "NO")
         print(f"{r['episode']:11s} {str(r['index']):>4} {str(r['cell']):>2} {r['yaw_deg'] or 0:+5.0f} "
-              f"{r['lost_live_pct']:6.1f} {r['max_step_mm']:7.1f} {r['live_vs_droid_p90_mm']:5.0f} "
+              f"{r['lost_live_pct']:6.1f} {r['init_spread_mm']:5.0f} {r['max_step_mm']:7.1f} {r['live_vs_droid_p90_mm']:5.0f} "
               f"{r['done_speed_p90_cm_s']:5.1f} {st_txt:>8}  {r['verdict']} {r['reasons']}")
     n = {v: sum(r["verdict"] == v for r in rows) for v in ("OK", "REVISAR", "REPETIR")}
     print(f"\n{len(rows)} validadas: {n['OK']} OK, {n['REVISAR']} a revisar, {n['REPETIR']} a repetir -> {out}")
@@ -185,6 +202,8 @@ def main(argv=None) -> int:
             p.add_argument("--jump-acc", type=float, default=2.0, help="m/s²: el IMU respalda un salto real")
             p.add_argument("--max-disagreement-mm", type=float, default=60.0)
             p.add_argument("--max-done-speed-cm-s", type=float, default=3.0)
+            p.add_argument("--init-s", type=float, default=0.5, help="inicialización de DROID desde el inicio del bag")
+            p.add_argument("--max-init-spread-mm", type=float, default=15.0)
     a = ap.parse_args(argv)
     return cmd_list(a) if a.cmd == "list" else cmd_report(a)
 
