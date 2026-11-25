@@ -698,7 +698,10 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
 50. **Listo para recolectar v8 a mano (2026-11-25):**
     - *Celdas en metros:* el programa usaba tercios de la imagen de HOME3, pero el tercio superior queda en x > 0,7 m,
       fuera de la caja del puente (radio <= 0,65 m), y esas demos se habrían descartado al convertir. Ahora la grilla
-      3x3 está en link_base (`v8_cells.yaml`): x de 0,42 a 0,615 m e |y| <= 0,21 m, por debajo de los ArUco.
+      3x3 está en link_base (`v8_cells.yaml`): primero x de 0,42 a 0,615 m e |y| <= 0,21 m, por debajo de los ArUco;
+      el 2026-11-25, a pedido del usuario, se agrandó a x de 0,405 a 0,633 m e y de -0,27 a +0,31 m. El mantel va de
+      y = -0,36 a +0,34 m; el ancho es asimétrico porque la cámara va ~1,6 cm a un lado del TCP y la caja del puente
+      (|y| <= 0,30 para el TCP) corta antes por la derecha. Ir más allá exige ampliar la caja.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

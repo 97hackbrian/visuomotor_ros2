@@ -11,11 +11,16 @@
 #   1 2 3   cerca de la base (x bajo)
 # Referencia de v7 (punto mirado al final, p5-p95): x de 0,46 a 0,67 m e y de -0,28 a +0,16 m.
 v8_cells:
-  x_edges_m: [0.42, 0.49, 0.555, 0.615]   # cerca | medio | lejos (esquina lejana a radio <= 0,65; ArUco en x >= 0,665)
-  # 2026-11-25: ensanchada a pedido del usuario (antes ±0,21: no cubría la mesa). Mantel medido con la homografía de
-  # los ArUco: y de -0,36 a +0,34 m. ±0,27 es lo máximo que el robot alcanza en todas las celdas con la caja del puente
-  # (|y| <= 0,30 para el TCP, que va ~6 cm desplazado de la cámara); a ±0,28 fallan las celdas 3, 6 y 9.
-  y_edges_m: [-0.27, -0.09, 0.09, 0.27]   # derecha | centro | izquierda (3 columnas iguales de 18 cm)
+  # 2026-11-25: agrandada dos veces a pedido del usuario (la primera, ±0,21 x 0,42-0,615, no cubría la mesa).
+  # Mesa medida en la imagen de HOME3 con la homografía de los ArUco: mantel de y = -0,36 a +0,34 m; borde del lado de
+  # la base en x = 0,39-0,40 m; ArUco desde x = 0,6635 m. Límites del robot (make_v8_cells.py, cámara con la
+  # orientación de HOME3, caja del puente SIN cambios: |y| <= 0,30 para el TCP):
+  # * a lo alto: 0,405 (~1 cm al borde de la mesa) a 0,633 (3 cm a los ArUco); todas las celdas alcanzables;
+  # * a lo ancho es ASIMÉTRICO: la cámara va ~1,6 cm a un lado del TCP. Por la izquierda el robot llega hasta +0,33
+  #   (se deja +0,31: ~3 cm al borde del mantel); por la derecha se deja -0,27 (a -0,275 el TCP ya se recorta 6 mm; a -0,28, 1 cm).
+  #   Más a la derecha exige ampliar la caja del puente, y aun con |y| <= 0,36 la celda 9 falla por el radio de 0,65 m.
+  x_edges_m: [0.405, 0.481, 0.557, 0.633]   # cerca | medio | lejos (3 filas iguales de 7,6 cm)
+  y_edges_m: [-0.27, -0.077, 0.117, 0.31]   # derecha | centro | izquierda (3 columnas iguales de 19,3 cm)
   table_z_m: 0.020                        # plano de la mesa (esquinas de los ArUco, table_markers.yaml)
   marker_clearance_m: 0.03                # no tapar los ArUco: la herramienta debe quedar a >= 3 cm de ellos
   # Vista final con la que se comprueba que el robot llega: cámara sobre el centro de la celda, a esta altura,
