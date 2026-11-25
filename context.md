@@ -623,6 +623,50 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - El episodio 68 nunca bajó de 0,31 m y no perdió nada.
       - Ningún candidato lo evita. Opciones: textura fija en la escena (la misma en las demos y en la inferencia) o
         corridas con la herramienta. El usuario pidió, por ahora, usar solo los datos sin herramienta.
+48. **Otros frameworks sobre los mismos 8 bags, con el robot como referencia (2026-11-25, `tools/xarm5/vio_gt/frameworks/`):**
+    - *Método:*
+      - `export_bag_frames.py` pasa cada bag a una carpeta tipo TUM: JPEG y PNG de 16 bits sin recomprimir, IMU a
+        200 Hz y calibración de fábrica.
+      - Cada framework corre en su propia imagen Docker: `visuomotor_orbslam3:v1`, `visuomotor_open3d:0.18` y
+        `visuomotor_learned_vo:v1` (DPVO y DROID-SLAM, GPU).
+      - `evaluate_vio_gt.py --traj-tum` aplica las mismas reglas que a RTAB-Map. El camino TUM se validó: la odometría
+        en vivo exportada da los mismos números.
+      - Métrica nueva, la cobertura útil: el % de TODOS los frames con pose y error ≤ 10/20 mm. La ATE sola favorece
+        al método que se pierde más.
+    - *Resultados (mediana entre corridas; ATE anclada, mm):*
+
+      | método | med | p90 | máx | escala | pérdidas | útil ≤ 20 mm (peor) |
+      |---|---|---|---|---|---|---|
+      | RTAB-Map en vivo (config. de v7) | 21,7 | 58,9 | 95,4 | +3,2 % | 4,6 % | 35 % (18) |
+      | RTAB-Map + ajuste de haces | 13,0 | 20,9 | 49,6 | +1,7 % | 1,5 % | 82 % (43) |
+      | ORB-SLAM3 RGB-D (final) | 10,8 | 233 | 235 | — | 35 % | 42 % (27) |
+      | Open3D RGB-D denso | 12,8 | 33,2 | 39,5 | +1,3 % | 0 % | 71 % (50) |
+      | DROID-SLAM RGB-D (por defecto) | 11,8 | 16,0 | 17,6 | +1,6 % | 0 % | 100 % (2) |
+      | **DROID-SLAM RGB-D, `filter_thresh` 1,0** | **10,9** | **14,7** | **17,0** | +1,4 % | **0 %** | **100 % (62)** |
+      | ídem + corrección de profundidad (dejando una fuera) | 7,9 | 11,5 | 15,0 | 0 % | 0 % | 100 % (81) |
+
+      - ORB-SLAM3 RGB-D es muy bueno mientras sigue, pero en 5 de 8 corridas se pierde cerca de la mesa y abre un mapa
+        nuevo (saltos de 0,2–0,7 m).
+      - ORB-SLAM3 RGB-D-inercial y monocular-inercial no inicializan el IMU con el movimiento lento del robot: se
+        rompen a los ~15 s en las 8 corridas.
+      - Open3D (denso) no pierde ningún frame, pero deriva sobre el mantel (190 mm de máximo en el episodio 61).
+      - DPVO (monocular, sin escala): en la única corrida que terminó, mediana 16 mm y máximo 146 mm aun con la escala
+        ajustada. En las demás, su optimización final pide más de 8 GB de GPU. Excluido.
+    - *DROID-SLAM gana:*
+      - Sigue en las corridas donde todos se pierden (48, 61, 2): denso y aprendido, usa la trama del mantel.
+      - Cierra el lazo al volver a HOME3: error final ≤ 2,6 mm.
+      - Con `filter_thresh` 2,4 (por defecto) la corrida 51 fallaba al iniciar con la cámara quieta, de forma
+        determinista (620 mm). Con 1,0 queda en 7,1 mm, y las otras 7 corridas no empeoran (solo el máximo de la 48:
+        11,9 a 22,3 mm). El parámetro se eligió con estas mismas corridas: validarlo en datos nuevos.
+      - Costo: ~1,5–3 min por corrida y 3,9 GB de GPU. Solo offline, como manda la arquitectura (las poses del
+        dataset se calculan desde los bags crudos).
+    - *Sesgo de escala de la profundidad:* todos los métodos RGB-D sobreestiman el movimiento un +1,3 a +2,6 %. Con
+      DROID va de +1,05 a +1,83 % en las 8 corridas. Con escala libre (Sim(3)), DROID queda en 1,4–2,7 mm. Un factor fijo
+      de 0,986, validado dejando una corrida fuera, baja la mediana a 7,9 mm. Hacer la calibración en chip y el tare de
+      la D435i, o medir el factor con el robot.
+    - *Límites:* robot a 3,5 cm/s (la mano va 2–3 veces más rápido), escala del tablero en la parte alta de la escena,
+      sin herramienta en la mesa. La parte del error que viene de la extrínseca (~9 mm de incertidumbre) también entra
+      en la ATE anclada.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

@@ -121,3 +121,5 @@ experiments/vio_gt/*/replay*/
 *.mcap
 # Corridas de medición con el robot (JSON, npz y figuras pequeñas): sí van a git
 !experiments/vio_gt/*/runs/
+datasets/vio_frames/
+experiments/vio_gt/*/frameworks/*/traj_work/

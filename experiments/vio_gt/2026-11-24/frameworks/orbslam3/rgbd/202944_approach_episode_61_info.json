@@ -1,0 +1,13 @@
+{
+ "live": {
+  "frames": 3370,
+  "valid": 1540,
+  "first_break_s": 51.404497146606445,
+  "recently_lost_frames": 90,
+  "lost_frames": 0
+ },
+ "final": {
+  "poses": 2094,
+  "frame": "camera"
+ }
+}

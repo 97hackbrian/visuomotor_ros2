@@ -24,7 +24,9 @@ KEYS = [("ATE anclada mediana (mm)", lambda r: r["ate_anchored_mm"]["median"]),
         ("RPE 0,5 s mediana (mm)", lambda r: r["rpe"]["0.5s"]["trans_mm"]["median"]),
         ("RPE 1 s p90 (mm)", lambda r: r["rpe"]["1s"]["trans_mm"]["p90"]),
         ("rotación anclada mediana (°)", lambda r: r["rot_anchored_deg"]["median"]),
-        ("pérdidas (%)", lambda r: r["lost_pct"])]
+        ("pérdidas (%)", lambda r: r["lost_pct"]),
+        ("útil <= 10 mm (% de frames)", lambda r: r.get("useful_pct", {}).get("10mm", float("nan"))),
+        ("útil <= 20 mm (% de frames)", lambda r: r.get("useful_pct", {}).get("20mm", float("nan")))]
 
 
 def load(session: Path, label: str):
@@ -66,13 +68,16 @@ def main(argv=None) -> int:
         md.append("")
     if len(out) > 1:
         md += ["## Comparación (mediana entre corridas)", "",
-               "| candidato | ATE med | ATE p90 | ATE máx | escala % | RPE 0,5 s | pérdidas % |", "|---|---|---|---|---|---|---|"]
+               "| candidato | ATE med | ATE p90 | ATE máx | escala % | RPE 0,5 s | pérdidas % | útil ≤ 10 mm % | "
+               "útil ≤ 20 mm % (peor corrida) |", "|---|---|---|---|---|---|---|---|---|"]
         for label, d in out.items():
             s = d["stats"]
+            u20 = s["útil <= 20 mm (% de frames)"]
             md.append(f"| {label} | {s['ATE anclada mediana (mm)']['median']:.1f} | "
                       f"{s['ATE anclada p90 (mm)']['median']:.1f} | {s['ATE anclada máx (mm)']['median']:.1f} | "
                       f"{s['error de escala (%)']['median']:+.2f} | {s['RPE 0,5 s mediana (mm)']['median']:.2f} | "
-                      f"{s['pérdidas (%)']['median']:.2f} |")
+                      f"{s['pérdidas (%)']['median']:.2f} | {s['útil <= 10 mm (% de frames)']['median']:.0f} | "
+                      f"{u20['median']:.0f} ({min(u20['values']):.0f}) |")
     tag = "_".join(a.labels.split(","))[:60]
     (session / f"summary_{a.kind or 'all'}_{tag}.json").write_text(json.dumps(out, indent=2))
     (session / f"summary_{a.kind or 'all'}_{tag}.md").write_text("\n".join(md) + "\n")

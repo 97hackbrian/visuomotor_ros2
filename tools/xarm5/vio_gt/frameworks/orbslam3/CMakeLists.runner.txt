@@ -1,0 +1,14 @@
+cmake_minimum_required(VERSION 3.10)
+project(vio_runner CXX)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
+find_package(OpenCV 4.2 REQUIRED)
+find_package(Eigen3 3.1.0 REQUIRED)
+find_package(Pangolin REQUIRED)
+set(ORB /opt/ORB_SLAM3)
+include_directories(${ORB} ${ORB}/include ${ORB}/include/CameraModels ${ORB}/Thirdparty/Sophus ${EIGEN3_INCLUDE_DIR}
+                    ${Pangolin_INCLUDE_DIRS})
+add_executable(vio_runner vio_runner.cc)
+target_link_libraries(vio_runner ${ORB}/lib/libORB_SLAM3.so ${ORB}/Thirdparty/DBoW2/lib/libDBoW2.so
+                      ${ORB}/Thirdparty/g2o/lib/libg2o.so ${OpenCV_LIBS} ${Pangolin_LIBRARIES} -lboost_serialization
+                      -lcrypto)

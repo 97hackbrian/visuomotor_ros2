@@ -225,6 +225,14 @@ El nodo de inferencia implementa dos capas independientes de detención:
        - `replay_odometry_candidates.py` reprocesa los mismos bags con cada candidato.
        - `make_synthetic_vio_bag.py` genera un bag con verdad conocida para probar la cadena.
        - Plan en `docs/plans/plan_d435i_herramienta_demostraciones.md`, sección "Trabajo sin el robot".
+     - **Otros frameworks (2026-11-25, `tools/xarm5/vio_gt/frameworks/`, cada uno en su imagen Docker):** sobre los 8
+       bags con el robot como referencia, gana **DROID-SLAM RGB-D** (`filter_thresh` 1,0). Mediana 10,9 mm, p90 14,7,
+       máx 17,0, 0 % de pérdidas y 100 % de frames a ≤ 20 mm, incluso donde RTAB-Map y ORB-SLAM3 se pierden.
+       - Con un factor de profundidad de 0,986 (validado dejando una corrida fuera) baja a 7,9 / 11,5 / 15,0 mm.
+       - Solo offline: 3,9 GB de GPU y ~2 min por demo. La guía en vivo sigue con RTAB-Map.
+       - ORB-SLAM3 se pierde cerca de la mesa (y sus modos inerciales no inicializan con el robot lento); Open3D
+         deriva; DPVO no cabe en 8 GB.
+       - Detalle en `context.md`, lección 48.
      Imagen 256×256 RGB; estado 8D sin fuga causal; acción 9D. Lanzadores de recolección dedicados: [realsense_d415_vo_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d415_vo_collection.launch.py) y [realsense_d435i_vio_collection.launch.py](file:///home/hackbrian/Documents/gits/visuomotor_ros2/visuomotor_bringup/launch/realsense_d435i_vio_collection.launch.py).
    - *Lanzador y Permisos USB/Sysfs:* `tools/hardware/run_vo_container.sh` con passthrough dinámico de `/dev`, `/sys` y `/dev/bus/usb`, y preservación estricta de propiedad de archivos (`hackbrian:hackbrian`, UID 1000). Script de configuración udev: `tools/hardware/setup_realsense_udev.sh` (con desactivación de `iio-sensor-proxy` para evitar contención del sensor inercial).
    - *Memoria Modular:* `.agents/knowledge/15_visual_odometry_rtabmap_realsense.md`.
@@ -429,6 +437,18 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/summarize
 
 # 35. Candidatos de RTAB-Map reprocesados sobre los mismos bags y evaluados contra el robot (sin robot ni cámara; ~2,4 min por bag y candidato)
 tools/xarm5/vio_gt/replay_candidates_vs_robot.sh experiments/vio_gt/<fecha> <static_run> baseline,optical_flow,guess_motion <run1> <run2> ...
+
+# 36. Bag -> carpeta tipo TUM (rgb/depth/asociaciones/IMU/calibración) para probar otros frameworks fuera de ROS
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/vio_gt/export_bag_frames.py --bag datasets/vio_bags/<bag> --out datasets/vio_frames/<corrida>"
+
+# 37. DROID-SLAM RGB-D offline (el mejor contra el robot) y evaluación contra el robot
+docker build -t visuomotor_learned_vo:v1 tools/xarm5/vio_gt/frameworks/learned
+docker run --rm --gpus all -u 1000 -e HOME=/tmp -v "$PWD":/ros -w /ros visuomotor_learned_vo:v1 python3 tools/xarm5/vio_gt/frameworks/learned/run_droid.py datasets/vio_frames/<corrida> experiments/vio_gt/<fecha>/frameworks/droid_ft1/<corrida>.tum --filter-thresh 1.0
+docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/vio_gt/evaluate_vio_gt.py --run <corrida> --hand-eye <static>/hand_eye.json --traj-tum <corrida>.tum --traj-frame optical --frame-times datasets/vio_frames/<corrida>/rgb.txt --label droid_rgbd_ft1"
+
+# 38. ORB-SLAM3 (rgbd, rgbd_inertial, mono_inertial) y reevaluación homogénea de todas las fuentes con el resumen comparativo
+tools/xarm5/vio_gt/frameworks/run_orbslam3_all.sh experiments/vio_gt/<fecha>
+tools/xarm5/vio_gt/frameworks/reeval_all.sh experiments/vio_gt/<fecha>
 ```
 
 ---

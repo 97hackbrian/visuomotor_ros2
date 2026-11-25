@@ -93,6 +93,28 @@ def static_samples(run, bag, plan, t_pc, p, q, t0_pc, cfg, board, min_corners, m
     return samples, K
 
 
+def load_tum(path, frame, T_link_opt, frame_times=None, tol_s=0.002):
+    """Trayectoria TUM -> mismo formato que ``odometry_from_bag`` (pose de camera_link). Con ``frame_times`` (rgb.txt),
+    cada imagen sin pose a <= ``tol_s`` cuenta como perdida (se repite la última pose, como la odometría nula)."""
+    rows = np.loadtxt(path, comments="#", ndmin=2)
+    rows = rows[np.argsort(rows[:, 0])]
+    T = np.array([make_T(quat_to_matrix(r[4:8]), r[1:4]) for r in rows])
+    if frame == "optical":
+        T = np.einsum("nij,jk->nik", T, inv_T(T_link_opt))
+    t = rows[:, 0]
+    if frame_times is None:
+        return {"t": t, "T": T, "lost": np.zeros(len(t), bool), "frame": "world", "child": "camera_link"}
+    tf = np.array([float(line.split()[0]) for line in Path(frame_times).read_text().splitlines() if line.strip()])
+    j = np.clip(np.searchsorted(t, tf), 1, len(t) - 1)
+    near = np.where(np.abs(t[j - 1] - tf) < np.abs(t[j] - tf), j - 1, j)
+    ok = np.abs(t[near] - tf) <= tol_s
+    last = np.maximum.accumulate(np.where(ok, np.arange(len(tf)), -1))
+    have = last >= 0
+    Tf = T[near[np.where(have, last, 0)]]
+    lost = ~ok
+    return {"t": tf[have], "T": Tf[have], "lost": lost[have], "frame": "world", "child": "camera_link"}
+
+
 def gyro_time_offset(bag, t_r, q_r, max_offset_s, grid_hz=100.0):
     """Desfase (s) entre el giróscopo de la cámara (reloj del PC) y el robot (reloj de la Jetson ya corrido por ssh),
     por correlación de la rapidez angular |w| (no depende de la extrínseca). Devuelve (desfase, correlación)."""
@@ -175,6 +197,14 @@ def main(argv=None) -> int:
                     help="diagnóstico: escala del tablero libre (0.95-1.05) en vez de la medida")
     ap.add_argument("--hand-eye-out", default="hand_eye.json", help="nombre del resultado de la calibración")
     ap.add_argument("--hand-eye-only", action="store_true", help="solo la calibración cámara-brida")
+    ap.add_argument("--traj-tum", default="", help="trayectoria TUM (t x y z qx qy qz qw) de otro framework")
+    ap.add_argument("--traj-frame", choices=("optical", "camera_link"), default="optical",
+                    help="marco de las poses de --traj-tum (ORB-SLAM3, DROID, DPVO: óptico de la cámara de color)")
+    ap.add_argument("--frame-times", default="", help="rgb.txt del export: frames sin pose cuentan como perdidos")
+    ap.add_argument("--scale-factor", type=float, default=None,
+                    help="factor de escala FIJO (p. ej. corrección de la profundidad medida en otras corridas)")
+    ap.add_argument("--scale-free", action="store_true",
+                    help="método sin escala métrica (monocular): ajustar la escala Sim(3) antes de las métricas")
     a = ap.parse_args(argv)
     run = Path(a.run)
     plan = json.loads((run / "plan.json").read_text())
@@ -184,7 +214,8 @@ def main(argv=None) -> int:
     stf = StaticTF()
     for _, m, _ in iter_messages(bag, ["/tf_static"]):
         stf.add_message(m)
-    odo = odometry_from_bag(bag, ODOM)
+    # La odometría en vivo solo se lee si es la evaluada (las demás fuentes vienen de --odom-bag o --traj-tum)
+    odo = odometry_from_bag(bag, ODOM) if not (a.odom_bag or a.traj_tum) else {"child": "camera_link"}
     T_link_opt = stf.lookup(odo["child"] or "camera_link", "camera_color_optical_frame")
     if T_link_opt is None:
         raise SystemExit("sin tf_static camera_link -> camera_color_optical_frame en el bag")
@@ -232,6 +263,9 @@ def main(argv=None) -> int:
     if a.odom_bag:                                   # odometría reprocesada (replay_odometry_candidates.py)
         odo = odometry_from_bag(REPO / a.odom_bag, a.odom_topic)
         report["odom_bag"], report["odom_topic"] = a.odom_bag, a.odom_topic
+    elif a.traj_tum:                                 # trayectoria de otro framework (formato TUM)
+        odo = load_tum(REPO / a.traj_tum, a.traj_frame, T_link_opt, REPO / a.frame_times if a.frame_times else None)
+        report["traj_tum"], report["traj_frame"] = a.traj_tum, a.traj_frame
     # Odometría desde el reinicio (primer mensaje) hasta el final del registro del robot
     t_o, T_o, lost = odo["t"], odo["T"], odo["lost"]
     keep = (t_o >= t_r[0] + 0.2) & (t_o <= t_r[-1] - 0.2)
@@ -242,7 +276,16 @@ def main(argv=None) -> int:
         return np.einsum("ij,njk->nik", A, Ts)
     # Relojes: el desfase por ssh se refina con el giróscopo de la cámara contra la velocidad angular del robot
     # (independiente de la odometría evaluada). Positivo: la cámara llega tarde respecto al robot.
-    d, corr = gyro_time_offset(bag, t_r, q_r, a.max_offset_s)
+    # Es el mismo para toda fuente de odometría de la corrida: se guarda en caché (eval_cache.json)
+    cache = run / "eval_cache.json"
+    cached = json.loads(cache.read_text()) if cache.exists() else {}
+    key = f"gyro_offset_max_{a.max_offset_s:g}"
+    if key in cached:
+        d, corr = cached[key]
+    else:
+        d, corr = gyro_time_offset(bag, t_r, q_r, a.max_offset_s)
+        cached[key] = [d, corr]
+        cache.write_text(json.dumps(cached, indent=1))
     report["time_offset_gyro_s"], report["time_offset_gyro_corr"] = d, corr
     if corr < 0.6:
         print(f"AVISO: correlación del giróscopo baja ({corr:.2f}): se usa solo el desfase medido por ssh")
@@ -253,8 +296,26 @@ def main(argv=None) -> int:
                       T_tcp_link)
     q_est = np.array([matrix_to_quat(T[:3, :3]) for T in T_o])
     q_ref = np.array([matrix_to_quat(T[:3, :3]) for T in T_rob])
+    if a.scale_factor is not None:   # corrección fija, decidida fuera de esta corrida (sin ajustar a ella)
+        T_o = T_o.copy()
+        T_o[:, :3, 3] = T_o[0, :3, 3] + a.scale_factor * (T_o[:, :3, 3] - T_o[0, :3, 3])
+        report["scale_factor_applied"] = float(a.scale_factor)
+    if a.scale_free:
+        # Monocular: se escala la trayectoria alrededor de su primera pose con el factor Sim(3) óptimo (se reporta)
+        from visuomotor_core.analysis.trajectory_metrics import umeyama
+        g = ~lost
+        s_fit, _, _ = umeyama(T_o[g, :3, 3], T_rob[g, :3, 3], with_scale=True)
+        T_o = T_o.copy()
+        T_o[:, :3, 3] = T_o[0, :3, 3] + s_fit * (T_o[:, :3, 3] - T_o[0, :3, 3])
+        report["scale_free_scale_applied"] = float(s_fit)
+        print(f"AVISO: método sin escala: trayectoria escalada x{s_fit:.4f} antes de las métricas (el error de escala "
+              f"y la ATE anclada quedan a favor del método)")
     res = evaluate_paired(t_o, T_o[:, :3, 3], q_est, T_rob[:, :3, 3], q_ref, lost=lost)
     series = res.pop("error_series")
+    # Cobertura útil: % de TODOS los frames (perdidos incluidos) con pose y error anclado <= umbral. Las métricas de
+    # ATE solo miran los frames con pose y favorecen al método que se pierde más.
+    err = np.asarray(series["ate_anchored_mm"])
+    res["useful_pct"] = {f"{th}mm": float(100.0 * np.sum(err <= th) / max(len(t_o), 1)) for th in (10, 20, 50)}
     report["odometry_vs_robot"] = res
     (run / f"vio_vs_robot_{a.label}.json").write_text(json.dumps(report, indent=2))
     r = res
