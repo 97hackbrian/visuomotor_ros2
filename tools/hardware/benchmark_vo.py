@@ -46,6 +46,7 @@ class VOBenchmarkNode(Node):
         
         self.info_times = []
         self.time_estimations = []
+        self.bundle_times = []
         self.inliers_list = []
         self.features_list = []
         self.lost_count = 0
@@ -87,6 +88,7 @@ class VOBenchmarkNode(Node):
         self.inliers_list.append(msg.inliers)
         self.features_list.append(msg.features)
         self.time_estimations.append(msg.time_estimation * 1000.0) # ms
+        self.bundle_times.append(msg.local_bundle_time * 1000.0)  # ms (0 si el ajuste de haces está apagado)
 
     def get_results(self):
         if len(self.odom_times) < 5:
@@ -126,6 +128,11 @@ class VOBenchmarkNode(Node):
             'rate_max_hz': float(np.max(rates)),
             'time_estimation_mean_ms': float(time_est_mean),
             'time_estimation_std_ms': float(time_est_std),
+            # Percentiles: con 33 ms por frame a 30 fps, lo que importa es la cola (p90, p99), no la media
+            **{f'time_estimation_p{q}_ms': float(np.percentile(self.time_estimations, q)) if self.time_estimations else 0.0
+               for q in (50, 90, 99)},
+            'time_estimation_max_ms': float(np.max(self.time_estimations)) if self.time_estimations else 0.0,
+            'local_bundle_p50_ms': float(np.median(self.bundle_times)) if self.bundle_times else 0.0,
             'inliers_mean': float(inliers_mean),
             'features_mean': float(features_mean),
             'jitter_pos_x_mm': float(std_x),
@@ -177,6 +184,7 @@ if __name__ == '__main__':
         print(f"  Muestras analizadas : {res['samples']} en {res['duration_actual_s']:.2f} s")
         print(f"  Frecuencia Odometría: {res['rate_mean_hz']:.2f} +/- {res['rate_std_hz']:.2f} Hz (Rango: [{res['rate_min_hz']:.1f}, {res['rate_max_hz']:.1f}] Hz)")
         print(f"  Tiempo Cómputo CPU  : {res['time_estimation_mean_ms']:.2f} +/- {res['time_estimation_std_ms']:.2f} ms")
+        print(f"  Tiempo por frame    : p50 {res['time_estimation_p50_ms']:.1f} / p90 {res['time_estimation_p90_ms']:.1f} / p99 {res['time_estimation_p99_ms']:.1f} / máx {res['time_estimation_max_ms']:.1f} ms (ajuste de haces p50 {res['local_bundle_p50_ms']:.1f} ms)")
         print(f"  Inliers Medios      : {res['inliers_mean']:.1f} / Features: {res['features_mean']:.1f}")
         print(f"  Jitter Posición 3D  : {res['jitter_pos_3d_mm']:.4f} mm (X={res['jitter_pos_x_mm']:.4f}, Y={res['jitter_pos_y_mm']:.4f}, Z={res['jitter_pos_z_mm']:.4f})")
         print(f"  Jitter Angular 3D   : {res['jitter_rot_3d_deg']:.4f} deg (Roll={res['jitter_roll_deg']:.4f}, Pitch={res['jitter_pitch_deg']:.4f}, Yaw={res['jitter_yaw_deg']:.4f})")

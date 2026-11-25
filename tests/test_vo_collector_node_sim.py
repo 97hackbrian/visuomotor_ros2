@@ -1,7 +1,7 @@
 """Integración del recolector v2 con una cámara y una odometría simuladas (ROS 2, dominio aislado).
 
 Una cámara falsa publica a 30 Hz la imagen, la odometría con el MISMO sello (como RTAB-Map), ``odom_info`` y el
-IMU, y ofrece ``/reset_odom``. Se comprueba que:
+IMU, y ofrece ``/rgbd_odometry/reset_odom`` (el nombre real del servicio de RTAB-Map). Se comprueba que:
 * el recolector graba en una rejilla regular de 20 Hz con sellos;
 * reinicia la odometría;
 * etiqueta done solo en el tramo quieto;
@@ -55,7 +55,7 @@ if HAVE_ROS:
             self.pub_odom = self.create_publisher(Odometry, "/rtabmap/odom", 50)
             self.pub_info = self.create_publisher(OdomInfo, "/odom_info", 50)
             self.pub_imu = self.create_publisher(Imu, "/camera/camera/imu", 50)
-            self.create_service(Empty, "/reset_odom", self._reset)
+            self.create_service(Empty, "/rgbd_odometry/reset_odom", self._reset)
             self.views = None
             if flags["img_mode"].value:                       # vista de HOME3 (1) o corrida 40 px (2), 640x480
                 from test_vo_start_guide import REF_YAML, _render, _transform

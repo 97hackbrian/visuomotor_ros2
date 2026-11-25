@@ -120,7 +120,7 @@ class VOCollectorNode(Node):
         d('max_pose_gap_s', 0.10)
         d('image_wait_s', 0.05)
         d('reset_odom_on_start', True)
-        d('reset_odom_service', '/reset_odom')
+        d('reset_odom_service', '/rgbd_odometry/reset_odom')   # servicio privado de rgbd_odometry
         d('reset_settle_frames', 10)
         d('reset_timeout_s', 3.0)
         d('static_speed_m_s', 0.02)

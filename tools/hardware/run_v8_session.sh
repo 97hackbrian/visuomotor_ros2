@@ -29,6 +29,10 @@ FREE_GB=$(df -BG --output=avail datasets | tail -1 | tr -dc '0-9')
 cmp -s visuomotor_data_collection/visuomotor_data_collection/vo_collector_node.py \
   install/visuomotor_data_collection/lib/python3.12/site-packages/visuomotor_data_collection/vo_collector_node.py \
   || fail "install/ desactualizado: docker exec -u 1000 -w /ros visuomotor_ros2 bash -c 'source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --packages-select visuomotor_data_collection'"
+RESET_SRV=$(grep -E '^\s*reset_odom_service:' visuomotor_data_collection/config/vo_data_collection_params.yaml | sed -E 's/.*"([^"]+)".*/\1/')
+docker exec -u 1000 "$CAM" bash -c "export ROS_LOCALHOST_ONLY=1 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ROS_LOG_DIR=/tmp/.ros_log_user; \
+mkdir -p /tmp/.ros_log_user; source /opt/ros/jazzy/setup.bash; ros2 service list 2>/dev/null" | grep -qx "$RESET_SRV" \
+  || fail "no existe el servicio de reinicio $RESET_SRV: cada demo empezaría sin reiniciar la odometría (¿corre rgbd_odometry?)"
 cat <<'EOF'
 ==========================================================================================
  SESIÓN v8 (demos a mano). Antes de empezar:

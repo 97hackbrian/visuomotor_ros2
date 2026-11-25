@@ -26,7 +26,9 @@ vo_collector_node:
     image_wait_s: 0.05                     # espera máxima a una imagen atrasada antes de marcar el frame
     # Reinicio de la odometría al empezar cada episodio (en v7 la vertical de odom derivó 50-60° en una sesión).
     reset_odom_on_start: true
-    reset_odom_service: "/reset_odom"      # std_srvs/Empty de rgbd_odometry
+    # Servicio privado del nodo rgbd_odometry (~/reset_odom). Era "/reset_odom", que no existe: ninguna demo se
+    # reiniciaba y, una vez perdida, la odometría seguía perdida en las siguientes (visto en vivo el 2026-11-25).
+    reset_odom_service: "/rgbd_odometry/reset_odom"
     reset_settle_frames: 10                # poses válidas tras el reinicio antes de empezar a grabar
     reset_timeout_s: 3.0
     # Etiqueta done: tramo final quieto (velocidad suavizada en static_window_s <= static_speed_m_s).

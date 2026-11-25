@@ -722,6 +722,12 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
     - *Final con tecla (respaldo):* con `auto_hold: true` (`run_v8_session.sh`), una sola [S] detecta el tramo quieto,
       por odometría o por giróscopo si está perdida, y quita los últimos 0,3 s (`manual_save_trim_s`), que son el
       movimiento de apretar la tecla. [H] + [S] movían la cámara dos veces en el tramo que debe estar quieto.
+    - *Reinicio de la odometría que nunca ocurría (visto en vivo el 2026-11-25, antes de la primera demo v8):*
+      - el servicio de RTAB-Map es privado (`/rgbd_odometry/reset_odom`), pero el recolector llamaba a `/reset_odom`, que no existe;
+      - el recolector solo avisaba y seguía sin reiniciar, y la prueba simulada no lo detectó porque ofrecía el nombre equivocado;
+      - RTAB-Map no se recupera solo de una pérdida, así que después de la primera todas las demos habrían empezado perdidas;
+      - corregido en el YAML, el código y la prueba, y `run_v8_session.sh` ahora se niega a empezar si el servicio no existe.
+      Ajuste de haces en vivo: p50 26,8 / p90 32,5 / p99 36,1 ms por frame (~28 Hz), así que se deja en "1".
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

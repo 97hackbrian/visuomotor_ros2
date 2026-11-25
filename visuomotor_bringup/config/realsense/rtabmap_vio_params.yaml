@@ -36,9 +36,10 @@
     #   * escala 1,7 frente a 2,6 %; RPE a 0,5 s 2,2 frente a 9,4 mm (4 veces menos ruido rápido).
     # El reprocesado es casi determinista (repetido: diferencias de 0-6 mm). Ningún candidato evita las pérdidas: vienen
     # de la falta de textura bajo ~0,35 m sobre el mantel blanco, no de la profundidad.
-    # PENDIENTE validarlo en vivo. El costo es ~1,5 veces el de "0": en vivo "0" tarda 16 ms por frame (p99 21), así
-    # que "1" queda en ~24 ms (p99 ~30) con 33 ms disponibles a 30 fps. Vigilar time_estimation en /odom_info; si no
-    # alcanza, volver a "0".
+    # Validado en vivo el 2026-11-25 (benchmark_vo.py, 15 s, con la compresión del bag crudo activa): p50 26,8 / p90
+    # 32,5 / p99 36,1 ms por frame (el ajuste de haces, 4,7 ms), 0 % de pérdidas y ~28 Hz en vez de 30. Se deja: el
+    # recolector muestrea a 20 Hz e interpola, y esta odometría solo guía (las poses del dataset salen de DROID). Si
+    # baja de ~20 Hz, volver a "0" ("0" tarda 16 ms, p99 21).
     OdomF2M/BundleAdjustment: "1"
     
     # ── 5. Filtrado y Origen Estricto en Lente ──
