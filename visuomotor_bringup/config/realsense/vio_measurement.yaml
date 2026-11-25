@@ -58,9 +58,13 @@ vio_measurement:
     output_topic: "/replay/odom"
   # Candidatos: parámetros de RTAB-Map que cambian respecto a base_params. Las afirmaciones de K15 sobre el ajuste de
   # haces y GuessMotion nunca se midieron con un experimento controlado: aquí se miden.
+  # 2026-11-24: ganó el ajuste de haces (medido con el xArm5, context.md lección 47) y pasó a base_params. En los
+  # resultados de ese día, "baseline" es SIN ajuste de haces y "bundle_adjustment" es CON él. Desde entonces, "baseline"
+  # lleva el ajuste de haces y "no_bundle_adjustment" es la configuración anterior. Los demás candidatos se suman al
+  # nuevo baseline.
   candidates:
     baseline: {}
-    bundle_adjustment: {"OdomF2M/BundleAdjustment": "1"}
+    no_bundle_adjustment: {"OdomF2M/BundleAdjustment": "0"}
     guess_motion: {"Odom/GuessMotion": "true"}
     frame_to_frame: {"Odom/Strategy": "1"}
     optical_flow: {"Vis/CorType": "1"}

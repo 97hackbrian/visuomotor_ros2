@@ -1,0 +1,52 @@
+{
+  "run": "203326_approach_episode_68",
+  "n_depth": 483,
+  "n_color": 483,
+  "by_height": [
+    {
+      "height_m": [
+        0.3,
+        0.35
+      ],
+      "n": 98,
+      "valid_depth_pct": 99.97767192814624,
+      "lost_live_pct": 0.0,
+      "lost_alt_pct": 0.0
+    },
+    {
+      "height_m": [
+        0.35,
+        0.45
+      ],
+      "n": 53,
+      "valid_depth_pct": 99.99084242334905,
+      "lost_live_pct": 0.0,
+      "lost_alt_pct": 0.0
+    },
+    {
+      "height_m": [
+        0.45,
+        0.6
+      ],
+      "n": 82,
+      "valid_depth_pct": 99.69726165523375,
+      "lost_live_pct": 0.0,
+      "lost_alt_pct": 0.0
+    },
+    {
+      "height_m": [
+        0.6,
+        2.0
+      ],
+      "n": 201,
+      "valid_depth_pct": 97.30712971600333,
+      "lost_live_pct": 0.0,
+      "lost_alt_pct": 0.0
+    }
+  ],
+  "gftt_when_lost_median": null,
+  "gftt_when_tracking_median": 216.0,
+  "valid_depth_when_lost_pct": null,
+  "valid_depth_when_tracking_pct": 98.45652847869219,
+  "min_height_m": 0.31440227519551456
+}

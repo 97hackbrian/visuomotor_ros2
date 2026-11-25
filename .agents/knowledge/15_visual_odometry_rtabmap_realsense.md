@@ -190,6 +190,19 @@ El 18 de noviembre de 2026 se integró el soporte nativo para la **Intel RealSen
   - `GuessMotion` es un modelo de velocidad constante: no tiene relación con la deriva de yaw del filtro Madgwick.
   - Que el ajuste de haces "deforme la escala" en RGB-D es una hipótesis que se apoya en 1 o 2 corridas por
     configuración, con trayectorias distintas. Se decidirá midiendo contra referencia.
+  - **Medido el 2026-11-24 con el xArm5 como referencia: la hipótesis es FALSA.**
+    - Experimento: 8 aproximaciones de v7 reproducidas por el robot; los mismos bags, reprocesados con y sin
+      `OdomF2M/BundleAdjustment`.
+    - Con el ajuste de haces (mediana entre corridas):
+      - ATE anclada 13,0 frente a 17,3 mm; p90 20,9 frente a 46,7 mm;
+      - error máximo mejor en 7 de 8 corridas;
+      - escala 1,7 frente a 2,6 %;
+      - ruido a 0,5 s 2,2 frente a 9,4 mm.
+    - Ahora está en `"1"` en `rtabmap_vio_params.yaml`, pendiente de validarlo en vivo (costo ~1,5 veces: ~24 ms por
+      frame).
+    - Detalle en `context.md`, lección 47.
+  - Las pérdidas de rastreo cerca de la mesa vienen de la falta de textura (mantel blanco) bajo ~0,35 m. La
+    profundidad sigue válida en un 92–100 % hasta a 0,22 m, así que no es el mínimo de profundidad de la D435i.
   - Las cifras de cómputo, jitter y 0 % de pérdidas se tomaron con la cámara en reposo.
 * **Compatibilidad Inversa:** La cámara D415 conserva sus launch files dedicados (`realsense_d415_vo.launch.py` y `realsense_d415_vo_collection.launch.py`), permitiendo alternar entre ambos sensores sin conflicto.
 

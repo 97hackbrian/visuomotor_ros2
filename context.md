@@ -598,6 +598,31 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         vacío, sin herramienta: peor que una demo real.
     - *Guía de inicio:* la mesa se recentró, así que la referencia de HOME3 se regeneró con 5 imágenes del robot en
       HOME3 (`experiments/vio_gt/2026-11-24/home3_now/`; repetibilidad 0,04 px). La anterior queda en git.
+    - *Elección del estimador (Fase 3): 6 candidatos × 8 aproximaciones, mismos bags, robot como referencia*
+      (`replay_candidates_vs_robot.sh`). Mediana entre corridas:
+
+      | candidato | ATE med (mm) | p90 | máx | escala | RPE 0,5 s (mm) |
+      |---|---|---|---|---|---|
+      | sin ajuste de haces (el anterior) | 17,3 | 46,7 | 74,0 | 2,6 % | 9,4 |
+      | **con ajuste de haces (elegido)** | **13,0** | **20,9** | **49,6** | **1,7 %** | **2,2** |
+      | GuessMotion | 14,3 | 46,3 | 88,5 | 2,6 % | 9,2 |
+      | flujo óptico | 17,9 | 58,5 | 83,0 | 2,8 % | 8,9 |
+      | frame-to-frame | 21,9 | 71,8 | 127,5 | 2,4 % | 3,5 |
+      | sin Kalman | 19,7 | 40,6 | 70,6 | 2,8 % | 10,3 |
+
+      - Con ajuste de haces el máximo mejora en 7 de 8 corridas.
+      - El reprocesado es casi determinista: repetido, da lo mismo o difiere 2–6 mm.
+      - Vivo y reprocesado difieren corrida por corrida, aunque en vivo no se descartan frames (16 ms por frame,
+        intervalo 33,4 ms): el estado inicial cambia y, cuando falta textura, la trayectoria diverge. Por eso la
+        elección se valida en vivo.
+      - Costo: ~1,5 veces el de la configuración anterior, ~24 ms por frame (p99 ~30) frente a 33 ms disponibles.
+    - *Por qué se pierde (`diagnose_tracking_loss.py`):*
+      - H4 es falsa: la profundidad sigue válida en un 92–100 % hasta a 0,22 m de la mesa.
+      - Las pérdidas en vivo se dan con la cámara a menos de ~0,35 m, donde solo se ve el mantel: los rasgos fuertes
+        (ArUco, bordes, tablero) salen de la vista.
+      - El episodio 68 nunca bajó de 0,31 m y no perdió nada.
+      - Ningún candidato lo evita. Opciones: textura fija en la escena (la misma en las demos y en la inferencia) o
+        corridas con la herramienta. El usuario pidió, por ahora, usar solo los datos sin herramienta.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

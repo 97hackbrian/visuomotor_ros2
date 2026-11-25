@@ -117,7 +117,7 @@ tools/xarm5/real_trials/.beeps/
 
 # Bags MCAP de la cámara y odometrías reprocesadas (GB): se guardan en disco, no en git
 datasets/vio_bags/
-experiments/vio_gt/*/replay/
+experiments/vio_gt/*/replay*/
 *.mcap
 # Corridas de medición con el robot (JSON, npz y figuras pequeñas): sí van a git
 !experiments/vio_gt/*/runs/

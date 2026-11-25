@@ -149,6 +149,12 @@ $$\sigma_Z = \frac{(0.50)^2}{(380) \cdot (0.050)} (0.10) \approx 1.31\text{ mm}$
 La escala métrica queda rigurosamente fijada en el dominio analógico/físico, eliminando por completo la posibilidad de deformaciones globales de escala.
 
 ### 2.5 Análisis Riguroso del Ajuste de Haces Local: Justificación y Trade-Off de `OdomF2M/BundleAdjustment: 0`
+
+> **Nota (2026-11-24): refutado por la medición.** Con el xArm5 como referencia (8 aproximaciones de v7, mismos bags
+> reprocesados), activar el ajuste de haces mejoró la escala (1,7 frente a 2,6 % de error), el error anclado (mediana
+> 13,0 frente a 17,3 mm; p90 20,9 frente a 46,7 mm) y el ruido (2,2 frente a 9,4 mm a 0,5 s). La configuración activa
+> pasó a `OdomF2M/BundleAdjustment: "1"`. El análisis de esta sección queda como registro histórico: ver
+> `context.md`, lección 47.
 El Ajuste de Haces Local (*Local Bundle Adjustment*, LBA) constituye el estándar metodológico en SLAM monocular y estéreo pasivo. Su propósito es refinar conjuntamente las poses de los cuadros clave activos $\mathcal{K}_L$ y las coordenadas de los puntos 3D observados $\mathcal{P}_L$ minimizando los residuales de reproyección:
 
 $$\min_{\mathcal{K}_L, \mathcal{P}_L} \sum_{i \in \mathcal{K}_L} \sum_{j \in \mathcal{P}_L} \rho\left( \|\mathbf{z}_{ij} - \pi(\mathbf{R}_i \mathbf{P}_j + \mathbf{t}_i)\|^2_{\boldsymbol{\Sigma}_{ij}^{-1}} \right)$$

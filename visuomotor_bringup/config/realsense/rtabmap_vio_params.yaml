@@ -28,8 +28,18 @@
     Vis/SubPixIterations: "15"             # Mayor precisión en interpolación continua
     Vis/SubPixWinSize: "5"                 # Ventana 5x5 de gradiente local para suavizado subpíxel
     
-    # ── 4. Bundle Adjustment (Desactivado para proteger escala métrica 3D) ──
-    OdomF2M/BundleAdjustment: "0"          # Desactivado: evita la deformación de escala 3D en RGB-D
+    # ── 4. Bundle Adjustment: ACTIVADO (elegido con el xArm5 como referencia, 2026-11-24) ──
+    # Antes estaba en "0" con la idea, nunca medida, de que el ajuste de haces deformaba la escala. Medido: es al revés.
+    # Experimento: 8 aproximaciones de v7 reproducidas por el robot, mismos bags reprocesados con cada candidato
+    # (tools/xarm5/vio_gt/replay_candidates_vs_robot.sh; context.md, lección 47). Mediana entre corridas, "1" frente a "0":
+    #   * ATE anclada 13,0 frente a 17,3 mm; p90 20,9 frente a 46,7; máx 49,6 frente a 74,0 (mejor en 7 de 8 corridas);
+    #   * escala 1,7 frente a 2,6 %; RPE a 0,5 s 2,2 frente a 9,4 mm (4 veces menos ruido rápido).
+    # El reprocesado es casi determinista (repetido: diferencias de 0-6 mm). Ningún candidato evita las pérdidas: vienen
+    # de la falta de textura bajo ~0,35 m sobre el mantel blanco, no de la profundidad.
+    # PENDIENTE validarlo en vivo. El costo es ~1,5 veces el de "0": en vivo "0" tarda 16 ms por frame (p99 21), así
+    # que "1" queda en ~24 ms (p99 ~30) con 33 ms disponibles a 30 fps. Vigilar time_estimation en /odom_info; si no
+    # alcanza, volver a "0".
+    OdomF2M/BundleAdjustment: "1"
     
     # ── 5. Filtrado y Origen Estricto en Lente ──
     Odom/FilteringStrategy: "1"            # Filtro Kalman para suavizado continuo (elimina vibración frame-to-frame)

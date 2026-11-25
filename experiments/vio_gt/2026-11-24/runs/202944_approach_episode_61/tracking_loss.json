@@ -1,0 +1,72 @@
+{
+  "run": "202944_approach_episode_61",
+  "n_depth": 561,
+  "n_color": 561,
+  "by_height": [
+    {
+      "height_m": [
+        0.0,
+        0.25
+      ],
+      "n": 113,
+      "valid_depth_pct": 91.8260393620944,
+      "lost_live_pct": 98.23008849557522,
+      "lost_alt_pct": 98.23008849557522
+    },
+    {
+      "height_m": [
+        0.25,
+        0.3
+      ],
+      "n": 45,
+      "valid_depth_pct": 98.56945167824075,
+      "lost_live_pct": 33.33333333333333,
+      "lost_alt_pct": 33.33333333333333
+    },
+    {
+      "height_m": [
+        0.3,
+        0.35
+      ],
+      "n": 33,
+      "valid_depth_pct": 99.98801491477272,
+      "lost_live_pct": 33.33333333333333,
+      "lost_alt_pct": 33.33333333333333
+    },
+    {
+      "height_m": [
+        0.35,
+        0.45
+      ],
+      "n": 58,
+      "valid_depth_pct": 99.6956716954023,
+      "lost_live_pct": 32.758620689655174,
+      "lost_alt_pct": 32.758620689655174
+    },
+    {
+      "height_m": [
+        0.45,
+        0.6
+      ],
+      "n": 74,
+      "valid_depth_pct": 99.29083966779281,
+      "lost_live_pct": 35.13513513513514,
+      "lost_alt_pct": 35.13513513513514
+    },
+    {
+      "height_m": [
+        0.6,
+        2.0
+      ],
+      "n": 189,
+      "valid_depth_pct": 97.89492049713405,
+      "lost_live_pct": 12.16931216931217,
+      "lost_alt_pct": 37.56613756613756
+    }
+  ],
+  "gftt_when_lost_median": 1000.0,
+  "gftt_when_tracking_median": 213.0,
+  "valid_depth_when_lost_pct": 94.89012004573172,
+  "valid_depth_when_tracking_pct": 98.35452601972143,
+  "min_height_m": 0.21927492690566486
+}
