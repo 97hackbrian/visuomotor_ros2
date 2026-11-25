@@ -100,6 +100,11 @@ vo_collector_node:
     # Aviso de velocidad. v7: máxima por episodio con mediana 0,11 m/s y p90 0,15 m/s; media 0,055 m/s. En los
     # ensayos el puente del xArm5 limitó a 0,05 m/s.
     max_demo_speed_m_s: 0.15
+    # Monitor del alcance del xArm5 (reach_monitor.py; lo activa run_v8_session.sh): con la odometría en vivo y la
+    # extrínseca medida avisa si la cámara en la mano va a una pose que el robot no alcanza ("baja primero").
+    reach_monitor_enabled: false
+    reach_warn_ratio: 0.97
+    reach_warn_period_s: 2.5
     terminal_bell: true                    # pitido de la terminal al empezar, guardar o rechazar
     # Programa de recolección (CSV de tools/hardware/make_collection_schedule.py; "" = sin programa).
     schedule_file: ""

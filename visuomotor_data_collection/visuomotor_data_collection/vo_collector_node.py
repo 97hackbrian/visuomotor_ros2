@@ -66,6 +66,7 @@ from visuomotor_data_collection.vo_episode_logic import (
 from visuomotor_data_collection.vo_schedule import (
     YAW_CONVENTION, cells_from_edges, done_indices, load_csv as load_schedule, next_pending, placement_hint,
     schedule_id, yaw_words)
+from visuomotor_data_collection.reach_monitor import ReachMonitor, advice, relative_transform, summarize
 from visuomotor_data_collection.vo_start_guide import (
     SteadyAlignment, ViewReference, detect_markers, draw_guide, summary_line, view_alignment)
 
@@ -175,6 +176,14 @@ class VOCollectorNode(Node):
         d('auto_save_min_travel_m', 0.10)
         d('auto_save_margin_s', 0.5)
         d('max_demo_speed_m_s', 0.15)
+        # Monitor del alcance del xArm5 en vivo (2026-11-25, reach_monitor.py): avisa si la cámara en la mano va a una
+        # pose que el robot no alcanza (misma fórmula que el conversor, mismo modelo que el puente; inicio en HOME3).
+        d('reach_monitor_enabled', False)
+        d('reach_bridge_params_file', 'visuomotor_bringup/config/xarm5/xarm5_real_params.yaml')
+        d('reach_alignment_file', 'visuomotor_bringup/config/xarm5/xarm5_dataset_alignment.yaml')
+        d('reach_home_file', 'deploy/jetson/config/jetson_policy_params.yaml')
+        d('reach_warn_ratio', 0.97)            # "cerca del límite" desde este porcentaje del alcance del puente
+        d('reach_warn_period_s', 2.5)
         d('terminal_bell', True)
         d('schedule_file', '')
         d('schedule_cells_file', 'visuomotor_bringup/config/realsense/v8_cells_home3.yaml')
@@ -257,6 +266,17 @@ class VOCollectorNode(Node):
             self.sched_done = done_indices((dict(self.storage.root[k].attrs) for k in self.storage.root.group_keys()),
                                            self.sched_id, str(g('schedule_legacy_id')) or None)
             self.get_logger().info(f"Programa {sp.name}: {len(self.schedule)} entradas, {len(self.sched_done)} hechas.")
+        # Monitor del alcance del xArm5 (opcional)
+        self.reach_mon, self.reach_stats, self._reach_last = None, None, 0.0
+        if g('reach_monitor_enabled'):
+            paths = [Path(str(g(n))) for n in ('reach_bridge_params_file', 'reach_alignment_file', 'reach_home_file')]
+            paths = [x if x.is_absolute() else self.repo / x for x in paths]
+            try:
+                self.reach_mon = ReachMonitor(*paths, warn_ratio=float(g('reach_warn_ratio')))
+                self.get_logger().info(" Monitor de alcance del xArm5: activo (aviso desde el "
+                                       f"{100 * float(g('reach_warn_ratio')):.0f} % del alcance del puente).")
+            except Exception as e:  # noqa: BLE001
+                self.get_logger().error(f"Monitor de alcance DESACTIVADO: {e}")
         # Grilla en metros + ArUco de la mesa (guía en vivo sobre la mesa)
         self.cells_m, self.table_xy = {}, {}
         cm = Path(str(g('schedule_cells_m_file')).strip() or "/nonexistent")
@@ -476,6 +496,7 @@ class VOCollectorNode(Node):
                     t0 = self.poses.latest_stamp
                     self.sampler.start(t0)
                     self.state = RECORDING
+                    self.reach_stats, self._reach_last = {"frames": 0, "outside": 0, "max_ratio": 0.0}, 0.0
                     self._raw_bag_begin("recording")             # sin pre-roll (o si no se abrió en ARMING)
                     self.get_logger().info(">>> [REC] Grabando. Mover la cámara hacia el objetivo; " +
                                            ("al llegar, quedarse QUIETA (guardado automático)." if self.p('auto_save')
@@ -483,8 +504,11 @@ class VOCollectorNode(Node):
                     self._bell()
                 return
             if self.state == RECORDING:
+                n_before = len(self.sampler.frames)
                 self.sampler.step(self.poses, self.images, self.current_gripper, self.hold,
                                   image_wait_s=float(self.p('image_wait_s')))
+                if self.reach_mon is not None and len(self.sampler.frames) > n_before:
+                    self._check_reach()
                 if self.p('auto_save') and not self.auto_save_blocked and len(self.sampler.frames) > 2:
                     fr = self.sampler.frames
                     p = np.array([f.p for f in fr])
@@ -512,6 +536,29 @@ class VOCollectorNode(Node):
                 with self.lock:
                     self.auto_save_blocked = True
                 self.get_logger().error(f"[AUTO] No se guardó ({msg}). [S] guardar igual o [D] descartar.")
+
+    def _check_reach(self):
+        """(Con el lock tomado) ¿el robot llega a la pose actual de la cámara? Avisa por la terminal (y por voz, con
+        v8_announcer.sh) si se está por salir o se salió del alcance del xArm5. Con rastreo perdido no se juzga: su
+        pose congelada o saltona daría avisos falsos."""
+        fr = self.sampler.frames
+        f0, f = fr[0], fr[-1]
+        if f.lost or f0.lost:
+            return
+        r = self.reach_mon.check(relative_transform(f0.p, f0.q, f.p, f.q))
+        st = self.reach_stats
+        st["frames"] += 1
+        st["outside"] += int(r["outside"])
+        st["max_ratio"] = max(st["max_ratio"], r["ratio"])
+        now = time.time()
+        if (r["outside"] or r["near"]) and now - self._reach_last >= float(self.p('reach_warn_period_s')):
+            self._reach_last = now
+            pct = round(100 * r["ratio"])
+            if r["outside"]:
+                self.get_logger().warn(f"[ALCANCE] FUERA del alcance del robot ({', '.join(r['reasons'])}; brazo al "
+                                       f"{pct} %): {advice(r['reasons'])}.")
+            else:
+                self.get_logger().warn(f"[ALCANCE] cerca del límite del robot (brazo al {pct} %).")
 
     def _status(self):
         with self.lock:
@@ -736,6 +783,8 @@ class VOCollectorNode(Node):
             "travel_m": max_travel(p_abs), "max_demo_speed_m_s": float(self.p('max_demo_speed_m_s')),
             "auto_start": bool(self.start_view and self.start_view.get("source") == "auto"),
             "save_trigger": trigger,
+            # Alcance del xArm5 estimado en vivo (odometría en vivo; solo frames con rastreo)
+            "reach_monitor": None if self.reach_mon is None else summarize(self.reach_stats),
         }
         ep_idx, total = self.storage.append_episode(buffer, attrs=attrs, extra_arrays=extra, episode_chunks=True)
         self.imu_hold_start = None

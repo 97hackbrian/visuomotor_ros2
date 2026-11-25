@@ -69,5 +69,5 @@ TOL_PX=${V8_START_TOL_PX:-20.0}
 STILL_PX=${V8_START_STILL_PX:-5.0}
 COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=$SCHED -p raw_bag_enabled:=true \
 -p raw_bag_preroll_arming:=true -p raw_bag_dir:=datasets/raw_bags -p qa_tracking_blocking:=false -p auto_hold:=true \
--p start_guide_tolerance_px:=$TOL_PX -p auto_start_max_motion_px:=$STILL_PX -p qa_hold_motion_source:=imu" \
+-p start_guide_tolerance_px:=$TOL_PX -p auto_start_max_motion_px:=$STILL_PX -p qa_hold_motion_source:=imu -p reach_monitor_enabled:=true" \
   exec ./tools/hardware/run_data_collection.sh "$DATASET"

@@ -353,7 +353,7 @@ class CollectorV3GuideTest(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         try:
             col = _make_collector(tmp, ["-p", "auto_hold:=true", "-p", "terminal_bell:=false",
-                                        "-p", "min_hold_duration_s:=1.0"])
+                                        "-p", "min_hold_duration_s:=1.0", "-p", "reach_monitor_enabled:=true"])
             ex = MultiThreadedExecutor(num_threads=4)
             ex.add_node(col)
             threading.Thread(target=ex.spin, daemon=True).start()
@@ -369,6 +369,9 @@ class CollectorV3GuideTest(unittest.TestCase):
             self.assertEqual(a["done_source"], "manual_tail")
             self.assertTrue(any("sin tramo quieto" in w for w in a["qa_warnings"]), a["qa_warnings"])
             self.assertEqual(a["qa_problems"], [])
+            # Monitor de alcance activo: la demo guarda cuántos frames juzgó y el peor alcance
+            self.assertGreater(a["reach_monitor"]["frames_checked"], 10, a["reach_monitor"])
+            self.assertGreater(a["reach_monitor"]["max_reach_ratio"], 0.5)
         finally:
             flags["stop"].value = 1
             proc.join(timeout=5)

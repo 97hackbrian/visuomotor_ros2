@@ -18,6 +18,8 @@
 
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>visuomotor_bringup</exec_depend>  <!-- xarm5_interface: monitor de alcance (reach_monitor.py) -->
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
