@@ -331,6 +331,54 @@ class CollectorV3GuideTest(unittest.TestCase):
                 rclpy.shutdown()
 
 
+    def test_manual_save_key_with_lost_tail_detects_hold_by_imu(self):
+        """Respaldo manual: sin guardado automático, una sola tecla [S] al final. Con la odometría perdida, el tramo
+        quieto lo detecta el giróscopo (auto_hold) y se quita el movimiento de apretar la tecla."""
+        import zarr
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        ctx = mp.get_context("spawn")
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        try:
+            col = _make_collector(tmp, ["-p", "auto_save:=false", "-p", "auto_hold:=true",
+                                        "-p", "min_hold_duration_s:=1.0", "-p", "terminal_bell:=false",
+                                        "-p", "qa_tracking_blocking:=false"])
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.poses.latest() is not None, 8.0))
+            self.assertTrue(col._start(override=True))
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 8.0))
+            flags["moving"].value = 1
+            time.sleep(1.4)
+            flags["null"].value = 1
+            time.sleep(1.0)
+            t_stop = time.time()
+            flags["moving"].value = 0
+            time.sleep(2.0)                                          # quieta 2 s y luego [S]
+            ok, msg = col._save()
+            self.assertTrue(ok, msg)
+            ex.shutdown()
+            ep = zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"]
+            a = dict(ep.attrs)
+            self.assertEqual(a["done_source"], "imu")
+            self.assertEqual(a["qa_problems"], [])
+            ts = np.asarray(ep["timestamp"])
+            done = np.asarray(ep["action"])[:, 8] > 0.5
+            self.assertGreater(ts[done][0], t_stop - 0.35)
+            self.assertGreaterEqual(done.sum(), 20)
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
+
+
 def _make_collector(tmp, extra=()):
     """Recolector con parámetros de prueba (dataset temporal) sin tocar el YAML."""
     ctx_args = ["--ros-args", "-p", f"dataset_path:={Path(tmp) / 'sim_demos.zarr'}", "-p", f"repo_root:={ROOT}",

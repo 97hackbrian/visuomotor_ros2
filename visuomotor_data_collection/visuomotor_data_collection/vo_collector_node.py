@@ -133,6 +133,7 @@ class VOCollectorNode(Node):
         # Quietud final por giróscopo cuando la odometría en vivo está perdida al final (la pose se congela).
         d('imu_still_gyro_rad_s', 0.08)
         d('imu_still_smooth_s', 0.15)
+        d('manual_save_trim_s', 0.3)          # [S]/[F]: se quita el movimiento de apretar la tecla
         d('min_episode_frames', 20)
         d('raw_bag_enabled', False)
         d('raw_bag_dir', 'datasets/raw_bags')
@@ -521,6 +522,12 @@ class VOCollectorNode(Node):
             # Completar los frames cuya pose ya llegó
             self.sampler.step(self.poses, self.images, self.current_gripper, self.hold, image_wait_s=0.0)
             frames = list(self.sampler.frames)
+            # Guardado con tecla: los últimos manual_save_trim_s son el movimiento de apretarla (la mano sostiene la
+            # cámara); se quitan para que el tramo final quieto quede limpio.
+            trim = float(self.p('manual_save_trim_s'))
+            if trigger == "manual" and trim > 0 and len(frames) > 2:
+                t_cut = frames[-1].timestamp - trim
+                frames = [f for f in frames if f.timestamp <= t_cut]
         try:
             auto_detect = bool(self.p('auto_hold')) if auto_detect_hold is None else bool(auto_detect_hold)
             return self._save_frames(frames, force, auto_detect, trigger)
@@ -535,10 +542,19 @@ class VOCollectorNode(Node):
         p_abs = np.array([f.p for f in frames])
         hold = np.array([f.hold for f in frames])
         auto, done_source = False, "odometry"
-        if auto_detect and not hold.any() and self.imu_hold_start is not None:
-            # Guardado decidido por el giróscopo (odometría perdida al final): el HOLD empieza donde se quedó quieta
+        t_imu = self.imu_hold_start
+        if auto_detect and not hold.any() and t_imu is None and any(f.lost for f in frames[-10:]) \
+                and len(self.imu_buf) > 10:
+            # [S] manual con la odometría perdida al final: la quietud también la decide el giróscopo
+            imu = np.array(self.imu_buf)
+            imu = imu[imu[:, 0] <= frames[-1].timestamp]
+            if len(imu) > 10:
+                t_imu = imu_still_since(imu[:, 0], imu[:, 1:4], float(self.p('imu_still_gyro_rad_s')),
+                                        float(self.p('imu_still_smooth_s')))
+        if auto_detect and not hold.any() and t_imu is not None:
+            # Quietud según el giróscopo (odometría perdida al final): el HOLD empieza donde se quedó quieta
             ts = np.array([f.timestamp for f in frames])
-            hold = ts >= self.imu_hold_start
+            hold = ts >= t_imu
             auto, done_source = bool(hold.any()), "imu"
         if auto_detect and not hold.any():
             i = detect_hold_start(p_abs, self.rate, float(self.p('static_speed_m_s')), float(self.p('static_window_s')))

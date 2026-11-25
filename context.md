@@ -719,6 +719,9 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - con `qa_tracking_blocking: false` (`run_v8_session.sh`), las pérdidas quedan en `qa_warnings`, porque las
         poses salen de DROID offline.
       - Prueba simulada: no guarda mientras se mueve perdida y guarda al detenerse.
+    - *Final con tecla (respaldo):* con `auto_hold: true` (`run_v8_session.sh`), una sola [S] detecta el tramo quieto,
+      por odometría o por giróscopo si está perdida, y quita los últimos 0,3 s (`manual_save_trim_s`), que son el
+      movimiento de apretar la tecla. [H] + [S] movían la cámara dos veces en el tramo que debe estar quieto.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
