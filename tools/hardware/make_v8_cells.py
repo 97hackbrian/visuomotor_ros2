@@ -95,8 +95,9 @@ def main(argv=None) -> int:
 
     def reachable(p_xy):
         ok, worst = 0, 0.0
-        # cam_looking_down usa "positivo = antihorario"; tool_yaws_deg, "+90 = derecha" (horario visto desde arriba)
-        combos = [(h, -float(yw)) for h in cfg["check_heights_m"] for yw in cfg["tool_yaws_deg"]]
+        # Orientación de la CÁMARA al final según el protocolo (check_camera_yaws_deg; [0] = la de HOME3, sin girarla con
+        # las hojas). cam_looking_down usa "positivo = antihorario"; la configuración, "+90 = derecha".
+        combos = [(h, -float(yw)) for h in cfg["check_heights_m"] for yw in cfg.get("check_camera_yaws_deg", [0.0])]
         for h, yw in combos:
             T_opt = cam_looking_down([p_xy[0], p_xy[1], zt + h], yw)
             T_tcp = T_opt @ inv_T(T_link_opt) @ inv_T(T_tcp_link)

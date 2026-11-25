@@ -12,7 +12,10 @@
 # Referencia de v7 (punto mirado al final, p5-p95): x de 0,46 a 0,67 m e y de -0,28 a +0,16 m.
 v8_cells:
   x_edges_m: [0.42, 0.49, 0.555, 0.615]   # cerca | medio | lejos (esquina lejana a radio <= 0,65; ArUco en x >= 0,665)
-  y_edges_m: [-0.21, -0.07, 0.07, 0.21]   # derecha | centro | izquierda (radio de la esquina lejana: 0,65 m)
+  # 2026-11-25: ensanchada a pedido del usuario (antes ±0,21: no cubría la mesa). Mantel medido con la homografía de
+  # los ArUco: y de -0,36 a +0,34 m. ±0,27 es lo máximo que el robot alcanza en todas las celdas con la caja del puente
+  # (|y| <= 0,30 para el TCP, que va ~6 cm desplazado de la cámara); a ±0,28 fallan las celdas 3, 6 y 9.
+  y_edges_m: [-0.27, -0.09, 0.09, 0.27]   # derecha | centro | izquierda (3 columnas iguales de 18 cm)
   table_z_m: 0.020                        # plano de la mesa (esquinas de los ArUco, table_markers.yaml)
   marker_clearance_m: 0.03                # no tapar los ArUco: la herramienta debe quedar a >= 3 cm de ellos
   # Vista final con la que se comprueba que el robot llega: cámara sobre el centro de la celda, a esta altura,
@@ -23,3 +26,6 @@ v8_cells:
   # 180 = hacia la base. Antes: [0, 45, -45, 90] con "positivo = antihorario". El programa (make_collection_schedule.py)
   # y la comprobación de alcance usan esta lista.
   tool_yaws_deg: [-90, -45, 0, 45, 90, 180]
+  # Orientación de la CÁMARA al final con la que se comprueba el alcance: [0] = la de HOME3 (protocolo: no girarla
+  # siguiendo las hojas; girada, el robot no llega en las celdas lejanas con -90 o 180).
+  check_camera_yaws_deg: [0]
