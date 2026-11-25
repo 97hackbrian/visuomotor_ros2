@@ -16,6 +16,9 @@
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 S=${V8_TMUX_SESSION:-v8}
+# La cámara va en una sesión APARTE que la terminal compartida no muestra (2026-11-25: al cerrarse la ventana del
+# recolector, la terminal pasó a la de la cámara y unos Ctrl-C la apagaron).
+CAMS=${S}_cam
 DATASET=${V8_DATASET:-demonstrations_real_v8}
 CAM=visuomotor_vo_active
 ROS_ENV="export ROS_LOCALHOST_ONLY=1 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ROS_LOG_DIR=/tmp/.ros_log_user \
@@ -36,7 +39,13 @@ cam_running() { docker ps --format '{{.Names}}' | grep -qx "$CAM"; }
 
 case "${1:-}" in
   camera)
-    new_win camara "./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=false" ;;
+    if tmux has-session -t "$CAMS" 2>/dev/null; then echo "la cámara ya corre (sesión $CAMS)"; exit 1; fi
+    tmux new-session -d -s "$CAMS" -n camara -c "$REPO" -x 200 -y 50
+    tmux send-keys -t "$CAMS:camara" "./tools/hardware/run_vo_container.sh ros2 launch visuomotor_bringup realsense_d435i_vio.launch.py gui:=false" Enter
+    LOGDIR="$REPO/experiments/collection_sessions/$(date +%F)"; mkdir -p "$LOGDIR"
+    CAMLOG="$LOGDIR/camera_$(date +%H%M%S).log"
+    tmux pipe-pane -o -t "$CAMS:camara" "cat >> '$CAMLOG'"
+    echo "registro de la cámara: $CAMLOG" ;;
   check)
     cam_running || { echo "la cámara no está corriendo (v8_tmux.sh camera)"; exit 1; }
     new_win chequeo "docker exec -it -u 1000 -w /ros $CAM bash -c '$ROS_ENV && python3 tools/hardware/check_board_view.py'"
@@ -70,13 +79,18 @@ case "${1:-}" in
     fi
     echo "terminal abierta (Ctrl-b n / Ctrl-b p cambia de ventana; Ctrl-b d se desengancha sin detener nada)" ;;
   log)
-    tmux capture-pane -p -J -t "$S:${2:-recolector}" -S "-${3:-40}" ;;
+    w=${2:-recolector}
+    if [ "$w" = camara ]; then t="$CAMS:camara"; else t="$S:$w"; fi
+    tmux capture-pane -p -J -t "$t" -S "-${3:-40}" ;;
   stop)
-    if [ -n "${2:-}" ]; then
-      tmux send-keys -t "$S:$2" C-c; sleep 1; tmux kill-window -t "$S:$2"
+    if [ "${2:-}" = camara ]; then
+      tmux has-session -t "$CAMS" 2>/dev/null && { tmux send-keys -t "$CAMS:camara" C-c; sleep 5; tmux kill-session -t "$CAMS"; }
+    elif [ -n "${2:-}" ]; then
+      has_win "$2" && { tmux send-keys -t "$S:$2" C-c; sleep 1; tmux kill-window -t "$S:$2"; }
     else
       for w in grilla guia recolector voz guia_chequeo chequeo; do has_win "$w" && { tmux send-keys -t "$S:$w" C-c; sleep 2; tmux kill-window -t "$S:$w"; }; done
-      has_win camara && { tmux send-keys -t "$S:camara" C-c; sleep 5; tmux kill-session -t "$S"; }
+      tmux kill-session -t "$S" 2>/dev/null
+      tmux has-session -t "$CAMS" 2>/dev/null && { tmux send-keys -t "$CAMS:camara" C-c; sleep 5; tmux kill-session -t "$CAMS"; }
     fi ;;
   *)
     sed -n '2,13p' "$0"; exit 1 ;;
