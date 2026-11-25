@@ -4,7 +4,10 @@ Los intentos en el xArm5 (2026-11-23) fallaron donde v7 no tenía demos: tijeras
 tijeras junto a la base (8 y 11). El programa reparte las demos de v8 por igual entre celdas y orientaciones, en orden
 aleatorio, y el recolector guarda en cada episodio cuál le tocó.
 
-Celdas: teclado numérico tal como se ve en la imagen de HOME3.
+Celdas: teclado numérico tal como se ve en la imagen de HOME3, definidas EN METROS en link_base
+(visuomotor_bringup/config/realsense/v8_cells.yaml; generador y alcanzabilidad: tools/hardware/make_v8_cells.py). No son
+tercios de la imagen: el tercio superior queda fuera del alcance del robot. La guía del recolector dibuja la celda
+pedida y la orientación de las hojas.
     7 8 9   lejos de la base (arriba de la imagen)
     4 5 6   medio
     1 2 3   cerca de la base (abajo de la imagen)

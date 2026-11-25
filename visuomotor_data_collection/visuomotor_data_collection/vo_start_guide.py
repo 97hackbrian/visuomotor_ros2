@@ -180,12 +180,34 @@ def summary_line(res: Dict) -> str:
 # ---------------------------------------------------------------------------------------------------------------------
 # Imagen de guía (para rqt_image_view)
 # ---------------------------------------------------------------------------------------------------------------------
-def draw_guide(img_rgb: np.ndarray, live: Corners, ref: ViewReference, res: Dict) -> np.ndarray:
-    """Imagen BGR con la referencia (verde), lo observado (naranja), flechas y el estado."""
+def draw_target_cell(out: np.ndarray, polygon_px, k, label: str, yaw_deg: Optional[float] = None) -> None:
+    """Dibuja la celda del programa (polígono en píxeles de la vista de HOME3) y, si se da, una flecha con la
+    orientación de las HOJAS de la herramienta: 0° = hacia arriba de la imagen, positivo = antihorario."""
+    import cv2
+    poly = (np.asarray(polygon_px, float) * k).astype(np.int32)
+    col = (0, 220, 255)
+    cv2.polylines(out, [poly], True, col, 3, cv2.LINE_AA)
+    c = poly.mean(axis=0)
+    if yaw_deg is not None:
+        t = math.radians(float(yaw_deg))
+        d = np.array([-math.sin(t), -math.cos(t)]) * 0.35 * float(np.ptp(poly[:, 0]))
+        cv2.arrowedLine(out, tuple(int(v) for v in c - d), tuple(int(v) for v in c + d), col, 3, cv2.LINE_AA,
+                        tipLength=0.3)
+    org = (int(poly[:, 0].min()), int(poly[:, 1].min()) - 6)
+    cv2.putText(out, label, org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3, cv2.LINE_AA)
+    cv2.putText(out, label, org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, col, 1, cv2.LINE_AA)
+
+
+def draw_guide(img_rgb: np.ndarray, live: Corners, ref: ViewReference, res: Dict,
+               target: Optional[Dict] = None) -> np.ndarray:
+    """Imagen BGR con la referencia (verde), lo observado (naranja), flechas y el estado. ``target`` (opcional):
+    ``{"polygon_px", "label", "yaw_deg"}`` de la celda pedida por el programa, en píxeles de la vista de HOME3."""
     import cv2
     h, w = img_rgb.shape[:2]
     out = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     k = np.array([w / float(ref.image_size[0]), h / float(ref.image_size[1])])
+    if target is not None:
+        draw_target_cell(out, target["polygon_px"], k, target.get("label", ""), target.get("yaw_deg"))
     ok = bool(res.get("aligned"))
     ref_col, live_col = (60, 200, 60), (0, 140, 255)
     for i, c in ref.markers.items():

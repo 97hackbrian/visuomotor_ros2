@@ -1,0 +1,21 @@
+# Celdas de la mesa para el programa de recolección v8 (vo_schedule.py), EN METROS en link_base.
+#
+# Antes las celdas eran tercios de la imagen de HOME3. Pero el tercio superior de la imagen queda a x > 0,7 m, más
+# allá de la caja del puente (radio <= 0,65 m), y esas demos se habrían descartado al convertirlas. Ahora la grilla
+# cubre solo la zona ejecutable (comprobada con tools/hardware/make_v8_cells.py: el robot debe poder llegar a la vista
+# final sobre cada celda y orientación) y deja libres los ArUco de la mesa (12 en (0,69, -0,19); 14 en (0,69, +0,15)).
+#
+# Numeración: teclado numérico tal como se ve en la vista de HOME3 (arriba de la imagen = lejos de la base).
+#   7 8 9   lejos (x alto)        izquierda = +y (izquierda del robot)
+#   4 5 6   medio
+#   1 2 3   cerca de la base (x bajo)
+# Referencia de v7 (punto mirado al final, p5-p95): x de 0,46 a 0,67 m e y de -0,28 a +0,16 m.
+v8_cells:
+  x_edges_m: [0.42, 0.49, 0.555, 0.615]   # cerca | medio | lejos (esquina lejana a radio <= 0,65; ArUco en x >= 0,665)
+  y_edges_m: [-0.21, -0.07, 0.07, 0.21]   # derecha | centro | izquierda (radio de la esquina lejana: 0,65 m)
+  table_z_m: 0.020                        # plano de la mesa (esquinas de los ArUco, table_markers.yaml)
+  marker_clearance_m: 0.03                # no tapar los ArUco: la herramienta debe quedar a >= 3 cm de ellos
+  # Vista final con la que se comprueba que el robot llega: cámara sobre el centro de la celda, a esta altura,
+  # mirando hacia abajo (v7: altura final p5-p95 0,18-0,42 m).
+  check_heights_m: [0.25, 0.30]          # protocolo: terminar a 25-30 cm sobre la herramienta
+  check_yaws_deg: [0, 45, -45, 90]

@@ -156,6 +156,7 @@ class VOCollectorNode(Node):
         d('max_demo_speed_m_s', 0.15)
         d('terminal_bell', True)
         d('schedule_file', '')
+        d('schedule_cells_file', 'visuomotor_bringup/config/realsense/v8_cells_home3.yaml')
         g = lambda name: self.get_parameter(name).value  # noqa: E731
         self.p = g
 
@@ -222,6 +223,14 @@ class VOCollectorNode(Node):
                 if "index" in sch:
                     self.sched_done.add(int(sch["index"]))
             self.get_logger().info(f"Programa {sp.name}: {len(self.schedule)} entradas, {len(self.sched_done)} hechas.")
+        # Celdas en la vista de HOME3 (make_v8_cells.py): la guía dibuja dónde va la herramienta y su orientación
+        self.cells_px = {}
+        cp = Path(str(g('schedule_cells_file')).strip() or "/nonexistent")
+        cp = cp if cp.is_absolute() else self.repo / cp
+        if self.schedule and cp.is_file():
+            import yaml
+            cells = (yaml.safe_load(cp.read_text()) or {}).get("v8_cells_home3", {}).get("cells", {})
+            self.cells_px = {int(k): v["polygon_home3_px"] for k, v in cells.items()}
 
         self.create_subscription(Image, g('camera_topic'), self._img_cb, 10, callback_group=self.cb_data)
         self.create_subscription(Odometry, g('odom_topic'), self._odom_cb, 50, callback_group=self.cb_data)
@@ -616,7 +625,12 @@ class VOCollectorNode(Node):
                 self.steady.reset()
                 self._start(source="auto")
             if want_img:
-                self._publish_guide(draw_guide(img, live, self.guide_ref, res), stamp)
+                target = None
+                e = next_pending(self.schedule, self.sched_done, self.sched_skipped) if self.schedule else None
+                if e is not None and e.cell in self.cells_px:
+                    target = {"polygon_px": self.cells_px[e.cell], "yaw_deg": e.yaw_deg,
+                              "label": f"#{e.index}: celda {e.cell}, hojas a {e.yaw_deg:+.0f} grados"}
+                self._publish_guide(draw_guide(img, live, self.guide_ref, res, target), stamp)
         elif state in (ARMING, RECORDING) and want_img:
             out = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             h, w = out.shape[:2]

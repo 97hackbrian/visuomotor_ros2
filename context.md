@@ -695,6 +695,22 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       mover los ArUco ni el robot respecto de la mesa, o hay que recalibrar.
     - *Pendiente:* validar con inicios deliberadamente fuera de HOME3 (próxima sesión con el robot) e integrarlo en
       `build_dataset_from_bags.py` con DROID.
+50. **Listo para recolectar v8 a mano (2026-11-25):**
+    - *Celdas en metros:* el programa usaba tercios de la imagen de HOME3, pero el tercio superior queda en x > 0,7 m,
+      fuera de la caja del puente (radio <= 0,65 m), y esas demos se habrían descartado al convertir. Ahora la grilla
+      3x3 está en link_base (`v8_cells.yaml`): x de 0,42 a 0,615 m e |y| <= 0,21 m, por debajo de los ArUco.
+      - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
+        orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
+        centro).
+      - Las celdas se dibujan en la vista de HOME3, y la guía del recolector muestra la celda pedida y la flecha de
+        las hojas.
+    - *Profundidad:* imprescindible, porque DROID RGB-D saca de ahí la escala métrica. Ya está en `raw_bag_topics`
+      (`aligned_depth_to_color/compressedDepth`, PNG de 16 bits sin pérdida). El bag crudo debe estar ACTIVADO: el
+      YAML trae `raw_bag_enabled: false` y lo activa `run_v8_session.sh`. Pesa unos 6 MB/s, unos 0,1–0,2 GB por demo
+      (~12–20 GB por cada 100).
+    - *Sesión:* `tools/hardware/run_v8_session.sh` revisa la cámara, los archivos, el disco (>= 30 GB) e `install/`,
+      muestra el protocolo y lanza el recolector (inicio y guardado automáticos, programa de 108 entradas, bag con
+      pre-roll). Al día siguiente continúa el mismo dataset y el mismo programa.
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

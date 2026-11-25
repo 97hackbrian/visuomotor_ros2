@@ -89,6 +89,12 @@ class StartGuideTest(unittest.TestCase):
         out = draw_guide(img, live, self.ref, res)
         self.assertEqual(out.shape, img.shape)
         self.assertIn("ALINEADA", summary_line(res))
+        # Celda del programa (v8): polígono amarillo y flecha de la orientación dentro de la celda
+        poly = [[200, 300], [300, 300], [300, 360], [200, 360]]
+        out2 = draw_guide(img, live, self.ref, res, {"polygon_px": poly, "label": "celda 5", "yaw_deg": 90.0})
+        self.assertEqual(out2.shape, img.shape)
+        yellow = (out2[:, :, 2] > 200) & (out2[:, :, 1] > 180) & (out2[:, :, 0] < 60)
+        self.assertGreater(int(yellow[290:370, 190:310].sum()), 200)
 
     def test_other_resolution(self):
         half = {i: c * 0.5 for i, c in self.ref.markers.items()}

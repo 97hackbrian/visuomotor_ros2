@@ -1,0 +1,205 @@
+# Generado por tools/hardware/make_v8_cells.py: no editar a mano.
+v8_cells_home3:
+  image_size:
+  - 640
+  - 480
+  source_cells: v8_cells.yaml
+  cells:
+    1:
+      name: cerca-izquierda, junto a la base
+      x_m:
+      - 0.42
+      - 0.49
+      y_m:
+      - 0.07
+      - 0.21
+      center_m:
+      - 0.455
+      - 0.14
+      polygon_home3_px:
+      - - 143.0
+        - 377.1
+      - - 148.7
+        - 323.0
+      - - 259.2
+        - 321.9
+      - - 258.1
+        - 375.4
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    2:
+      name: cerca-centro, junto a la base
+      x_m:
+      - 0.42
+      - 0.49
+      y_m:
+      - -0.07
+      - 0.07
+      center_m:
+      - 0.455
+      - 0.0
+      polygon_home3_px:
+      - - 258.1
+        - 375.4
+      - - 259.2
+        - 321.9
+      - - 367.6
+        - 320.8
+      - - 371.0
+        - 373.8
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    3:
+      name: cerca-derecha, junto a la base
+      x_m:
+      - 0.42
+      - 0.49
+      y_m:
+      - -0.21
+      - -0.07
+      center_m:
+      - 0.455
+      - -0.14
+      polygon_home3_px:
+      - - 371.0
+        - 373.8
+      - - 367.6
+        - 320.8
+      - - 474.0
+        - 319.8
+      - - 481.8
+        - 372.2
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    4:
+      name: medio-izquierda
+      x_m:
+      - 0.49
+      - 0.555
+      y_m:
+      - 0.07
+      - 0.21
+      center_m:
+      - 0.522
+      - 0.14
+      polygon_home3_px:
+      - - 148.7
+        - 323.0
+      - - 153.7
+        - 276.6
+      - - 260.1
+        - 275.9
+      - - 259.2
+        - 321.9
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    5:
+      name: centro
+      x_m:
+      - 0.49
+      - 0.555
+      y_m:
+      - -0.07
+      - 0.07
+      center_m:
+      - 0.522
+      - 0.0
+      polygon_home3_px:
+      - - 259.2
+        - 321.9
+      - - 260.1
+        - 275.9
+      - - 364.7
+        - 275.3
+      - - 367.6
+        - 320.8
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    6:
+      name: medio-derecha
+      x_m:
+      - 0.49
+      - 0.555
+      y_m:
+      - -0.21
+      - -0.07
+      center_m:
+      - 0.522
+      - -0.14
+      polygon_home3_px:
+      - - 367.6
+        - 320.8
+      - - 364.7
+        - 275.3
+      - - 467.3
+        - 274.7
+      - - 474.0
+        - 319.8
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0
+    7:
+      name: lejos-izquierda
+      x_m:
+      - 0.555
+      - 0.615
+      y_m:
+      - 0.07
+      - 0.21
+      center_m:
+      - 0.585
+      - 0.14
+      polygon_home3_px:
+      - - 153.7
+        - 276.6
+      - - 158.0
+        - 236.6
+      - - 260.9
+        - 236.3
+      - - 260.1
+        - 275.9
+      reachable_fraction: 0.75
+      max_clamp_m: 0.0126
+    8:
+      name: lejos-centro
+      x_m:
+      - 0.555
+      - 0.615
+      y_m:
+      - -0.07
+      - 0.07
+      center_m:
+      - 0.585
+      - 0.0
+      polygon_home3_px:
+      - - 260.1
+        - 275.9
+      - - 260.9
+        - 236.3
+      - - 362.1
+        - 236.1
+      - - 364.7
+        - 275.3
+      reachable_fraction: 1.0
+      max_clamp_m: 0.0094
+    9:
+      name: lejos-derecha
+      x_m:
+      - 0.555
+      - 0.615
+      y_m:
+      - -0.21
+      - -0.07
+      center_m:
+      - 0.585
+      - -0.14
+      polygon_home3_px:
+      - - 364.7
+        - 275.3
+      - - 362.1
+        - 236.1
+      - - 461.6
+        - 235.8
+      - - 467.3
+        - 274.7
+      reachable_fraction: 0.75
+      max_clamp_m: 0.0511

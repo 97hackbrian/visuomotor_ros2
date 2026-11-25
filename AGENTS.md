@@ -458,6 +458,12 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/calibrate
 # 40. Pose REAL de inicio de cada demo (ArUco + IMU) y conversión anclada con ella (conversor v3; sin --start-poses = supone HOME3)
 docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/estimate_start_poses.py --zarr datasets/demonstrations_real_v8.zarr --out <start_poses.json>"
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8.zarr --dst <nuevo>.zarr --drop-flagged --start-poses <start_poses.json>
+
+# 41. SESIÓN DE RECOLECCIÓN v8 (demos a mano): chequeo previo + recolector con inicio/guardado automáticos, programa de 108 entradas y bag crudo con profundidad desde ARMING (continúa el dataset y el programa cada día)
+./tools/hardware/run_v8_session.sh
+
+# 42. Celdas de la mesa en metros (zona que el robot alcanza) y su dibujo en la vista de HOME3 para la guía del recolector
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
 ```
 
 ---
