@@ -54,7 +54,8 @@ if HAVE_ROS:
             self.pub_img = self.create_publisher(Image, "/camera/camera/color/image_raw", 10)
             self.pub_odom = self.create_publisher(Odometry, "/rtabmap/odom", 50)
             self.pub_info = self.create_publisher(OdomInfo, "/odom_info", 50)
-            self.pub_imu = self.create_publisher(Imu, "/camera/camera/imu", 50)
+            from rclpy.qos import qos_profile_sensor_data
+            self.pub_imu = self.create_publisher(Imu, "/camera/camera/imu", qos_profile_sensor_data)   # como la D435i
             self.create_service(Empty, "/rgbd_odometry/reset_odom", self._reset)
             self.views = None
             if flags["img_mode"].value:                       # vista de HOME3 (1) o corrida 40 px (2), 640x480
@@ -65,6 +66,7 @@ if HAVE_ROS:
 
         def _reset(self, _req, res):
             self.f["x"].value = 0.0
+            self.f["null"].value = 0                          # RTAB-Map se recupera al reiniciar
             self.f["resets"].value += 1
             return res
 
@@ -277,6 +279,75 @@ class CollectorV3GuideTest(unittest.TestCase):
             if rclpy.ok():
                 rclpy.shutdown()
 
+
+    def test_manual_save_always_saves_with_warnings(self):
+        """2026-11-25: con la cámara en la mano, [S] no dejaba guardar si el tramo final no pasaba el control. Ahora [S]
+        es la decisión del operador: guarda con avisos; sin tramo quieto, el done va en los últimos 2 s."""
+        import zarr
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        ctx = mp.get_context("spawn")
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        try:
+            col = _make_collector(tmp, ["-p", "auto_hold:=true", "-p", "terminal_bell:=false",
+                                        "-p", "min_hold_duration_s:=1.0"])
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.poses.latest() is not None, 8.0))
+            self.assertTrue(col._start(override=True))
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 8.0))
+            flags["moving"].value = 1
+            time.sleep(2.0)
+            ok, msg = col._save()                                    # [S] todavía en movimiento: sin tramo quieto
+            self.assertTrue(ok, msg)
+            ex.shutdown()
+            a = dict(zarr.open_group(str(Path(tmp) / "sim_demos.zarr"), mode="r")["episode_0"].attrs)
+            self.assertEqual(a["done_source"], "manual_tail")
+            self.assertTrue(any("sin tramo quieto" in w for w in a["qa_warnings"]), a["qa_warnings"])
+            self.assertEqual(a["qa_problems"], [])
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
+
+    def test_starts_when_odometry_lost_since_launch(self):
+        """Visto en vivo el 2026-11-25: RTAB-Map ya estaba perdido al arrancar el recolector (se movió la cámara al
+        desmontarla) y nunca hubo una pose válida. Antes se negaba a empezar ("falta imagen u odometría"); ahora empieza,
+        el reinicio en ARMING recupera la odometría y graba. También comprueba que llega el IMU best-effort."""
+        import multiprocessing as mp
+        sys.path.insert(0, str(ROOT / "tests"))
+        ctx = mp.get_context("spawn")
+        flags = {k: ctx.Value("b", 0) for k in ("moving", "null", "stop", "img_mode")}
+        flags["x"], flags["resets"] = ctx.Value("d", 0.0), ctx.Value("i", 0)
+        flags["null"].value = 1                                      # perdida desde antes de arrancar
+        proc = ctx.Process(target=_camera_process, args=(flags,), daemon=True)
+        proc.start()
+        rclpy.init()
+        tmp = tempfile.mkdtemp()
+        try:
+            col = _make_collector(tmp, ["-p", "terminal_bell:=false"])
+            ex = MultiThreadedExecutor(num_threads=4)
+            ex.add_node(col)
+            threading.Thread(target=ex.spin, daemon=True).start()
+            self.assertTrue(_wait(lambda: col.last_odom_stamp is not None and len(col.images) > 0, 8.0))
+            self.assertIsNone(col.poses.latest(), "no debería haber ninguna pose válida todavía")
+            self.assertTrue(_wait(lambda: len(col.imu_buf) > 20, 5.0), "no llega el IMU best-effort")
+            self.assertTrue(col._start(override=True))
+            self.assertTrue(_wait(lambda: col.state == RECORDING, 8.0), f"estado {col.state}")
+            self.assertGreaterEqual(flags["resets"].value, 1)
+            ex.shutdown()
+        finally:
+            flags["stop"].value = 1
+            proc.join(timeout=5)
+            if rclpy.ok():
+                rclpy.shutdown()
 
     def test_lost_at_end_saves_by_imu_without_blocking(self):
         """v8 a mano: la odometría en vivo se pierde al bajar cerca de la mesa (pose congelada). No debe guardar

@@ -18,4 +18,8 @@ v8_cells:
   # Vista final con la que se comprueba que el robot llega: cámara sobre el centro de la celda, a esta altura,
   # mirando hacia abajo (v7: altura final p5-p95 0,18-0,42 m).
   check_heights_m: [0.25, 0.30]          # protocolo: terminar a 25-30 cm sobre la herramienta
-  check_yaws_deg: [0, 45, -45, 90]
+  # Orientaciones de la herramienta (hacia dónde apuntan las HOJAS, visto desde atrás del robot; definidas por el
+  # usuario el 2026-11-25): 0 = de frente (lejos de la base, +x), +90 = DERECHA (-y), -90 = IZQUIERDA (+y),
+  # 180 = hacia la base. Antes: [0, 45, -45, 90] con "positivo = antihorario". El programa (make_collection_schedule.py)
+  # y la comprobación de alcance usan esta lista.
+  tool_yaws_deg: [-90, -45, 0, 45, 90, 180]

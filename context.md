@@ -728,6 +728,35 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - RTAB-Map no se recupera solo de una pérdida, así que después de la primera todas las demos habrían empezado perdidas;
       - corregido en el YAML, el código y la prueba, y `run_v8_session.sh` ahora se niega a empezar si el servicio no existe.
       Ajuste de haces en vivo: p50 26,8 / p90 32,5 / p99 36,1 ms por frame (~28 Hz), así que se deja en "1".
+    - *Primera sesión real v8 (2026-11-25, 18 intentos, 9 guardados) y lo que se corrigió con la opinión del usuario:*
+      - **Inicio:** el usuario lo calificó de seguro y preciso. Hubo dos ajustes: la tolerancia de 8 px salía de la
+        repetibilidad del robot y a mano nunca se alcanzaba (quedaba a 10–16 px), así que se subió a 20 px; la quietud
+        pasó a 5 px por el temblor. Además, el recolector no arrancaba con RTAB-Map perdido desde antes (ahora el
+        reinicio en ARMING la recupera), y el IMU no le llegaba por la QoS (la D435i lo publica best-effort).
+      - **Control del final:** demasiado estricto. Rechazó 9 demos buenas porque 1–3 frames de ~50 superaban 2 cm/s,
+        y ni [S] dejaba guardarlas. Además, la revisión recortaba el tramo antes de suavizar, así que en sus bordes la
+        ventana quedaba de un solo lado y la velocidad no coincidía con la de la detección. Ahora:
+        - las velocidades se calculan sobre toda la trayectoria;
+        - no se cuentan los primeros medio-ventana frames, que promedian el movimiento previo;
+        - se toleran picos en hasta el 20 % de los frames (`qa_hold_max_moving_frac`);
+        - [S] guarda siempre, dejando los problemas como avisos (`manual_save_overrides_hold_qa`).
+      - **Dónde poner la herramienta:** el rectángulo con flecha no se entendía. Ahora la guía dibuja la grilla
+        numerada SOBRE LA MESA con la homografía de los ArUco detectados, que es exacta para el plano de la mesa y
+        funciona a mano desde cualquier vista que tenga los dos marcadores.
+        - Comprobación cruzada en la imagen de HOME3: coincide con la proyección por la pose medida de la cámara a
+          menos de 10 px (~1 cm).
+        - Ejemplo: `experiments/collection_schedules/v8_grid_home3.png`.
+      - **Orientaciones:** las 6 definió el usuario: −90, −45, 0, 45, 90 y 180, donde +90 es DERECHA (antes
+        "positivo = antihorario").
+        - Si la cámara se gira siguiendo las hojas, el robot no llega en las celdas 7 y 9 con −90°, ni en las 4, 7, 8
+          y 9 con 180°. Por eso el protocolo pide mantener la orientación de HOME3.
+      - **Programa v2** (`v8_schedule_v2.csv`):
+        - va por rondas, cada una con las 9 celdas, y las orientaciones en cuadrado latino;
+        - si la sesión se corta en cualquier punto, las celdas difieren en a lo más 1, y cada 18 demos cada
+          orientación sale 3 veces;
+        - cada episodio guarda su `schedule_id`: al cambiar de programa, los índices viejos no marcan como hechas
+          las entradas nuevas.
+      - **Voz por los parlantes** (`v8_announcer.sh`) y sesión en tmux (`v8_tmux.sh`).
 
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:

@@ -95,7 +95,8 @@ def main(argv=None) -> int:
 
     def reachable(p_xy):
         ok, worst = 0, 0.0
-        combos = [(h, yw) for h in cfg["check_heights_m"] for yw in cfg["check_yaws_deg"]]
+        # cam_looking_down usa "positivo = antihorario"; tool_yaws_deg, "+90 = derecha" (horario visto desde arriba)
+        combos = [(h, -float(yw)) for h in cfg["check_heights_m"] for yw in cfg["tool_yaws_deg"]]
         for h, yw in combos:
             T_opt = cam_looking_down([p_xy[0], p_xy[1], zt + h], yw)
             T_tcp = T_opt @ inv_T(T_link_opt) @ inv_T(T_tcp_link)
@@ -139,6 +140,42 @@ def main(argv=None) -> int:
                   f"alcanzable {100 * frac:5.1f} % | recorte máx {1000 * cells[cid]['max_clamp_m']:.0f} mm")
     for m in markers.values():
         cv2.polylines(over, [project(m).astype(np.int32)], True, (220, 120, 0), 2, cv2.LINE_AA)
+    # Comprobación cruzada (2026-11-25): la guía en vivo proyecta la grilla con la homografía de los ArUco detectados
+    # (vo_start_guide.table_homography), no con la pose de la cámara. En la imagen de referencia de HOME3 ambos métodos,
+    # independientes, deben coincidir; si no, el orden de las esquinas de table_markers.yaml o la calibración está mal.
+    from visuomotor_data_collection.vo_schedule import cells_from_edges, yaw_words
+    from visuomotor_data_collection.vo_start_guide import (ViewReference, detect_markers, draw_cell_grid,
+                                                           project_table_xy, table_homography)
+    cells_m = cells_from_edges(xe, ye)
+    table_xy = {i: m[:, :2] for i, m in markers.items()}
+    live = detect_markers(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+    H = table_homography(live, table_xy)
+    if H is None:
+        print("ERROR: no se ven los dos ArUco en la imagen de referencia")
+        return 1
+    mk_err = max(float(np.abs(project_table_xy(H, table_xy[i]) - live[i]).max()) for i in table_xy if i in live)
+    grid_err = max(float(np.abs(project_table_xy(H, [(x0, y1), (x1, y1), (x1, y0), (x0, y0)])
+                                - np.array(cells[c]["polygon_home3_px"])).max())
+                   for c, (x0, x1, y0, y1) in cells_m.items())
+    print(f"Comprobación: homografía de los ArUco -> esquinas de los marcadores a {mk_err:.1f} px; esquinas de las "
+          f"celdas a {grid_err:.1f} px de las proyectadas con la pose de la cámara en HOME3")
+    ref_path = REPO / "visuomotor_bringup/config/realsense/home3_view_reference.yaml"
+    if ref_path.is_file():
+        ref = ViewReference.load(ref_path)
+        H_ref = table_homography(ref.markers, table_xy)
+        ref_err = max(float(np.abs(project_table_xy(H_ref, [(x0, y1), (x1, y1), (x1, y0), (x0, y0)])
+                                   - np.array(cells[c]["polygon_home3_px"])).max())
+                      for c, (x0, x1, y0, y1) in cells_m.items())
+        print(f"             con la vista de referencia de la guía (mediana de 13 intentos): {ref_err:.1f} px")
+    grid_png = Path(a.png).with_name(Path(a.png).stem.replace("cells", "grid") + ".png")
+    ex_cell, ex_yaw = 5, 90.0
+    g_img = img.copy()
+    draw_cell_grid(g_img, H, cells_m, ex_cell, ex_yaw,
+                   f"EJEMPLO: celda {ex_cell} ({CELL_NAMES[ex_cell]}) | hojas {yaw_words(ex_yaw).replace('°', ' grados')}")
+    cv2.putText(g_img, "Grilla v8 sobre la imagen de HOME3 (camara en el TCP)", (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.imwrite(str(grid_png), g_img)
+    print(f"-> {grid_png}")
     out_img = cv2.addWeighted(over, 0.85, img, 0.15, 0)
     cv2.putText(out_img, "Celdas v8 (m, link_base) en la vista de HOME3 | verde = el robot llega", (8, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)

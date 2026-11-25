@@ -124,6 +124,29 @@ class DoneTest(unittest.TestCase):
         p, hold = self._traj()
         self.assertTrue(check_done_segment(p, np.zeros(len(hold), bool), 20.0, 2.0, 0.02, 0.5)["problems"])
 
+    def test_hand_spikes_tolerated_and_consistent_with_detection(self):
+        """2026-11-25: 1-3 frames de ~50 sobre 2 cm/s rechazaban demos a mano. Con max_moving_frac 0,2 se toleran
+        picos breves, pero no un tramo que de verdad se mueve; y el tramo que detecta detect_hold_start siempre pasa."""
+        p, hold = self._traj(hold_s=2.6)
+        rng = np.random.default_rng(3)
+        p[60:, :] += rng.normal(0, 0.0006, (len(p) - 60, 3))            # ruido de la odometría en reposo
+        p[90:93, 1] += 0.015                                          # un tirón de la mano de 1,5 cm y 0,15 s
+        hold_det = np.zeros(len(p), bool)
+        i0 = detect_hold_start(p, 20.0, 0.02, 0.5)
+        self.assertIsNotNone(i0)
+        hold_det[i0:] = True
+        strict = check_done_segment(p, hold, 20.0, 2.0, 0.02, 0.5, 0.0)
+        self.assertTrue(any("se mueven" in x for x in strict["problems"]))
+        tol = check_done_segment(p, hold, 20.0, 2.0, 0.02, 0.5, 0.2)
+        self.assertEqual(tol["problems"], [], tol)
+        p2, hold2 = self._traj()                                       # sigue derivando a 3 cm/s: se rechaza igual
+        p2[hold2, 1] = 0.03 * np.arange(hold2.sum()) / 20.0
+        self.assertTrue(check_done_segment(p2, hold2, 20.0, 2.0, 0.02, 0.5, 0.2)["problems"])
+        p3, _ = self._traj()
+        h3 = np.zeros(len(p3), bool)
+        h3[detect_hold_start(p3, 20.0, 0.02, 0.5):] = True
+        self.assertEqual(check_done_segment(p3, h3, 20.0, 2.0, 0.02, 0.5, 0.0)["moving_frames"], 0)
+
 
 class ImuStillnessTest(unittest.TestCase):
     """Quietud final por giróscopo: decide el guardado cuando la odometría visual se perdió al final."""

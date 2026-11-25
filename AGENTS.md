@@ -459,7 +459,7 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/vio_gt/calibrate
 docker exec -u 1000 -w /ros visuomotor_ros2 bash -c "source /opt/ros/jazzy/setup.bash && python3 tools/xarm5/estimate_start_poses.py --zarr datasets/demonstrations_real_v8.zarr --out <start_poses.json>"
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8.zarr --dst <nuevo>.zarr --drop-flagged --start-poses <start_poses.json>
 
-# 41. SESIÓN DE RECOLECCIÓN v8 (demos a mano): chequeo previo + recolector con inicio/guardado automáticos, programa de 108 entradas y bag crudo con profundidad desde ARMING (continúa el dataset y el programa cada día)
+# 41. SESIÓN DE RECOLECCIÓN v8 (demos a mano): chequeo previo + recolector con inicio/guardado automáticos, programa v2 (108: 9 celdas x 6 orientaciones x 2, rondas balanceadas), grilla numerada sobre la mesa y bag crudo con profundidad desde ARMING (continúa el dataset y el programa cada día). En tmux con voz: tools/hardware/v8_tmux.sh camera | collect | guide | show | stop
 ./tools/hardware/run_v8_session.sh
 
 # 42. Celdas de la mesa en metros (zona que el robot alcanza) y su dibujo en la vista de HOME3 para la guía del recolector

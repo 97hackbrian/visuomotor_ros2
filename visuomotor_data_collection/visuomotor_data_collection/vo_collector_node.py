@@ -62,7 +62,9 @@ from visuomotor_data_collection.vo_episode_logic import (
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, check_done_segment, continuous_quat,
     imu_still_since,
     detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
-from visuomotor_data_collection.vo_schedule import load_csv as load_schedule, next_pending
+from visuomotor_data_collection.vo_schedule import (
+    YAW_CONVENTION, cells_from_edges, done_indices, load_csv as load_schedule, next_pending, schedule_id,
+    yaw_words)
 from visuomotor_data_collection.vo_start_guide import (
     SteadyAlignment, ViewReference, detect_markers, draw_guide, summary_line, view_alignment)
 
@@ -134,6 +136,12 @@ class VOCollectorNode(Node):
         d('imu_still_gyro_rad_s', 0.08)
         d('imu_still_smooth_s', 0.15)
         d('manual_save_trim_s', 0.3)          # [S]/[F]: se quita el movimiento de apretar la tecla
+        # Tramo done "quieto" si a lo más esta fracción de sus frames supera static_speed_m_s (picos de la mano y del
+        # ruido de la odometría cerca de la mesa). 0 = ninguno, como antes del 2026-11-25.
+        d('qa_hold_max_moving_frac', 0.2)
+        # [S] es la decisión del operador: los problemas del tramo final (corto o con movimiento) quedan como avisos y
+        # la demo se guarda. Si no hay ningún tramo quieto, el done se pone en los últimos min_hold_duration_s.
+        d('manual_save_overrides_hold_qa', True)
         d('min_episode_frames', 20)
         d('raw_bag_enabled', False)
         d('raw_bag_dir', 'datasets/raw_bags')
@@ -166,6 +174,12 @@ class VOCollectorNode(Node):
         d('terminal_bell', True)
         d('schedule_file', '')
         d('schedule_cells_file', 'visuomotor_bringup/config/realsense/v8_cells_home3.yaml')
+        # Grilla en vivo (2026-11-25): celdas en metros y ArUco de la mesa en link_base; la guía la proyecta sobre la
+        # mesa con la homografía de los marcadores detectados. Vacío = guía anterior (polígono de HOME3).
+        d('schedule_cells_m_file', 'visuomotor_bringup/config/realsense/v8_cells.yaml')
+        d('table_markers_file', 'visuomotor_bringup/config/realsense/table_markers.yaml')
+        # Programa al que pertenecen los episodios grabados antes de guardar schedule_id (2026-11-25)
+        d('schedule_legacy_id', 'v8_schedule')
         g = lambda name: self.get_parameter(name).value  # noqa: E731
         self.p = g
 
@@ -186,6 +200,9 @@ class VOCollectorNode(Node):
         self.current_gripper = 0.0
         self.object_cell = 0
         self.t_reset = None
+        # Sello del último mensaje de odometría, VÁLIDO O NULO. Si RTAB-Map ya estaba perdido al arrancar el
+        # recolector, no hay ninguna pose válida guardada, pero sí llegan mensajes; el reinicio en ARMING la recupera.
+        self.last_odom_stamp = None
         self.t_arm = 0.0
         self.odom_reset_ok = False
         self.imu_acc = []
@@ -225,15 +242,27 @@ class VOCollectorNode(Node):
 
         # Programa de recolección (v3): entradas hechas = las que ya están en los atributos del dataset
         self.schedule, self.sched_done, self.sched_skipped = [], set(), set()
+        self.sched_id = ""
         if str(g('schedule_file')).strip():
             sp = Path(g('schedule_file'))
             sp = sp if sp.is_absolute() else self.repo / sp
             self.schedule = load_schedule(sp)
-            for k in self.storage.root.group_keys():
-                sch = dict(self.storage.root[k].attrs).get("schedule") or {}
-                if "index" in sch:
-                    self.sched_done.add(int(sch["index"]))
+            # Solo cuentan los episodios grabados con ESTE programa (al cambiarlo, los índices viejos no son los nuevos)
+            self.sched_id = schedule_id(sp)
+            self.sched_done = done_indices((dict(self.storage.root[k].attrs) for k in self.storage.root.group_keys()),
+                                           self.sched_id, str(g('schedule_legacy_id')) or None)
             self.get_logger().info(f"Programa {sp.name}: {len(self.schedule)} entradas, {len(self.sched_done)} hechas.")
+        # Grilla en metros + ArUco de la mesa (guía en vivo sobre la mesa)
+        self.cells_m, self.table_xy = {}, {}
+        cm = Path(str(g('schedule_cells_m_file')).strip() or "/nonexistent")
+        tm = Path(str(g('table_markers_file')).strip() or "/nonexistent")
+        cm, tm = (x if x.is_absolute() else self.repo / x for x in (cm, tm))
+        if self.schedule and cm.is_file() and tm.is_file():
+            import yaml
+            cfg = yaml.safe_load(cm.read_text())["v8_cells"]
+            self.cells_m = cells_from_edges(cfg["x_edges_m"], cfg["y_edges_m"])
+            mk = yaml.safe_load(tm.read_text())["table_markers"]["corners_base_m"]
+            self.table_xy = {int(i): np.asarray(c, float)[:, :2] for i, c in mk.items()}
         # Celdas en la vista de HOME3 (make_v8_cells.py): la guía dibuja dónde va la herramienta y su orientación
         self.cells_px = {}
         cp = Path(str(g('schedule_cells_file')).strip() or "/nonexistent")
@@ -245,7 +274,9 @@ class VOCollectorNode(Node):
 
         self.create_subscription(Image, g('camera_topic'), self._img_cb, 10, callback_group=self.cb_data)
         self.create_subscription(Odometry, g('odom_topic'), self._odom_cb, 50, callback_group=self.cb_data)
-        self.create_subscription(Imu, g('imu_topic'), self._imu_cb, 50, callback_group=self.cb_data)
+        # La D435i publica el IMU best-effort: con la QoS por defecto (reliable) no llegaba ningún mensaje
+        from rclpy.qos import qos_profile_sensor_data
+        self.create_subscription(Imu, g('imu_topic'), self._imu_cb, qos_profile_sensor_data, callback_group=self.cb_data)
         self.create_subscription(JointState, g('gripper_topic'), self._gripper_cb, 10, callback_group=self.cb_data)
         try:
             from rtabmap_msgs.msg import OdomInfo
@@ -314,6 +345,7 @@ class VOCollectorNode(Node):
         cov = msg.pose.covariance
         q = [o.x, o.y, o.z, o.w]
         with self.lock:
+            self.last_odom_stamp = t
             if is_null_odometry(q, [cov[0], cov[7], cov[14], cov[21], cov[28], cov[35]]):
                 self.n_null += 1
                 if self.last_p is not None:                     # se conserva la última pose, marcada como perdida
@@ -349,8 +381,12 @@ class VOCollectorNode(Node):
             if self.state != IDLE:
                 self.get_logger().warn(f"Ya hay un episodio en curso ({self.state}).")
                 return False
-            if self.poses.latest() is None or len(self.images) == 0:
+            if self.last_odom_stamp is None or len(self.images) == 0:
                 self.get_logger().warn("No se puede empezar: falta imagen u odometría.")
+                return False
+            if self.poses.latest() is None and (self.reset_client is None or not self.reset_client.service_is_ready()):
+                # Perdida desde el arranque y sin reinicio: nada la recuperaría en ARMING
+                self.get_logger().warn("No se puede empezar: la odometría está perdida y no hay servicio de reinicio.")
                 return False
             res = None
             if self.guide_ref is not None and self.guide_res is not None and time.time() - self.guide_res[0] < 1.0:
@@ -387,7 +423,7 @@ class VOCollectorNode(Node):
             self.get_logger().warn(f"Servicio {self.p('reset_odom_service')} no disponible: se empieza SIN reiniciar la "
                                    "odometría (queda registrado en los atributos).")
         with self.lock:
-            self.t_reset = self.poses.latest_stamp
+            self.t_reset = self.last_odom_stamp
         return True
 
     def _raw_bag_begin(self, phase: str) -> None:
@@ -409,7 +445,8 @@ class VOCollectorNode(Node):
         # Base de tiempo de la cámara (sellos de la odometría), no el reloj del nodo: así no depende de que la
         # RealSense use el tiempo global del host.
         with self.lock:
-            self.t_reset = self.poses.latest_stamp
+            # Todo mensaje (válido o nulo) con sello <= este es anterior al reinicio
+            self.t_reset = self.last_odom_stamp
             self.odom_reset_ok = True
 
     def _tick(self):
@@ -467,7 +504,7 @@ class VOCollectorNode(Node):
             if not ok:
                 with self.lock:
                     self.auto_save_blocked = True
-                self.get_logger().error(f"[AUTO] No se guardó ({msg}). [D] descartar o [F] forzar.")
+                self.get_logger().error(f"[AUTO] No se guardó ({msg}). [S] guardar igual o [D] descartar.")
 
     def _status(self):
         with self.lock:
@@ -561,11 +598,26 @@ class VOCollectorNode(Node):
             if i is not None:
                 hold[i:] = True
                 auto = True
+        # [S] es la decisión del operador (2026-11-25: con la cámara en la mano, el control del tramo final rechazaba
+        # demos buenas por 1-3 frames y ni [S] dejaba guardarlas). Sus problemas quedan como avisos; el done del
+        # dataset final se recalcula offline con las poses de DROID.
+        manual_ok = trigger == "manual" and bool(self.p('manual_save_overrides_hold_qa'))
+        hold_warn = []
+        if manual_ok and not hold.any() and len(frames) > 1:
+            n_tail = max(1, int(round(float(self.p('min_hold_duration_s')) * self.rate)))
+            hold[-n_tail:] = True
+            done_source = "manual_tail"
+            hold_warn.append(f"sin tramo quieto: done en los últimos {n_tail / self.rate:.1f} s (guardado con [S])")
         chk = check_done_segment(p_abs, hold, self.rate, float(self.p('min_hold_duration_s')),
-                                 float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
+                                 float(self.p('static_speed_m_s')), float(self.p('static_window_s')),
+                                 float(self.p('qa_hold_max_moving_frac')))
         qual = episode_quality(frames, self.rate)
-        problems = list(chk["problems"])
-        tracking, warnings = [], []
+        problems = [] if manual_ok else list(chk["problems"])
+        if manual_ok:
+            hold_warn += list(chk["problems"])
+        tracking, warnings = [], list(hold_warn)
+        for wmsg in hold_warn:
+            self.get_logger().warn(f"[QA] aviso (guardado con [S]): {wmsg}")
         if qual["lost_frames"]:
             tracking.append(f"{qual['lost_frames']} frames con rastreo perdido o sin imagen")
         if qual["duplicate_images"]:
@@ -583,7 +635,7 @@ class VOCollectorNode(Node):
         if problems and self.p('strict_qa') and not force:
             for pr in problems:
                 self.get_logger().error(f"[QA] {pr}")
-            self.get_logger().error("[QA] Episodio NO guardado: [D] descartar y repetir, o [F] forzar el guardado "
+            self.get_logger().error("[QA] Episodio NO guardado: [S] guardar igual, [D] descartar y repetir, o [F] forzar "
                                     "(queda marcado en los atributos).")
             self._bell()
             return False, "QA: " + "; ".join(problems)
@@ -629,7 +681,8 @@ class VOCollectorNode(Node):
             "raw_bag_starts_at": getattr(self, "raw_bag_started_in", None),
             "git_commit": _git_commit(self.repo), "config_sha256": self._config_hashes(),
             # v3
-            "start_view": self.start_view, "schedule": None if entry is None else entry.as_attrs(),
+            "start_view": self.start_view, "schedule": None if entry is None else dict(
+                entry.as_attrs(), schedule_id=self.sched_id, yaw_convention=YAW_CONVENTION),
             "max_speed_m_s": float(v[:i_hold].max()) if i_hold > 0 else 0.0,
             "mean_speed_m_s": float(v[:i_hold].mean()) if i_hold > 0 else 0.0,
             "travel_m": max_travel(p_abs), "max_demo_speed_m_s": float(self.p('max_demo_speed_m_s')),
@@ -686,9 +739,14 @@ class VOCollectorNode(Node):
             if want_img:
                 target = None
                 e = next_pending(self.schedule, self.sched_done, self.sched_skipped) if self.schedule else None
-                if e is not None and e.cell in self.cells_px:
+                if e is not None and e.cell in self.cells_m and self.table_xy:
+                    # Grilla numerada sobre la mesa (homografía de los ArUco en vivo); texto sin tildes ni grados
+                    # (las fuentes de OpenCV son ASCII)
+                    target = {"cells_m": self.cells_m, "table_xy": self.table_xy, "cell": e.cell, "yaw_deg": e.yaw_deg,
+                              "label": f"COLOCAR #{e.index}: celda {e.cell} | hojas {yaw_words(e.yaw_deg)}"}
+                elif e is not None and e.cell in self.cells_px:
                     target = {"polygon_px": self.cells_px[e.cell], "yaw_deg": e.yaw_deg,
-                              "label": f"#{e.index}: celda {e.cell}, hojas a {e.yaw_deg:+.0f} grados"}
+                              "label": f"#{e.index}: celda {e.cell}, hojas {yaw_words(e.yaw_deg).replace('°', ' grados')}"}
                 self._publish_guide(draw_guide(img, live, self.guide_ref, res, target), stamp)
         elif state in (ARMING, RECORDING) and want_img:
             out = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)

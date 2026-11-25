@@ -42,7 +42,14 @@ case "${1:-}" in
     new_win guia_chequeo "docker exec -it -u 1000 -w /ros $CAM bash -c '$ROS_ENV && ros2 run rqt_image_view rqt_image_view /board_check/image'" ;;
   collect)
     cam_running || { echo "la cámara no está corriendo (v8_tmux.sh camera)"; exit 1; }
-    new_win recolector "./tools/hardware/run_v8_session.sh $DATASET" ;;
+    # Registro de la sesión (trazabilidad) + avisos por los parlantes (v8_announcer.sh) en la ventana "voz"
+    LOGDIR="$REPO/experiments/collection_sessions/$(date +%F)"; mkdir -p "$LOGDIR"
+    LOG="$LOGDIR/collector_${DATASET}_$(date +%H%M%S).log"
+    has_win voz || new_win voz "./tools/hardware/v8_announcer.sh '$LOG'"
+    new_win recolector "./tools/hardware/run_v8_session.sh $DATASET" || exit 1
+    tmux pipe-pane -o -t "$S:recolector" "cat >> '$LOG'"
+    tmux select-window -t "$S:recolector"
+    echo "registro: $LOG" ;;
   guide)
     cam_running || { echo "la cámara no está corriendo (v8_tmux.sh camera)"; exit 1; }
     new_win guia "docker exec -it -u 1000 -w /ros $CAM bash -c '$ROS_ENV && ros2 run rqt_image_view rqt_image_view /vo_collector_node/start_guide'" ;;
@@ -60,7 +67,7 @@ case "${1:-}" in
     if [ -n "${2:-}" ]; then
       tmux send-keys -t "$S:$2" C-c; sleep 1; tmux kill-window -t "$S:$2"
     else
-      for w in guia recolector guia_chequeo chequeo; do has_win "$w" && { tmux send-keys -t "$S:$w" C-c; sleep 2; tmux kill-window -t "$S:$w"; }; done
+      for w in guia recolector voz guia_chequeo chequeo; do has_win "$w" && { tmux send-keys -t "$S:$w" C-c; sleep 2; tmux kill-window -t "$S:$w"; }; done
       has_win camara && { tmux send-keys -t "$S:camara" C-c; sleep 5; tmux kill-session -t "$S"; }
     fi ;;
   *)

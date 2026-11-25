@@ -46,6 +46,12 @@ vo_collector_node:
     imu_still_smooth_s: 0.15
     # [S]/[F] a mano: se quitan los últimos 0,3 s (el movimiento de apretar la tecla con la cámara en la mano).
     manual_save_trim_s: 0.3
+    # Tramo done "quieto": a lo más esta fracción de sus frames sobre static_speed_m_s (picos de la mano y del ruido de
+    # la odometría cerca de la mesa; antes 0: 1-3 frames de ~50 rechazaban demos buenas, 2026-11-25).
+    qa_hold_max_moving_frac: 0.2
+    # [S] = decisión del operador: los problemas del tramo final quedan como avisos y la demo se guarda (sin tramo
+    # quieto, done en los últimos min_hold_duration_s). El done del dataset final se recalcula offline con DROID.
+    manual_save_overrides_hold_qa: true
     min_episode_frames: 20
     # Grabación cruda por episodio (rosbag2 MCAP) para reprocesar la odometría offline. Requiere que existan los
     # tópicos comprimidos (image_transport) o cambiar la lista por los crudos (~46 MB/s).
@@ -94,6 +100,10 @@ vo_collector_node:
     terminal_bell: true                    # pitido de la terminal al empezar, guardar o rechazar
     # Programa de recolección (CSV de tools/hardware/make_collection_schedule.py; "" = sin programa).
     schedule_file: ""
+    # Guía v8 (2026-11-25): grilla numerada SOBRE LA MESA, proyectada con la homografía de los ArUco detectados.
+    schedule_cells_m_file: "visuomotor_bringup/config/realsense/v8_cells.yaml"
+    table_markers_file: "visuomotor_bringup/config/realsense/table_markers.yaml"
+    schedule_legacy_id: "v8_schedule"          # programa de los episodios sin schedule_id (anteriores al 2026-11-25)
 
     # Trazabilidad: raíz del repo (para el commit) y YAML cuyo sha256 se guarda en cada episodio.
     repo_root: "."

@@ -180,9 +180,92 @@ def summary_line(res: Dict) -> str:
 # ---------------------------------------------------------------------------------------------------------------------
 # Imagen de guía (para rqt_image_view)
 # ---------------------------------------------------------------------------------------------------------------------
+def table_homography(live: Corners, table_xy: Dict[int, np.ndarray], min_markers: int = 2) -> Optional[np.ndarray]:
+    """Homografía del plano de la mesa (x, y en link_base, metros) a la imagen, con las esquinas de los ArUco
+    detectados (``table_xy``: esquinas de ``table_markers.yaml`` en el orden de OpenCV). Los marcadores y las celdas
+    están en el mismo plano, así que es exacta para cualquier pose de la cámara (también a mano y lejos de HOME3).
+    ``None`` con menos de ``min_markers`` marcadores comunes (con uno solo, 5 cm extrapolados a 50 cm son poco fiables).
+    """
+    import cv2
+    ids = sorted(i for i in live if i in table_xy)
+    if len(ids) < max(1, int(min_markers)):
+        return None
+    src = np.concatenate([np.asarray(table_xy[i], float)[:, :2] for i in ids])
+    dst = np.concatenate([np.asarray(live[i], float).reshape(-1, 2) for i in ids])
+    H, _ = cv2.findHomography(src, dst, 0)
+    return H
+
+
+def project_table_xy(H: np.ndarray, pts_xy) -> np.ndarray:
+    """Puntos (x, y) de la mesa en metros -> píxeles con la homografía ``H``."""
+    p = np.c_[np.asarray(pts_xy, float).reshape(-1, 2), np.ones(len(np.asarray(pts_xy).reshape(-1, 2)))] @ np.asarray(H).T
+    return p[:, :2] / p[:, 2:3]
+
+
+def _ascii(txt: str) -> str:
+    """Las fuentes Hershey de OpenCV son ASCII: "cámara" salía "c??mara"."""
+    import unicodedata
+    return unicodedata.normalize("NFKD", str(txt)).replace("°", " grados").encode("ascii", "ignore").decode()
+
+
+def _text(out, txt, org, scale, col, thick=1, max_w: Optional[int] = None):
+    """Texto con contorno negro; ``max_w``: achica la letra para que quepa en ese ancho."""
+    import cv2
+    txt = _ascii(txt)
+    if max_w:
+        tw = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)[0][0]
+        if tw > max_w:
+            scale *= max_w / float(tw)
+    cv2.putText(out, txt, org, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thick + 3, cv2.LINE_AA)
+    cv2.putText(out, txt, org, cv2.FONT_HERSHEY_SIMPLEX, scale, col, thick, cv2.LINE_AA)
+
+
+def draw_cell_grid(out: np.ndarray, H: np.ndarray, cells_m: Dict[int, Sequence[float]], target_cell: Optional[int] = None,
+                   yaw_deg: Optional[float] = None, label: str = "", approx: bool = False) -> None:
+    """Grilla numerada de las celdas SOBRE LA MESA (``cells_m``: ``{celda: (x_lo, x_hi, y_lo, y_hi)}`` en metros) y
+    la celda pedida rellena en amarillo, con una flecha de hacia dónde apuntan las HOJAS (``vo_schedule.YAW_CONVENTION``:
+    0 = lejos de la base, +90 = derecha, -90 = izquierda, 180 = hacia la base). ``approx``: la homografía no salió de
+    los marcadores en vivo sino de la vista de referencia (línea punteada en el texto)."""
+    import cv2
+    from visuomotor_data_collection.vo_schedule import blade_direction_xy
+    yel = (0, 230, 255)
+    if target_cell in cells_m:                                # relleno translúcido primero, para no tapar la grilla
+        x0, x1, y0, y1 = cells_m[target_cell]
+        poly = project_table_xy(H, [(x0, y1), (x1, y1), (x1, y0), (x0, y0)]).astype(np.int32)
+        layer = out.copy()
+        cv2.fillPoly(layer, [poly], yel)
+        cv2.addWeighted(layer, 0.35, out, 0.65, 0, dst=out)
+    for cid, (x0, x1, y0, y1) in sorted(cells_m.items()):
+        poly = project_table_xy(H, [(x0, y1), (x1, y1), (x1, y0), (x0, y0)]).astype(np.int32)
+        is_t = cid == target_cell
+        cv2.polylines(out, [poly], True, (0, 0, 0), 4 if is_t else 3, cv2.LINE_AA)
+        cv2.polylines(out, [poly], True, yel if is_t else (255, 255, 255), 3 if is_t else 1, cv2.LINE_AA)
+        c = project_table_xy(H, [((x0 + x1) / 2, (y0 + y1) / 2)])[0]
+        if not is_t:
+            _text(out, str(cid), (int(c[0]) - 7, int(c[1]) + 7), 0.65, (255, 255, 255), 1)
+    if target_cell in cells_m:
+        x0, x1, y0, y1 = cells_m[target_cell]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        _text(out, str(target_cell), tuple(int(v) for v in project_table_xy(H, [(x1 - 0.012, y1 - 0.012)])[0]),
+              0.8, yel, 2)
+        if yaw_deg is not None:
+            dx, dy = blade_direction_xy(yaw_deg)
+            L = 0.42 * min(x1 - x0, y1 - y0)
+            tail, tip = project_table_xy(H, [(cx - 0.6 * L * dx, cy - 0.6 * L * dy), (cx + L * dx, cy + L * dy)])
+            a, b = tuple(int(v) for v in tail), tuple(int(v) for v in tip)
+            cv2.arrowedLine(out, a, b, (0, 0, 0), 7, cv2.LINE_AA, tipLength=0.35)
+            cv2.arrowedLine(out, a, b, yel, 4, cv2.LINE_AA, tipLength=0.35)
+            cv2.circle(out, a, 6, (0, 0, 0), -1, cv2.LINE_AA)       # mango
+            _text(out, "HOJAS", (b[0] + 6, b[1] - 6), 0.5, yel, 1)
+    if label:
+        h, w = out.shape[:2]
+        cv2.rectangle(out, (0, 28), (w, 52), (40, 40, 40), -1)
+        _text(out, label + ("  (aprox.)" if approx else ""), (8, 46), 0.55, yel, 1, max_w=w - 16)
+
+
 def draw_target_cell(out: np.ndarray, polygon_px, k, label: str, yaw_deg: Optional[float] = None) -> None:
-    """Dibuja la celda del programa (polígono en píxeles de la vista de HOME3) y, si se da, una flecha con la
-    orientación de las HOJAS de la herramienta: 0° = hacia arriba de la imagen, positivo = antihorario."""
+    """(Guía anterior) celda del programa como polígono en píxeles de la vista de HOME3 y flecha de las HOJAS
+    (convención ``vo_schedule.YAW_CONVENTION``: 0 = arriba de la imagen, +90 = derecha)."""
     import cv2
     poly = (np.asarray(polygon_px, float) * k).astype(np.int32)
     col = (0, 220, 255)
@@ -190,7 +273,7 @@ def draw_target_cell(out: np.ndarray, polygon_px, k, label: str, yaw_deg: Option
     c = poly.mean(axis=0)
     if yaw_deg is not None:
         t = math.radians(float(yaw_deg))
-        d = np.array([-math.sin(t), -math.cos(t)]) * 0.35 * float(np.ptp(poly[:, 0]))
+        d = np.array([math.sin(t), -math.cos(t)]) * 0.35 * float(np.ptp(poly[:, 0]))
         cv2.arrowedLine(out, tuple(int(v) for v in c - d), tuple(int(v) for v in c + d), col, 3, cv2.LINE_AA,
                         tipLength=0.3)
     org = (int(poly[:, 0].min()), int(poly[:, 1].min()) - 6)
@@ -200,13 +283,25 @@ def draw_target_cell(out: np.ndarray, polygon_px, k, label: str, yaw_deg: Option
 
 def draw_guide(img_rgb: np.ndarray, live: Corners, ref: ViewReference, res: Dict,
                target: Optional[Dict] = None) -> np.ndarray:
-    """Imagen BGR con la referencia (verde), lo observado (naranja), flechas y el estado. ``target`` (opcional):
-    ``{"polygon_px", "label", "yaw_deg"}`` de la celda pedida por el programa, en píxeles de la vista de HOME3."""
+    """Imagen BGR con la referencia (verde), lo observado (naranja), flechas y el estado. ``target`` (opcional), la
+    celda pedida por el programa:
+    * ``{"cells_m", "table_xy", "cell", "yaw_deg", "label"}``: grilla numerada sobre la mesa, proyectada con los ArUco
+      en vivo (o, si no se ven los dos, con los de la vista de referencia: aproximada);
+    * ``{"polygon_px", "label", "yaw_deg"}`` (anterior): polígono en píxeles de la vista de HOME3."""
     import cv2
     h, w = img_rgb.shape[:2]
     out = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     k = np.array([w / float(ref.image_size[0]), h / float(ref.image_size[1])])
-    if target is not None:
+    if target is not None and "cells_m" in target:
+        H = table_homography(live, target["table_xy"])
+        if H is not None:
+            draw_cell_grid(out, H, target["cells_m"], target.get("cell"), target.get("yaw_deg"), target.get("label", ""))
+        else:                                                 # sin los 2 ArUco la grilla quedaría flotando: no se dibuja
+            cv2.rectangle(out, (0, 28), (w, 72), (40, 40, 40), -1)
+            _text(out, target.get("label", ""), (8, 46), 0.55, (0, 230, 255), 1, max_w=w - 16)
+            _text(out, "Apuntar a la mesa: la grilla se dibuja cuando se ven los 2 ArUco", (8, 66), 0.5,
+                  (255, 255, 255), 1, max_w=w - 16)
+    elif target is not None:
         draw_target_cell(out, target["polygon_px"], k, target.get("label", ""), target.get("yaw_deg"))
     ok = bool(res.get("aligned"))
     ref_col, live_col = (60, 200, 60), (0, 140, 255)
@@ -229,9 +324,7 @@ def draw_guide(img_rgb: np.ndarray, live: Corners, ref: ViewReference, res: Dict
                                                f"giro {res['roll_deg']:+.1f}")
     cv2.putText(out, txt, (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
     for n, hint in enumerate((res.get("hints") or [])[:4]):
-        cv2.putText(out, hint[:80], (8, h - 12 - 18 * n), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3, cv2.LINE_AA)
-        cv2.putText(out, hint[:80], (8, h - 12 - 18 * n), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1,
-                    cv2.LINE_AA)
+        _text(out, hint, (8, h - 12 - 18 * n), 0.45, (255, 255, 255), 1, max_w=w - 16)
     return out
 
 

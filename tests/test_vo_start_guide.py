@@ -132,6 +132,42 @@ class StartGuideTest(unittest.TestCase):
         self.assertIsNone(res["error_px"])
         self.assertTrue(res["hints"])
 
+    def test_table_grid_homography(self):
+        """Guía v8 (2026-11-25): grilla numerada SOBRE LA MESA con la homografía de los ArUco (esquinas en link_base de
+        table_markers.yaml). En la vista de HOME3: reproduce los marcadores, +x (lejos de la base) va hacia arriba de la
+        imagen, -y (derecha, +90°) hacia la derecha, y la celda pedida queda en amarillo con su flecha."""
+        import yaml
+        from visuomotor_data_collection.vo_schedule import blade_direction_xy, cells_from_edges
+        from visuomotor_data_collection.vo_start_guide import project_table_xy, table_homography
+        cfg_dir = ROOT / "visuomotor_bringup" / "config" / "realsense"
+        mk = yaml.safe_load((cfg_dir / "table_markers.yaml").read_text())["table_markers"]["corners_base_m"]
+        table_xy = {int(i): np.asarray(c, float)[:, :2] for i, c in mk.items()}
+        cfg = yaml.safe_load((cfg_dir / "v8_cells.yaml").read_text())["v8_cells"]
+        cells_m = cells_from_edges(cfg["x_edges_m"], cfg["y_edges_m"])
+        H = table_homography(self.ref.markers, table_xy)
+        self.assertIsNotNone(H)
+        for i in table_xy:                                    # mismo orden de esquinas que OpenCV
+            self.assertLess(np.abs(project_table_xy(H, table_xy[i]) - self.ref.markers[i]).max(), 3.0)
+        self.assertIsNone(table_homography({12: self.ref.markers[12]}, table_xy))      # un solo marcador: no
+        x0, x1, y0, y1 = cells_m[5]
+        c = np.array([(x0 + x1) / 2, (y0 + y1) / 2])
+        uv = project_table_xy(H, [c, c + 0.05 * np.array(blade_direction_xy(0)), c + 0.05 * np.array(blade_direction_xy(90))])
+        self.assertLess(uv[1, 1], uv[0, 1] - 5)               # 0° (lejos de la base) = hacia arriba en la imagen
+        self.assertGreater(uv[2, 0], uv[0, 0] + 5)            # +90° = hacia la DERECHA en la imagen
+        for cid in (1, 3, 7, 9):                              # todas las celdas dentro de la imagen
+            q = project_table_xy(H, [(cells_m[cid][0], cells_m[cid][2]), (cells_m[cid][1], cells_m[cid][3])])
+            self.assertTrue(((q >= 0) & (q < [640, 480])).all(), (cid, q))
+        img = _render(self.ref.markers)
+        live = detect_markers(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), self.ref.dictionary)
+        res = view_alignment(live, (640, 480), self.ref, tol_px=8.0)
+        target = {"cells_m": cells_m, "table_xy": table_xy, "cell": 5, "yaw_deg": 90.0, "label": "COLOCAR: celda 5"}
+        u, v = project_table_xy(H, [c])[0].astype(int)
+        for lv, expect in ((live, True), ({}, False)):      # sin ArUco en vivo no se dibuja (quedaría flotando)
+            out = draw_guide(img, lv, self.ref, res, target)
+            yellow = (out[:, :, 2] > 200) & (out[:, :, 1] > 180) & (out[:, :, 0] < 90)
+            self.assertEqual(int(yellow[v - 25:v + 25, u - 40:u + 40].sum()) > 150, expect)
+            self.assertGreater(int(yellow[28:52].sum()), 50)                     # la etiqueta siempre
+
     def test_build_reference(self):
         rng = np.random.default_rng(1)
         imgs = []

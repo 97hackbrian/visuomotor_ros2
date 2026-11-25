@@ -320,9 +320,14 @@ def auto_save_ready(p: np.ndarray, rate_hz: float, min_travel_m: float, min_hold
 
 
 def check_done_segment(p: np.ndarray, hold: Sequence[bool], rate_hz: float, min_hold_s: float, static_speed: float,
-                       window_s: float) -> Dict:
+                       window_s: float, max_moving_frac: float = 0.0) -> Dict:
     """Verifica el tramo done: existe, está al final, dura ≥ ``min_hold_s`` y está quieto. Devuelve las etiquetas
-    done (1 desde el primer frame en HOLD) y la lista de problemas (vacía = correcto)."""
+    done (1 desde el primer frame en HOLD) y la lista de problemas (vacía = correcto).
+
+    Quieto: a lo más ``max_moving_frac`` de los frames del tramo superan ``static_speed``. Las velocidades se calculan
+    sobre TODA la trayectoria, igual que en ``detect_hold_start``: recortando primero el tramo, la ventana quedaba
+    de un solo lado en sus bordes, y frames que la detección daba por quietos salían "en movimiento" (2026-11-25: 1-3
+    frames de unos 50 rechazaban demos a mano)."""
     hold = np.asarray(hold, dtype=bool)
     n = len(hold)
     done = np.zeros(n, dtype=np.float32)
@@ -337,9 +342,13 @@ def check_done_segment(p: np.ndarray, hold: Sequence[bool], rate_hz: float, min_
     hold_frames = n - i0
     if hold_frames < int(round(min_hold_s * rate_hz)):
         problems.append(f"HOLD de {hold_frames / rate_hz:.2f} s < {min_hold_s:.2f} s: mantener la cámara quieta más tiempo")
-    v = smoothed_speeds(np.asarray(p)[i0:], rate_hz, window_s)        # solo dentro del tramo HOLD
-    moving = int((v > static_speed).sum())
-    if moving:
+    v = smoothed_speeds(np.asarray(p), rate_hz, window_s)[i0:]       # misma ventana que la detección
+    # Los primeros medio-ventana frames del tramo promedian también el movimiento de ANTES de detenerse (HOLD marcado
+    # con [H] o por el giróscopo justo al parar): no cuentan.
+    k = max(1, int(round(window_s * rate_hz / 2.0)))
+    core = v[k:] if len(v) > 2 * k else v
+    moving = int((core > static_speed).sum())
+    if moving > max_moving_frac * len(core):
         problems.append(f"{moving} frames del HOLD se mueven a más de {static_speed * 100:.1f} cm/s")
     return {"done": done, "problems": problems, "hold_frames": int(hold_frames), "moving_frames": moving}
 

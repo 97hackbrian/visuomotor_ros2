@@ -15,7 +15,9 @@
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd); cd "$REPO"
 DATASET=${1:-demonstrations_real_v8}
-SCHED=experiments/collection_schedules/v8_schedule.csv
+# v2 (2026-11-25): 6 orientaciones (-90 -45 0 45 90 180, +90 = DERECHA) en rondas balanceadas. Los 9 episodios del
+# programa v1 quedan en el dataset y no cuentan para este (cada episodio guarda su schedule_id).
+SCHED=experiments/collection_schedules/v8_schedule_v2.csv
 CAM=visuomotor_vo_active
 fail() { echo "NO LISTO: $*"; exit 1; }
 docker ps --format '{{.Names}}' | grep -q "^$CAM$" || fail "la cámara no está corriendo. Terminal 1:
@@ -41,18 +43,28 @@ cat <<'EOF'
   [ ] Base del robot (Husky) estacionada donde estaba, como en v7 y en la inferencia.
   [ ] Luz fija encendida.
  Cada demo:
-  1. Poner la herramienta en la celda AMARILLA de la guía; la flecha = hacia dónde apuntan las HOJAS.
-     (Celdas 7 y 9: la herramienta hacia el centro de la celda. Nunca tapar los ArUco.)
+  1. Poner la herramienta en la celda AMARILLA de la grilla numerada que la guía dibuja SOBRE LA MESA (se ve desde
+     cualquier punto donde la cámara vea los dos ArUco). La flecha = hacia dónde apuntan las HOJAS (punto negro = mango):
+     0 = de frente (lejos de la base), +90 = DERECHA, -90 = IZQUIERDA, 180 = hacia la base. La voz también lo dice.
+     Nunca tapar los ArUco.
   2. Llevar la cámara a la vista de HOME3 hasta "ALINEADA"; quieta 1 s -> empieza sola.
   3. "QUIETA: reiniciando odometría": NO moverse (estos frames dan la pose real de inicio).
   4. Pitido "Grabando": bajar suave (<= 15 cm/s) hacia la herramienta.
   5. Terminar a 25-30 cm SOBRE la herramienta, centrada en el recuadro, y quedarse quieta ~2,5 s -> guarda sola.
-     Respaldo: si no guarda en ~5 s, UNA tecla [S] (detecta sola el tramo quieto; no hace falta [H]).
-  6. Si el control de calidad la rechaza: [D] y repetir. [N] salta la entrada del programa.
+     Mantener la cámara con la orientación de HOME3 (arriba de la imagen = lejos de la base): NO girarla siguiendo las
+     hojas (girada, el robot no llega en las celdas 4, 7, 8 y 9 con -90 o 180).
+     Respaldo: si no guarda en ~5 s, UNA tecla [S]: guarda siempre (los problemas del final quedan como aviso).
+  6. Si la demo salió mal: [D] y repetir. [N] salta la entrada del programa.
      (Si la odometría en vivo se pierde cerca de la mesa: es un AVISO, la demo se guarda igual; el final quieto
       lo detecta el giróscopo. Las poses del dataset salen después de DROID desde el bag crudo.)
 ==========================================================================================
 EOF
+# A mano (2026-11-25): la guía con 8 px (repetibilidad del robot, < 1 px) no se alcanzaba nunca: el pulso queda a
+# 10-16 px. 20 px son ~2,5 cm o ~2° a 0,75 m; basta, porque la pose REAL de inicio se mide (ArUco + IMU) y el conversor
+# ancla con ella. Quieta: 5 px en 1 s (~6 mm) en vez de 3, por el temblor de la mano.
+TOL_PX=${V8_START_TOL_PX:-20.0}
+STILL_PX=${V8_START_STILL_PX:-5.0}
 COLLECTOR_ARGS="-p auto_start:=true -p auto_save:=true -p schedule_file:=$SCHED -p raw_bag_enabled:=true \
--p raw_bag_preroll_arming:=true -p raw_bag_dir:=datasets/raw_bags -p qa_tracking_blocking:=false -p auto_hold:=true" \
+-p raw_bag_preroll_arming:=true -p raw_bag_dir:=datasets/raw_bags -p qa_tracking_blocking:=false -p auto_hold:=true \
+-p start_guide_tolerance_px:=$TOL_PX -p auto_start_max_motion_px:=$STILL_PX" \
   exec ./tools/hardware/run_data_collection.sh "$DATASET"
