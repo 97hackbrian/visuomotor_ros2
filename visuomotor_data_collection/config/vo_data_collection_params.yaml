@@ -40,6 +40,9 @@ vo_collector_node:
     # tópicos comprimidos (image_transport) o cambiar la lista por los crudos (~46 MB/s).
     raw_bag_enabled: false
     raw_bag_dir: "datasets/raw_bags"
+    # v3.1: el bag empieza en ARMING (cámara QUIETA mientras se reinicia la odometría), no con el pitido de "Grabando".
+    # Esos frames y el acelerómetro dan la pose REAL de inicio (tools/xarm5/estimate_start_poses.py).
+    raw_bag_preroll_arming: true
     # /tf_static se graba con QoS TRANSIENT_LOCAL (vo_raw_recorder.py).
     raw_bag_topics:
       - "/camera/camera/color/image_raw/compressed"

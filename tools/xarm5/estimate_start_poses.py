@@ -50,7 +50,10 @@ def static_window(frames_t: np.ndarray, imu: np.ndarray, max_s: float, gyro_thr:
     return float(imu[m, 0][moving[0]]) if len(moving) else t0 + max_s
 
 
-def estimate_dir(fr: Path, table: TableMarkers, T_tcp_link: np.ndarray, T_base_home_link: np.ndarray, a) -> dict:
+def estimate_dir(fr: Path, table: TableMarkers, T_tcp_link: np.ndarray, T_base_home_link: np.ndarray, a,
+                 episode_t0: float = None) -> dict:
+    """``episode_t0``: sello del primer frame del episodio. Con el recolector v3.1 el bag empieza en ARMING (quieto),
+    así que la ventana quieta es [inicio del bag, t0): se usa esa. Si no hay pre-roll, se detecta con el giróscopo."""
     import cv2
     cal = json.loads((fr / "calib.json").read_text())
     K, D = np.array(cal["K"]).reshape(3, 3), np.array(cal["D"])
@@ -58,9 +61,12 @@ def estimate_dir(fr: Path, table: TableMarkers, T_tcp_link: np.ndarray, T_base_h
     assoc = [line.split() for line in (fr / "associations.txt").read_text().splitlines() if line.strip()]
     tf = np.array([float(x[0]) for x in assoc])
     imu = np.loadtxt(fr / "imu.csv", delimiter=",", skiprows=1, ndmin=2)
-    t_end = static_window(tf, imu, a.max_static_s, a.gyro_static_rad_s)
+    if episode_t0 is not None and episode_t0 - tf[0] >= a.min_static_s:
+        t_end, source = episode_t0 - 0.03, "arming"                # pre-roll: la cámara quieta mientras se reinicia
+    else:
+        t_end, source = static_window(tf, imu, a.max_static_s, a.gyro_static_rad_s), "gyro"
     still = np.nonzero(tf <= t_end)[0]
-    out = {"static_s": float(t_end - tf[0]), "frames_used": 0, "usable": False}
+    out = {"static_s": float(t_end - tf[0]), "static_source": source, "frames_used": 0, "usable": False}
     if (t_end - tf[0]) < a.min_static_s or len(still) < 3:
         out["flags"] = [f"sin quietud al inicio ({t_end - tf[0]:.2f} s)"]
         still = np.arange(min(3, len(tf)))
@@ -122,12 +128,14 @@ def main(argv=None) -> int:
             fr = root / key
             if not fr.exists():
                 export(["--bag", str(bag), "--out", str(fr.relative_to(REPO))])
-            jobs.append((key, fr, None))
+            ts = z[key]["timestamp"][:1] if "timestamp" in z[key] else []
+            t0 = float(ts[0]) if len(ts) and z[key].attrs.get("raw_bag_starts_at") == "arming" else None
+            jobs.append((key, fr, None, t0))
     for i, f in enumerate(a.frames):
-        jobs.append((Path(f).name, REPO / f, a.robot_run[i] if i < len(a.robot_run) else None))
+        jobs.append((Path(f).name, REPO / f, a.robot_run[i] if i < len(a.robot_run) else None, None))
     episodes, errs = {}, []
-    for key, fr, run in jobs:
-        r = estimate_dir(fr, table, T_tcp_link, T_base_home_link, a)
+    for key, fr, run, t0 in jobs:
+        r = estimate_dir(fr, table, T_tcp_link, T_base_home_link, a, episode_t0=t0)
         if run and r.get("T_base_camera_link") is not None:
             # Validación: la pose del robot al inicio de la corrida (primer registro del TCP) con la extrínseca medida
             rob = np.load(REPO / run / "robot.npz")

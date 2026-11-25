@@ -220,7 +220,10 @@ class CollectorV3GuideTest(unittest.TestCase):
                                         "-p", "auto_start_hold_s:=0.6", "-p", "auto_start_cooldown_s:=3.0",
                                         "-p", "min_hold_duration_s:=1.0", "-p", "auto_save_margin_s:=0.4",
                                         "-p", "auto_save_min_travel_m:=0.08", "-p", "terminal_bell:=false",
-                                        "-p", f"schedule_file:={sched}"])
+                                        "-p", f"schedule_file:={sched}",
+                                        # v3.1: bag crudo con pre-roll desde ARMING (cámara quieta)
+                                        "-p", "raw_bag_enabled:=true", "-p", f"raw_bag_dir:={Path(tmp) / 'raw'}",
+                                        "-p", "raw_bag_topics:=['/camera/camera/imu','/rtabmap/odom']"])
             first = col.schedule[0]
             ex = MultiThreadedExecutor(num_threads=4)
             ex.add_node(col)
@@ -260,6 +263,13 @@ class CollectorV3GuideTest(unittest.TestCase):
             self.assertIn(first.index, col.sched_done)
             done = np.asarray(ep["action"])[:, 8] > 0.5
             self.assertGreaterEqual(done.sum(), 20)                  # >= 1,0 s a 20 Hz
+            # Pre-roll: el bag empieza en ARMING, antes del primer frame del episodio (ventana quieta para el anclaje)
+            self.assertEqual(a["raw_bag_starts_at"], "arming")
+            sys.path.insert(0, str(ROOT / "tools/hardware"))
+            from vio_bag_utils import iter_messages, stamp_of
+            stamps = [stamp_of(m) for _, m, _ in iter_messages(a["raw_bag"], ["/camera/camera/imu"])]
+            t0 = float(np.asarray(ep["timestamp"])[0])
+            self.assertGreater(t0 - min(stamps), 0.15, "el bag no tiene la ventana quieta de ARMING")
         finally:
             flags["stop"].value = 1
             proc.join(timeout=5)

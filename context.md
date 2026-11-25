@@ -690,8 +690,9 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - Prueba nula en 8 inicios en HOME3: 5,2 mm / 0,55°.
       - La profundidad 3D-3D empeora (63 mm). A la resolución de v7 (256 px, sin IMU): 33 mm / 4°, con fallas, así
         que v7 no se reancla.
-    - *Protocolo:* quedarse quieto ~0,5 s después del pitido de inicio. No mover los ArUco ni el robot respecto de la
-      mesa, o hay que recalibrar.
+    - *Protocolo (demos a mano):* basta la quietud de ARMING ("QUIETA: reiniciando odometría"). El recolector v3.1
+      (`raw_bag_preroll_arming: true`) empieza el bag crudo ahí, y no hace falta otra pausa después de "Grabando". No
+      mover los ArUco ni el robot respecto de la mesa, o hay que recalibrar.
     - *Pendiente:* validar con inicios deliberadamente fuera de HOME3 (próxima sesión con el robot) e integrarlo en
       `build_dataset_from_bags.py` con DROID.
 

@@ -70,7 +70,8 @@ python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src <dataset> --dst <nuevo
   - `visuomotor_bringup/config/realsense/table_markers.yaml`: esquinas de los ArUco en la base y vertical real,
     calibradas con el robot (`tools/xarm5/vio_gt/calibrate_table_markers.py`). Recalibrar si se mueven los
     marcadores o el robot respecto de la mesa.
-  - Tras el pitido de inicio, quedarse quieto ~0,5 s: la ventana quieta da los frames y el acelerómetro.
+  - Recolector v3.1 (`raw_bag_preroll_arming: true`): el bag empieza en ARMING, con la cámara QUIETA mientras se
+    reinicia la odometría. Esa ventana da los frames y el acelerómetro: no hace falta otra pausa después de "Grabando".
 - **Fallback:** episodios sin marcadores, o con PnP e IMU discrepando > 3°, quedan con `usable: false` y se anclan en
   HOME (con aviso).
 

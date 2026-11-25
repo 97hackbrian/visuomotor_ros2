@@ -128,6 +128,7 @@ class VOCollectorNode(Node):
         d('min_episode_frames', 20)
         d('raw_bag_enabled', False)
         d('raw_bag_dir', 'datasets/raw_bags')
+        d('raw_bag_preroll_arming', True)   # el bag empieza en ARMING (cámara quieta): anclaje de inicio
         d('raw_bag_topics', ['/camera/camera/color/image_raw/compressed',
                              '/camera/camera/aligned_depth_to_color/image_raw/compressedDepth',
                              '/camera/camera/color/camera_info', '/camera/camera/imu', '/rtabmap/odom',
@@ -348,6 +349,11 @@ class VOCollectorNode(Node):
             self.hold, self.current_gripper, self.pending_problems = False, 0.0, None
             self.imu_acc, self.imu_frame, self.n_null = [], "", 0
             self.state, self.t_arm, self.t_reset, self.odom_reset_ok = ARMING, time.time(), None, False
+            # v3.1: el bag crudo empieza YA, con la cámara quieta en la pose de inicio. Esos frames y el acelerómetro
+            # dan la pose REAL de inicio (estimate_start_poses.py). Antes empezaba con el pitido de "Grabando", justo
+            # cuando la mano empieza a moverse, y no quedaba ningún momento quieto.
+            if bool(self.p('raw_bag_preroll_arming')):
+                self._raw_bag_begin("arming")
         if self.reset_client is not None:
             if self.reset_client.service_is_ready():
                 from std_srvs.srv import Empty
@@ -360,6 +366,21 @@ class VOCollectorNode(Node):
         with self.lock:
             self.t_reset = self.poses.latest_stamp
         return True
+
+    def _raw_bag_begin(self, phase: str) -> None:
+        """Abre el bag crudo del episodio si está activado y no está abierto ya (``phase``: arming | recording)."""
+        if self.raw_bag is None or self.raw_bag.active:
+            return
+        stem = Path(self.storage_path).stem
+        path = Path(self.p('raw_bag_dir')) / stem / time.strftime("ep_%Y%m%d_%H%M%S")
+        rec = self.raw_bag.start(path)
+        self.raw_bag_started_in = phase
+        self.get_logger().info(f"[RAW BAG] {len(rec)} tópicos desde {phase.upper()} -> {path}")
+
+    def _raw_bag_cancel(self) -> None:
+        """Episodio cancelado antes de grabar: el bag abierto en ARMING se borra."""
+        if self.raw_bag is not None and self.raw_bag.active:
+            self.raw_bag.stop(delete=True)
 
     def _reset_done(self, _fut):
         # Base de tiempo de la cámara (sellos de la odometría), no el reloj del nodo: así no depende de que la
@@ -376,21 +397,19 @@ class VOCollectorNode(Node):
                     if time.time() - self.t_arm > float(self.p('reset_timeout_s')):
                         self.get_logger().error("El reinicio de la odometría no respondió: episodio cancelado.")
                         self.state = IDLE
+                        self._raw_bag_cancel()
                     return
                 if time.time() - self.t_arm > 2.0 * float(self.p('reset_timeout_s')) + 2.0:
                     self.get_logger().error("La odometría no entregó poses válidas tras el reinicio (¿rastreo "
                                             "perdido?): episodio cancelado.")
                     self.state = IDLE
+                    self._raw_bag_cancel()
                     return
                 if self.poses.valid_after(self.t_reset) >= int(self.p('reset_settle_frames')):
                     t0 = self.poses.latest_stamp
                     self.sampler.start(t0)
                     self.state = RECORDING
-                    if self.raw_bag is not None:
-                        stem = Path(self.storage_path).stem
-                        path = Path(self.p('raw_bag_dir')) / stem / time.strftime("ep_%Y%m%d_%H%M%S")
-                        rec = self.raw_bag.start(path)
-                        self.get_logger().info(f"[RAW BAG] {len(rec)} tópicos -> {path}")
+                    self._raw_bag_begin("recording")             # sin pre-roll (o si no se abrió en ARMING)
                     self.get_logger().info(">>> [REC] Grabando. Mover la cámara hacia el objetivo; " +
                                            ("al llegar, quedarse QUIETA (guardado automático)." if self.p('auto_save')
                                             else "[H] al llegar."))
@@ -540,6 +559,7 @@ class VOCollectorNode(Node):
             "start_gravity_mps2": g, "start_gravity_frame": getattr(self, "imu_frame", ""),
             "quality": qual, "qa_problems": problems, "qa_forced": bool(force and problems),
             "object_cell": cell, "raw_bag": None if bag_path is None else str(bag_path),
+            "raw_bag_starts_at": getattr(self, "raw_bag_started_in", None),
             "git_commit": _git_commit(self.repo), "config_sha256": self._config_hashes(),
             # v3
             "start_view": self.start_view, "schedule": None if entry is None else entry.as_attrs(),

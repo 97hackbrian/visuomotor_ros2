@@ -199,7 +199,13 @@ Costo: 96–183 s por corrida (57–113 s de video, 2032–3696 frames), con 3,8
    los bags crudos del recolector v3.
 2. Calibración en chip y *tare* de la D435i, o factor de escala medido con el robot tras calibrarla.
 3. Validación con datos nuevos: velocidad de mano (contra el tablero o con el robot más rápido) y con herramienta en
-   la mesa.
+   la mesa. **Las demos se graban A MANO** (la cámara en la mano, acercándose al objeto). Protocolo sin robot:
+   - El tablero va donde termina la aproximación, para tener referencia de ~0,1–0,4 mm en la vista final.
+   - La pose de inicio se ancla con los ArUco + IMU (~1 cm / 0,6°).
+   - Varias aproximaciones a velocidad real de mano (p99 ~0,12 m/s; 2–3 veces la del robot) y con temblor de mano.
+   - Medir el error de DROID al final de la aproximación, la parte donde más deriva.
+   - El tablero agrega textura (resultado algo optimista): repetir también con la herramienta sola.
+   - Revisar el umbral de quietud del giróscopo (0,05 rad/s) frente al temblor de mano.
 4. Próxima sesión con el robot: grabar el IR estéreo para OpenVINS, Basalt y ORB-SLAM3 estéreo-inercial (pedido del
    usuario).
 5. Control de calidad automático de DROID: comparar su rotación con la del giróscopo integrado por episodio (no
@@ -267,7 +273,9 @@ posición / rotación):
 - La calibración vale mientras no se muevan los ArUco ni el robot respecto de la mesa.
 - Falta validarlo con inicios deliberadamente fuera de HOME3: en la próxima sesión, ±3 cm y ±5°, con el robot como
   referencia.
-- Protocolo: tras el pitido de inicio, quedarse quieto ~0,5 s (el bag crudo empieza al iniciar el episodio).
+- Protocolo (demos a mano): el recolector v3.1 empieza el bag crudo en ARMING, cuando ya pide la cámara QUIETA para
+  reiniciar la odometría. Esa ventana da los frames y el acelerómetro, así que no hace falta otra pausa después del
+  pitido de "Grabando". Si la pausa de ARMING es corta (< 0,2 s), se usa la quietud que detecta el giróscopo.
 
 **Referencias:**
 - Teed y Deng, "DROID-SLAM: Deep Visual SLAM for Monocular, Stereo, and RGB-D Cameras", NeurIPS 2021.

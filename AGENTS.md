@@ -213,6 +213,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
        [I] empieza igual y queda registrado.
      - **v3, opcionales:** inicio automático (vista alineada y quieta), guardado automático (quieta al final), aviso de
        velocidad > 0,15 m/s y programa de celdas × orientaciones (`schedule_file`).
+     - **v3.1 (2026-11-25):** el bag crudo empieza en ARMING (`raw_bag_preroll_arming: true`), con la cámara QUIETA mientras se reinicia la odometría. Con las demos A MANO, es la única pausa natural, y da los frames y el acelerómetro para la pose REAL de inicio (`estimate_start_poses.py`).
      - **Logs en rclpy:** nunca `(warn if x else info)(msg)` en una misma línea. Si la severidad cambia entre
        llamadas, rclpy lanza `ValueError` y se cae el ejecutor; al recolector v2 le pasaba con el primer frame perdido.
      - **Recompilar tras cambiar el código o el YAML:** `install/visuomotor_data_collection` es una copia.

@@ -204,7 +204,7 @@ offline desde los bags crudos (`raw_bag_enabled: true`) con DROID-SLAM RGB-D: sk
 error final ≤ 2,6 mm, frente a 21,7 mm y hasta 33 % de pérdidas con la configuración de v7. Decisión:
 `.agents/knowledge/18_vio_estimator_selection_droid_slam.md`.
 
-El anclaje usa la pose REAL de inicio de cada demo (ArUco de la mesa + acelerómetro; `tools/xarm5/estimate_start_poses.py`), en vez de suponer que empezó en HOME3. **Tras el pitido de inicio, quedarse quieto ~0,5 s**: esa ventana da los frames y el acelerómetro. No mover los ArUco sobre el mantel.
+El anclaje usa la pose REAL de inicio de cada demo (ArUco de la mesa + acelerómetro; `tools/xarm5/estimate_start_poses.py`), en vez de suponer que empezó en HOME3. Con las demos A MANO, la ventana quieta es la de ARMING ("QUIETA: reiniciando odometría"), que el recolector v3.1 ya graba en el bag crudo (`raw_bag_preroll_arming: true`). Basta con no moverse mientras dice QUIETA; no hace falta otra pausa después de "Grabando". No mover los ArUco sobre el mantel.
 
 ## 4b. Medición de la odometría sin el robot (2026-11-24)
 
