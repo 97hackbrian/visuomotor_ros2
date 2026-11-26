@@ -14,6 +14,7 @@ Registro técnico (2026-11-25/26) para el paper y para retomar. Decisión del es
 
 **Protocolo:**
 - Programa v2 (`v8_schedule_v2.csv`): 9 celdas × 6 orientaciones de las hojas (−90, −45, 0, 45, 90, 180, con +90 = derecha) × 2. Va en rondas balanceadas: si se corta, las celdas quedan parejas.
+- Programa v3 (`v8_schedule_v3.csv`, 2026-11-26), para seguir sumando. v2 quedó con 104 de 108 hechas. v3 empieza por sus 4 pendientes (las demos descartadas, con la misma celda y orientación) y sigue con 4 ciclos nuevos: 220 en total (`make_collection_schedule.py --continue-from`, semilla 3, elegida para que la primera ronda no repita las recuperadas). `run_v8_session.sh` lo usa por defecto. Sin él, al terminar v2 el recolector habría seguido grabando sin celda ni orientación asignadas.
 - La guía dibuja la grilla numerada SOBRE LA MESA, con la homografía de los ArUco.
 - Al final, la cámara queda alineada con la herramienta (hojas hacia arriba en la imagen), por decisión del usuario.
 

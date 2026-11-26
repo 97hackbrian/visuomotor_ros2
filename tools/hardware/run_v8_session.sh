@@ -15,9 +15,10 @@
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd); cd "$REPO"
 DATASET=${1:-demonstrations_real_v8}
-# v2 (2026-11-25): 6 orientaciones (-90 -45 0 45 90 180, +90 = DERECHA) en rondas balanceadas. Los 9 episodios del
-# programa v1 quedan en el dataset y no cuentan para este (cada episodio guarda su schedule_id).
-SCHED=experiments/collection_schedules/v8_schedule_v2.csv
+# Programa de celdas × orientaciones (6: -90 -45 0 45 90 180, +90 = DERECHA) en rondas balanceadas. Cada episodio
+# guarda su schedule_id y solo cuenta para su programa. v2 (2026-11-25, 108) quedó con 104 hechas; v3 (2026-11-26,
+# 220) empieza por sus 4 pendientes (las demos descartadas) y sigue con 4 ciclos nuevos. Otro: V8_SCHEDULE=<csv>.
+SCHED=${V8_SCHEDULE:-experiments/collection_schedules/v8_schedule_v3.csv}
 CAM=visuomotor_vo_active
 fail() { echo "NO LISTO: $*"; exit 1; }
 docker ps --format '{{.Names}}' | grep -q "^$CAM$" || fail "la cámara no está corriendo. Terminal 1:

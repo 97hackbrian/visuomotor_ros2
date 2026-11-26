@@ -148,6 +148,19 @@ def make_balanced_schedule(cells: Sequence[int], yaws: Sequence[float], reps: in
     return out
 
 
+
+def continue_schedule(pending: Sequence[ScheduleEntry], new: Sequence[ScheduleEntry]) -> List[ScheduleEntry]:
+    """Programa que CONTINÚA a otro (2026-11-26). Primero van las entradas que quedaron pendientes en el anterior
+    (misma celda y orientación; ``rep = -1``) y después ``new``, con los índices desde 0. Así, al cambiar de programa,
+    las combinaciones que faltaban en el anterior (p. ej. demos descartadas) no quedan con una demo de menos. Como en
+    ``make_balanced_schedule``, la primera de ``new`` no repite la celda de la última pendiente."""
+    new = list(new)
+    if pending and len(new) > 1 and new[0].cell == pending[-1].cell:
+        new[0], new[1] = new[1], new[0]
+    combos = [(e.cell, e.yaw_deg, -1) for e in pending] + [(e.cell, e.yaw_deg, e.rep) for e in new]
+    return [ScheduleEntry(index=i, cell=c, yaw_deg=float(y), rep=r) for i, (c, y, r) in enumerate(combos)]
+
+
 def _check_cells(cells: Sequence[int]) -> None:
     for c in cells:
         if c not in CELL_NAMES:

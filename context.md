@@ -760,6 +760,9 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         las poses de DROID obligatorias en cada episodio. Para entrenar se congela una copia con fecha
         (`freeze_training_set.sh`). Rehecho idéntico al `_xarm5_v2` (byte a byte, salvo la procedencia); los
         sobrantes se borraron a pedido del usuario. AGENTS.md §2.3 y `.agents/knowledge/19` §7.
+      - Para seguir sumando: el programa v2 quedó con 104 de 108 hechas, y al agotarse el recolector graba sin celda
+        ni orientación. `v8_schedule_v3.csv` (220) empieza por las 4 pendientes de v2 y sigue con 4 ciclos nuevos
+        (`make_collection_schedule.py --continue-from`); `run_v8_session.sh` lo usa por defecto.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

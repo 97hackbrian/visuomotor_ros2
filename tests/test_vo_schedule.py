@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_schedule import (  # noqa: E402
-    blade_direction_xy, cells_from_edges, done_indices, load_csv, make_balanced_schedule, make_schedule, next_pending,
-    placement_hint, save_csv, schedule_id, yaw_words)
+    ScheduleEntry, blade_direction_xy, cells_from_edges, continue_schedule, done_indices, load_csv, make_balanced_schedule,
+    make_schedule, next_pending, placement_hint, save_csv, schedule_id, yaw_words)
 
 
 class ScheduleTest(unittest.TestCase):
@@ -99,6 +99,42 @@ class BalancedScheduleTest(unittest.TestCase):
         attrs.append({"schedule": {"index": 5, "schedule_id": "v8_schedule_v2"}, "discarded": True})   # [U]
         self.assertEqual(done_indices(attrs, "v8_schedule_v2", "v8_schedule"), {3})
         self.assertEqual(schedule_id("experiments/collection_schedules/v8_schedule_v2.csv"), "v8_schedule_v2")
+
+
+class ContinueScheduleTest(unittest.TestCase):
+    """2026-11-26: el programa v2 quedó con 4 pendientes (las demos descartadas). El programa siguiente las pone
+    primero, con la misma celda y orientación, y después rondas balanceadas nuevas."""
+
+    def test_pending_first_then_new_reindexed(self):
+        pending = [ScheduleEntry(26, 3, 45.0, 0), ScheduleEntry(54, 8, 180.0, 0), ScheduleEntry(99, 9, 180.0, 1)]
+        new = make_balanced_schedule(list(range(1, 10)), [-90, -45, 0, 45, 90, 180], reps=2, seed=1)
+        out = continue_schedule(pending, new)
+        self.assertEqual(len(out), len(pending) + len(new))
+        self.assertEqual([e.index for e in out], list(range(len(out))))
+        self.assertEqual([(e.cell, e.yaw_deg, e.rep) for e in out[:3]], [(3, 45.0, -1), (8, 180.0, -1), (9, 180.0, -1)])
+        self.assertEqual(Counter((e.cell, e.yaw_deg) for e in out[3:]), Counter((e.cell, e.yaw_deg) for e in new))
+        self.assertTrue(all(out[i].cell != out[i + 1].cell for i in range(len(out) - 1)))
+
+    def test_generator_takes_pending_from_the_dataset(self):
+        import zarr
+        sys.path.insert(0, str(ROOT / "tools" / "hardware"))
+        from make_collection_schedule import main
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            prev = d / "prog_a.csv"
+            save_csv([ScheduleEntry(i, c, y, 0) for i, (c, y) in enumerate([(1, 0.0), (2, 90.0), (3, 0.0), (1, 90.0)])],
+                     prev)
+            g = zarr.open_group(str(d / "raw.zarr"), mode="w")
+            for k, (idx, discarded) in enumerate([(0, False), (1, True), (2, False)]):
+                at = g.create_group(f"episode_{k}").attrs
+                at["schedule"] = {"schedule_id": "prog_a", "index": idx}
+                at["discarded"] = discarded
+            out = d / "prog_b.csv"
+            self.assertEqual(main(["--out", str(out), "--cells", "1,2,3", "--yaws", "0,90", "--reps", "1",
+                                   "--continue-from", str(prev), "--dataset", str(d / "raw.zarr")]), 0)
+            e = load_csv(out)
+        self.assertEqual(len(e), 2 + 6)                       # #1 (descartada) y #3 (sin grabar) + 3 celdas × 2
+        self.assertEqual([(x.cell, x.yaw_deg, x.rep) for x in e[:2]], [(2, 90.0, -1), (1, 90.0, -1)])
 
 
 if __name__ == "__main__":
