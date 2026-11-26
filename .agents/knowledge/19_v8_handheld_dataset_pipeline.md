@@ -1,0 +1,94 @@
+# 19. Dataset real v8: demostraciones a mano con la D435i, poses de DROID y conversión al xArm5
+
+Registro técnico (2026-11-25/26) para el paper y para retomar. Decisión del estimador: `18_vio_estimator_selection_droid_slam.md`.
+
+## 1. Recolección (sesión del 2026-11-25)
+
+**Herramientas:**
+- `run_v8_session.sh` / `v8_tmux.sh`: cámara en su propia sesión `cam_v8`, recolector, guía y voz.
+- `vo_collector_node` v3.1:
+  - bag crudo desde ARMING;
+  - inicio automático por la vista de HOME3, con tolerancia de 20 px a mano;
+  - guardado automático, cuya quietud final se juzga con el giróscopo (`qa_hold_motion_source: imu`);
+  - [S] guarda siempre (los problemas quedan como avisos), y [U] descarta la última demo marcándola, sin borrarla.
+
+**Protocolo:**
+- Programa v2 (`v8_schedule_v2.csv`): 9 celdas × 6 orientaciones de las hojas (−90, −45, 0, 45, 90, 180, con +90 = derecha) × 2. Va en rondas balanceadas: si se corta, las celdas quedan parejas.
+- La guía dibuja la grilla numerada SOBRE LA MESA, con la homografía de los ArUco.
+- Al final, la cámara queda alineada con la herramienta (hojas hacia arriba en la imagen), por decisión del usuario.
+
+**Resultado:**
+- 126 episodios grabados en ~2 h 20 min, a ~0,25 GB por bag (profundidad PNG de 16 bits, color JPEG e IMU a 200 Hz).
+- El 2026-11-26 había 14 descartados (los descartados con [U] más 5 de la validación) y 114 válidos: 105 del programa v2, 8 de la primera tanda y 2 sin programa (126 y 127).
+
+## 2. Validación offline (`validate_v8_batch.sh` + `validate_v8_episodes.py report`)
+
+Por demo se corre DROID-SLAM RGB-D sobre el bag crudo (~40-60 s de GPU) y se revisa:
+- que DROID entregue todas las poses;
+- saltos no físicos: pasos > 20 mm entre poses a 30 Hz que el acelerómetro no respalda;
+- la coincidencia con la odometría en vivo;
+- el final quieto;
+- el recorrido de inicio a fin;
+- la pose real de inicio (ArUco + IMU, `estimate_start_poses.py`).
+
+Resultado sobre 119 demos: 106 OK, 8 REVISAR y 5 REPETIR (descartadas a pedido del usuario).
+
+**Modos de falla encontrados:**
+- **Salto no físico de DROID** al girar la cámara sobre el mantel blanco, sin textura (episode_71: 66 mm; episode_117: 245 mm). El IMU lo desmiente: no hay aceleración.
+  - Tres de los cuatro casos son con las hojas a 180°, que exige girar la cámara media vuelta.
+  - Con esa orientación, la odometría en vivo se pierde en el 40-68 % de los frames.
+- **Inicialización de DROID:** en ~0,5 s puede oscilar hasta 0,7 m (episode_80) con la cámara quieta. Se mide aparte (`init_spread_mm`).
+- **La demo termina donde empezó** (episode_5): bajó a la herramienta, VOLVIÓ a HOME3 y el guardado automático se disparó ahí. Regla nueva: recorrido de inicio a fin ≥ 0,25 m. Las demás miden ≥ 0,50 m (mediana 0,61 m).
+- **Pose de inicio:** está a 44 mm / 3,9° de HOME3 (mediana; p90 93 mm), mucho más que en las primeras pruebas (6-15 mm). Anclar con la pose medida no es opcional.
+
+## 3. Armado del dataset con poses de DROID (`build_dataset_from_bags.py`, versión 2)
+
+1. **Marco:** las poses ópticas de DROID se llevan a `camera_link` con `T_link_opt`, la calibración exportada del bag.
+2. **Referencia:** la mediana de las poses entre `t_bag + 0,5 s` (pasada la inicialización) y el primer frame + 0,4 s.
+   - Medido en 114 demos: ARMING dura ~0,35 s; la mano se mueve al menos 0,53 s después del primer frame (mediana 1,07 s); a los 0,5 s DROID ya está estable (p95 2,5 mm).
+   - Es el mismo instante en que se mide la pose real de inicio (ARMING).
+   - Solo se fijan a la referencia los frames de la inicialización de DROID (≤ 4 por demo).
+   - **Error de la versión 1:** la ventana "quieta" salía del giróscopo, pero la mano puede trasladarse sin girar. Borraba hasta 17 cm de movimiento real al inicio (episode_77) y fijaba hasta 150 frames.
+3. **Escala:** ×0,986 (sesgo de profundidad de la D435i medido con el robot).
+4. **Interpolación:** posición lineal y SLERP a los sellos de 20 Hz.
+5. **Done:** el tramo final quieto según DROID, si dura ≥ 2 s. Pasó en 104 de 114; en las otras 10 queda el del recolector.
+
+## 4. Conversión al xArm5 y verificación
+
+**Conversión:** `convert_vio_dataset_to_xarm5.py` (conversor v3) con `--start-poses`, SIN `--drop-flagged`: se conservan todas las demos, por decisión del usuario.
+- Resultado: `demonstrations_real_v8_xarm5.zarr`, con 114 demos y 53 208 frames.
+- 26 demos marcadas:
+  - **Alcance:** 20. La mano avanza ALTA antes de bajar, y algunos finales de celdas lejanas quedan en el borde. En v8, el 64 % de las demos pasa el alcance del puente (v7: 20 %), con una extensión máxima mediana del 101 % del codo recto (v7: 88 %).
+  - **Giro de muñeca:** 10, todas con las hojas a 180°. Con la cámara alineada se piden ±180° de J5, y el puente acota el giro a ±2,6 rad (±149°) para no cruzar ±π. El conversor lo recorta, y la orientación se desvía ~31° (mediana) frente a 9-14° en los otros ángulos.
+- La cadena está verificada: en 49/49 demos el eje óptico final cae en la celda asignada (4,2 cm del centro en la mediana) y la cámara termina a 26-33 cm de la mesa.
+
+**Verificación** (`verify_training_dataset.py`) contra `demonstrations_real_v7_xarm5_v2.zarr`, el dataset del modelo probado en el xArm5 (`train_real_v7x5v2_relative_ee_e300`, también el desplegado en la Jetson). Veredicto: LISTO.
+- **Igual a la referencia:**
+  - mismos arreglos de entrenamiento: imagen 256×256×3 uint8, estado 8 y acción 9;
+  - mismas convenciones: coordenadas relativas a HOME, hemisferio del cuaternión `home` y `arm_plane`;
+  - el mismo lote de `ZarrDataset` ([8,2,3,256,256], [8,2,8], [8,16,9]) y el mismo desfase acción/estado (0);
+  - un paso forward/backward de `DiffusionPolicy` en la GPU, con pérdida y gradiente finitos.
+- **Mejoras deliberadas:**
+  - extrínseca medida (v7_v2 tenía traslación 0);
+  - inicio medido;
+  - poses de DROID, más suaves: salto mediano por frame de 4,6 mm frente a 6,5 mm.
+- **Diferencias de contenido:**
+  - 2,2× más ventanas de entrenamiento (53 094);
+  - episodios más largos (22,5 s de mediana, frente a 15,3 s);
+  - la zona de trabajo es más amplia: el TCP final llega hasta x = 0,74 m (v7: 0,60 m).
+- **Arreglos extra** (sellos, inliers, pérdidas): el cargador los ignora.
+
+## 5. Para entrenar y para seguir sumando
+
+- **Entrenamiento:** con todas las demos (114) o solo con las factibles (88, sin las 26 marcadas; lista en `datasets/demonstrations_real_v8_xarm5_conversion_report.json`), y comparar (ablación para el paper).
+- **No mezclar con `v7_xarm5_v2`:** usa la extrínseca vieja. Si se combina con v7, usar `v7_xarm5_v3`.
+- **Demos nuevas:** `tools/xarm5/make_v8_training_set.sh <droid_out> <xarm5_out>` corre todo de punta a punta, de forma reanudable y sin sobrescribir:
+  1. DROID en las nuevas;
+  2. poses de inicio;
+  3. informe;
+  4. armado;
+  5. conversión;
+  6. verificación.
+  - Las REPETIR no se marcan solas: hace falta el OK del usuario.
+- **Monitor de alcance en vivo** (`reach_monitor.py`): avisa por voz sobre la posición (caja y alcance) y el giro de muñeca (±149°): "baja primero y después avanza", "gira menos la cámara".
+- **Obsoleto:** `datasets/demonstrations_real_v8_droid.zarr` (armado v1, con el error de la referencia). No usar.

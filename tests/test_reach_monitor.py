@@ -51,6 +51,17 @@ class ReachMonitorTest(unittest.TestCase):
         low = self.m.check(self._moved([0.25, 0.0, -0.40]))            # baja primero
         self.assertFalse(low["outside"], low)
 
+    def test_wrist_rotation_beyond_the_bridge_yaw_limit(self):
+        """2026-11-26: con las hojas a 180° y la cámara alineada, el giro pedido (~180°) sale de ±2,6 rad del puente."""
+        half = np.eye(4)
+        half[:3, :3] = Rotation.from_euler("x", 180, degrees=True).as_matrix()   # media vuelta sobre su eje óptico (x de camera_link)
+        r = self.m.check(half)
+        self.assertIn("cámara demasiado girada", r["reasons"], r)
+        self.assertTrue(advice(r["reasons"]).startswith("gira menos la cámara"), advice(r["reasons"]))
+        quarter = np.eye(4)
+        quarter[:3, :3] = Rotation.from_euler("x", 90, degrees=True).as_matrix()
+        self.assertNotIn("cámara demasiado girada", self.m.check(quarter)["reasons"])
+
     def test_relative_transform_and_summary(self):
         q = Rotation.from_euler("z", 30, degrees=True).as_quat()
         T = relative_transform([0, 0, 0], [0, 0, 0, 1], [0.1, 0, 0], q)

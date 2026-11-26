@@ -738,6 +738,16 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         la sesión de la cámara se llama `cam_v8`.
       Validación offline: `validate_v8_batch.sh` + `validate_v8_episodes.py report`, con veredicto OK, REVISAR o
       REPETIR por demo.
+    - *Dataset v8 armado y verificado (2026-11-26)* (`.agents/knowledge/19_v8_handheld_dataset_pipeline.md`):
+      - `demonstrations_real_v8_xarm5.zarr`: 114 demos con poses de DROID, inicio medido y extrínseca medida. Es
+        consistente con el dataset del modelo que funcionó (`v7_xarm5_v2`) en formato, convenciones, cargador y paso
+        de entrenamiento.
+      - Lecciones:
+        - la ventana quieta del inicio no puede salir solo del giróscopo, porque la mano se traslada sin girar (el
+          armado v1 borró hasta 17 cm de movimiento);
+        - una demo puede terminar donde empezó (`episode_5`), así que la validación exige ≥ 0,25 m de inicio a fin;
+        - con las hojas a 180° y la cámara alineada se piden ±180° de muñeca, fuera de ±2,6 rad del puente (13 de 15
+          demos marcadas). El monitor en vivo ahora avisa "gira menos la cámara".
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

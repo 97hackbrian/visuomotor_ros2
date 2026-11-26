@@ -9,9 +9,9 @@ corrido sobre el bag crudo por ``tools/xarm5/validate_v8_batch.sh``.
 Por episodio:
 1. **Marco:** DROID da el sistema óptico relativo a su primer frame. Se pasa a ``camera_link`` con ``T_link_opt``
    (calibración exportada del bag), que es lo que guarda el recolector.
-2. **Referencia de inicio robusta:** la MEDIANA de las poses mientras la cámara está quieta (ARMING y el arranque,
-   según el giróscopo), no el primer frame. DROID puede oscilar al inicializarse (episode_1: 42 mm en 0,45 s). Los
-   frames de ese tramo quieto quedan exactamente en la referencia.
+2. **Referencia de inicio robusta:** la MEDIANA de las poses de DROID en el tramo quieto del inicio (pasada su
+   inicialización y antes de que la mano se mueva; ver ``build_episode``), no el primer frame: DROID puede oscilar
+   al inicializarse (episode_1: 42 mm en 0,45 s). Solo los frames de esa inicialización se fijan a la referencia.
 3. **Escala:** las traslaciones se multiplican por ``--depth-scale`` (0,986: sesgo de escala de la profundidad de la
    D435i medido con el robot, validado dejando una corrida fuera).
 4. **Interpolación:** a los sellos de los frames del episodio (posición lineal, rotación SLERP).
@@ -24,9 +24,9 @@ Por episodio:
 Se omiten los episodios descartados, los que no tienen trayectoria de DROID y los que el informe de validación marca
 ``--skip-verdicts`` (por defecto REPETIR). Después, el conversor v3 lo ancla con la pose real de inicio y lo lleva al
 xArm5:
-    python3 tools/xarm5/build_dataset_from_bags.py --dst datasets/demonstrations_real_v8_droid.zarr
-    python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8_droid.zarr \\
-        --dst datasets/demonstrations_real_v8_xarm5.zarr --drop-flagged \\
+    python3 tools/xarm5/build_dataset_from_bags.py --src datasets/demonstrations_real_v8.zarr --dst datasets/demonstrations_real_v8_droid_v2.zarr
+    python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8_droid_v2.zarr \\
+        --dst datasets/demonstrations_real_v8_xarm5.zarr \\
         --start-poses experiments/v8_validation/demonstrations_real_v8/start_poses.json
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ sys.path.insert(0, str(REPO / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_episode_logic import detect_hold_start  # noqa: E402
 
-BUILD_VERSION = 1
+BUILD_VERSION = 2   # 2: referencia en la ventana quieta medida (no la del giróscopo, que borraba movimiento)
 
 
 def episode_keys(g):
@@ -57,23 +57,18 @@ def load_tum(path: Path):
     return tum[:, 0], tum[:, 1:4], tum[:, 4:8]                    # t, xyz, quat xyzw
 
 
-def still_until(imu_csv: Path, t0: float, gyro_thr: float, smooth_s: float = 0.15) -> float:
-    """Último instante del tramo quieto inicial (|w| suavizado < ``gyro_thr`` desde el principio del bag)."""
-    if not imu_csv.is_file():
-        return t0
-    imu = np.genfromtxt(imu_csv, delimiter=",", names=True)
-    t = imu["t"]
-    w = np.linalg.norm(np.c_[imu["wx"], imu["wy"], imu["wz"]], axis=1)
-    dt = float(np.median(np.diff(t))) if len(t) > 1 else 0.005
-    k = max(1, int(round(smooth_s / max(dt, 1e-4))))
-    ws = np.convolve(w, np.ones(k) / k, mode="same")
-    moving = np.nonzero((ws >= gyro_thr) & (t >= t0))[0]
-    return float(t[moving[0]]) if len(moving) else float(t[-1])
+def build_episode(ts, t_d, p_d, q_d, T_link_opt, depth_scale: float, init_s: float, ref_end_after_start_s: float):
+    """Poses de ``camera_link`` relativas a la referencia de inicio, en los sellos ``ts``. Devuelve
+    (xyz [N,3], quat xyzw [N,4], info).
 
-
-def build_episode(ts, t_d, p_d, q_d, T_link_opt, t_still_end: float, depth_scale: float, init_s: float):
-    """Poses de ``camera_link`` relativas a la referencia robusta de inicio, en los sellos ``ts``.
-    Devuelve (xyz [N,3], quat xyzw [N,4], info)."""
+    Referencia = mediana de las poses de DROID entre ``t_bag + init_s`` (pasada su inicialización) y
+    ``ts[0] + ref_end_after_start_s``. Medido en las 114 demos del 2026-11-25: el ARMING dura ~0,35 s; la mano empieza
+    a moverse al menos 0,53 s después del primer frame grabado (mediana 1,07 s), y DROID ya está estable a los 0,5 s
+    del bag (dispersión p95 2,5 mm). Es el mismo tramo quieto en el que ``estimate_start_poses.py`` mide la pose real
+    de inicio (ARMING).
+    Solo se fijan a la referencia los frames de la demo que caen en la inicialización de DROID (antes de
+    ``t_bag + init_s``, la cámara quieta por protocolo). La versión 1 usaba una ventana "quieta" según el giróscopo,
+    pero la mano puede trasladarse sin girar: borraba hasta 17 cm de movimiento real al inicio (episode_77)."""
     from scipy.spatial.transform import Rotation, Slerp
     R_opt = Rotation.from_quat(q_d)
     T_opt_link = np.linalg.inv(T_link_opt)
@@ -81,11 +76,12 @@ def build_episode(ts, t_d, p_d, q_d, T_link_opt, t_still_end: float, depth_scale
     # T_W_link = T_W_opt · T_opt_link
     R_link = R_opt * R_ol
     p_link = p_d + R_opt.apply(t_ol)
-    # Referencia: cámara quieta (hasta t_still_end), sin la inicialización de DROID si quedan frames suficientes
-    still = t_d <= t_still_end
-    ref_sel = still & (t_d >= t_d[0] + init_s)
-    if ref_sel.sum() < 3:
-        ref_sel = still if still.sum() >= 1 else np.arange(len(t_d)) < 1
+    t_init = float(t_d[0]) + init_s
+    ref_sel = (t_d >= t_init) & (t_d <= float(ts[0]) + ref_end_after_start_s)
+    method = "median_still_window"
+    if ref_sel.sum() < 3:                                          # ventana corta: los 5 primeros frames estables
+        ref_sel = (t_d >= t_init) & (np.cumsum(t_d >= t_init) <= 5)
+        method = "first_stable_frames"
     p_ref = np.median(p_link[ref_sel], axis=0)
     R_ref = R_link[ref_sel].mean()
     spread = float(np.linalg.norm(p_link[ref_sel] - p_ref, axis=1).max())
@@ -96,22 +92,23 @@ def build_episode(ts, t_d, p_d, q_d, T_link_opt, t_still_end: float, depth_scale
     tq = np.clip(ts, t_d[0], t_d[-1])
     xyz = np.stack([np.interp(tq, t_d, p_rel[:, c]) for c in range(3)], axis=1)
     rot = Slerp(t_d, R_rel)(tq)
-    xyz[ts <= t_still_end] = 0.0                                  # quieta: exactamente en la referencia
+    pin = ts < t_init                                              # inicialización de DROID: cámara quieta
+    xyz[pin] = 0.0
     q = rot.as_quat()
-    q[ts <= t_still_end] = [0.0, 0.0, 0.0, 1.0]
+    q[pin] = [0.0, 0.0, 0.0, 1.0]
     for i in range(1, len(q)):                                     # signo continuo del cuaternión
         if np.dot(q[i], q[i - 1]) < 0:
             q[i] = -q[i]
-    info = {"reference": "median_still", "reference_frames": int(ref_sel.sum()),
-            "reference_spread_mm": round(1000 * spread, 1), "still_until_s": round(float(t_still_end - t_d[0]), 3),
-            "frames_pinned_to_start": int((ts <= t_still_end).sum())}
+    info = {"reference": method, "reference_frames": int(ref_sel.sum()),
+            "reference_window_s": [round(init_s, 3), round(float(ts[0] - t_d[0] + ref_end_after_start_s), 3)],
+            "reference_spread_mm": round(1000 * spread, 1), "frames_pinned_to_start": int(pin.sum())}
     return xyz, q, info
 
 
 def main(argv=None) -> int:
     import zarr
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--src", default="datasets/demonstrations_real_v8.zarr")
+    ap.add_argument("--src", required=True, help="dataset crudo del recolector (datasets/<nombre>.zarr)")
     ap.add_argument("--dst", required=True, help="dataset nuevo (no debe existir)")
     ap.add_argument("--droid-dir", default="", help="defecto: experiments/v8_validation/<src>/droid")
     ap.add_argument("--frames-dir", default="", help="defecto: datasets/vio_frames/<src>")
@@ -119,7 +116,8 @@ def main(argv=None) -> int:
     ap.add_argument("--skip-verdicts", default="REPETIR", help="veredictos que no entran (coma); vacío = ninguno")
     ap.add_argument("--depth-scale", type=float, default=0.986)
     ap.add_argument("--init-s", type=float, default=0.5, help="inicialización de DROID que no se usa de referencia")
-    ap.add_argument("--still-gyro-rad-s", type=float, default=0.10)
+    ap.add_argument("--ref-end-after-start-s", type=float, default=0.4,
+                    help="fin de la ventana de referencia, desde el primer frame grabado (la mano se mueve >= 0,53 s)")
     ap.add_argument("--min-hold-s", type=float, default=2.0)
     ap.add_argument("--static-speed", type=float, default=0.02)
     ap.add_argument("--static-window-s", type=float, default=0.5)
@@ -163,9 +161,7 @@ def main(argv=None) -> int:
         t_d, p_d, q_d = load_tum(tum)
         calib = json.loads((frames_dir / k / "calib.json").read_text())
         T_link_opt = np.asarray(calib["T_link_opt"], dtype=np.float64)
-        t_still = still_until(frames_dir / k / "imu.csv", float(t_d[0]), a.still_gyro_rad_s)
-        t_still = min(t_still, float(ts[-1]))
-        xyz, q, info = build_episode(ts, t_d, p_d, q_d, T_link_opt, t_still, a.depth_scale, a.init_s)
+        xyz, q, info = build_episode(ts, t_d, p_d, q_d, T_link_opt, a.depth_scale, a.init_s, a.ref_end_after_start_s)
         # Done: tramo final quieto según DROID; si es corto, el del recolector
         done_old = act[:, 8] > 0.5 if act.shape[1] > 8 else np.zeros(len(ts), bool)
         i_hold = detect_hold_start(xyz, rate, a.static_speed, a.static_window_s)
@@ -198,7 +194,7 @@ def main(argv=None) -> int:
         ep.attrs.update(new_at)
         summary["built"].append(k)
         print(f"{k}: {len(ts)} frames | referencia {info['reference_frames']} frames (dispersión "
-              f"{info['reference_spread_mm']} mm, quieta {info['still_until_s']} s) | done {done_src} "
+              f"{info['reference_spread_mm']} mm, {info['frames_pinned_to_start']} fijados) | done {done_src} "
               f"{int(done.sum())} (recolector {int(done_old.sum())}) | recorrido final {np.linalg.norm(xyz[-1]):.3f} m"
               + (f" | validación {v}" if v else ""))
     out.attrs.update({"source": str(src.relative_to(REPO)) if src.is_relative_to(REPO) else str(src),

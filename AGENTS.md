@@ -308,6 +308,13 @@ El nodo de inferencia implementa dos capas independientes de detención:
       - Resultados en `experiments/xarm5_real_trials/2026-11-23/`, herramienta `tools/xarm5/real_trials/run_trial.sh`; detalle en `context.md`, lección 45.
     - *Memoria Modular:* `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
 
+23. **Dataset Real v8 (demos a mano con la D435i, poses de DROID) para el xArm5 (2026-11-25/26):**
+    - *Dataset de entrenamiento:* `datasets/demonstrations_real_v8_xarm5.zarr` (114 demos, 53 208 frames, conversor v3 con la pose real de inicio y la extrínseca medida). Intermedio: `demonstrations_real_v8_droid_v2.zarr` (poses de `camera_link` según DROID-SLAM). `demonstrations_real_v8_droid.zarr` es OBSOLETO (armado v1 con un error de referencia): no usar.
+    - *Verificado contra el dataset del modelo que funcionó en el robot* (`train_real_v7x5v2_relative_ee_e300` se entrenó con `demonstrations_real_v7_xarm5_v2.zarr`): mismos arreglos, convenciones, lote de `ZarrDataset` y desfase acción/estado; paso de entrenamiento en la GPU finito. Veredicto LISTO (`tools/xarm5/verify_training_dataset.py`).
+    - *26 demos marcadas por el conversor (se conservan):* 20 por alcance (la mano avanza alta antes de bajar) y 10 por giro de muñeca: con las hojas a 180° y la cámara alineada se piden ±180° de J5, fuera de `yaw_min/max` ±2,6 rad del puente. Entrenar con todas o solo con las factibles y comparar. No mezclar con `v7_xarm5_v2` (extrínseca vieja); usar `v7_xarm5_v3`.
+    - *Para sumar demos:* `tools/xarm5/make_v8_training_set.sh <droid_out> <xarm5_out>` (DROID, inicio, informe, armado, conversión y verificación; nunca sobrescribe). Marcar las REPETIR como descartadas requiere el OK del usuario.
+    - *Memoria Modular:* `.agents/knowledge/19_v8_handheld_dataset_pipeline.md`.
+
 ---
 
 ## 7. Comandos de Referencia Rápida
@@ -465,6 +472,16 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_data
 # 42. Celdas de la mesa en metros (zona que el robot alcanza) y su dibujo en la vista de HOME3 para la guía del recolector
 # 43. Ajustar la grilla a mano: ventana con barras, celdas verdes/rojas según el alcance del robot y límite de los ArUco; [G] guarda v8_cells.yaml y regenera (en vivo si la cámara corre)
 tools/hardware/v8_tmux.sh grid
+
+# 44. Validación offline de las demos v8 (DROID por demo, reanudable) e informe OK / REVISAR / REPETIR
+tools/xarm5/validate_v8_batch.sh 0 100000 demonstrations_real_v8
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/validate_v8_episodes.py report --dataset datasets/demonstrations_real_v8.zarr --start-poses experiments/v8_validation/demonstrations_real_v8/start_poses.json
+
+# 45. Dataset v8 de entrenamiento de punta a punta (sumar demos nuevas; nunca sobrescribe)
+tools/xarm5/make_v8_training_set.sh demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v2
+
+# 46. ¿Listo para entrenar y consistente con el dataset de un modelo que funcionó?
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/verify_training_dataset.py --dataset datasets/demonstrations_real_v8_xarm5.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --forward
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
 ```
 

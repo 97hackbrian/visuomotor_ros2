@@ -48,6 +48,9 @@ class ReachMonitor:
         self.reach = ReachLimit(g["workspace_shoulder_xyz_m"], g["workspace_wrist_offset_m"],
                                 g["workspace_max_reach_m"], g["workspace_min_reach_m"])
         self.pitch_limits = (float(g["arm_plane_pitch_min"]), float(g["arm_plane_pitch_max"]))
+        # Giro de la herramienta (J5) que acepta el puente: sin cruzar ±pi (2026-11-26: las demos con las hojas a 180°
+        # y la cámara alineada piden ±180°, fuera de ±2,6 rad; el conversor las recorta y marca)
+        self.yaw_limits = (float(g["yaw_min"]), float(g["yaw_max"]))
         al = yaml.safe_load(open(alignment_yaml))["xarm5_dataset_alignment"]
         self.T_tcp_cam = pose_matrix(al["tcp_to_camera_xyz_m"], rpy_rotation(*al["tcp_to_camera_rpy_rad"]))
         self.T_cam_tcp = np.linalg.inv(self.T_tcp_cam)
@@ -64,7 +67,7 @@ class ReachMonitor:
         T = self.tcp_pose(T_rel)
         p = T[:3, 3]
         q = Rotation.from_matrix(T[:3, :3]).as_quat()
-        pitch, _yaw = arm_plane_params(q, arm_azimuth(p))
+        pitch, yaw = arm_plane_params(q, arm_azimuth(p))
         pitch = min(max(pitch, self.pitch_limits[0]), self.pitch_limits[1])
         ratio = self.reach.reach(p, pitch) / self.reach.max_reach
         reasons: List[str] = []
@@ -78,9 +81,11 @@ class ReachMonitor:
             reasons.append("demasiado alto")
         if p[2] < self.box.z_min:
             reasons.append("demasiado bajo")
+        if not (self.yaw_limits[0] <= yaw <= self.yaw_limits[1]):
+            reasons.append("cámara demasiado girada")
         outside = bool(reasons)
         return {"outside": outside, "near": (not outside) and ratio > self.warn_ratio, "ratio": float(ratio),
-                "reasons": reasons, "tcp_xyz": p.tolist()}
+                "reasons": reasons, "tcp_xyz": p.tolist(), "yaw_rad": float(yaw)}
 
 
 def relative_transform(p0, q0, p, q) -> np.ndarray:
@@ -91,14 +96,20 @@ def relative_transform(p0, q0, p, q) -> np.ndarray:
 
 
 def advice(reasons: Sequence[str]) -> str:
-    """Qué hacer, en pocas palabras, para volver al alcance del robot."""
-    if "demasiado alto" in reasons and len(reasons) == 1:
-        return "baja un poco"
-    if "demasiado al costado" in reasons and len(reasons) == 1:
-        return "acércate al centro"
+    """Qué hacer, en pocas palabras, para volver al alcance del robot (a lo más dos acciones, la más importante
+    primero: girar menos la cámara, después la posición)."""
+    acts = []
+    if "cámara demasiado girada" in reasons:
+        acts.append("gira menos la cámara")
+    if "brazo demasiado estirado" in reasons or "demasiado lejos de la base" in reasons:
+        acts.append("baja primero y después avanza")
+    elif "demasiado alto" in reasons:
+        acts.append("baja un poco")
+    if "demasiado al costado" in reasons:
+        acts.append("acércate al centro")
     if "demasiado bajo" in reasons:
-        return "sube un poco"
-    return "baja primero y después avanza"
+        acts.append("sube un poco")
+    return " y ".join(acts[:2]) if acts else "baja primero y después avanza"
 
 
 def summarize(stats: Optional[Dict]) -> Dict:

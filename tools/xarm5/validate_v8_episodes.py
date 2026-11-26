@@ -14,8 +14,8 @@ produce ``tools/xarm5/validate_v8_batch.sh``):
 Veredicto: REPETIR (salto no físico, DROID incompleto o sin pose de inicio), REVISAR (desacuerdo grande o final que
 se mueve) u OK. Solo lectura del dataset.
 
-    python3 tools/xarm5/validate_v8_episodes.py list --first 0 --last 120        # para el lote: "episodio bag"
-    python3 tools/xarm5/validate_v8_episodes.py report --start-poses experiments/v8_validation/<ds>/start_poses.json
+    python3 tools/xarm5/validate_v8_episodes.py list --dataset datasets/<crudo>.zarr --first 0 --last 120
+    python3 tools/xarm5/validate_v8_episodes.py report --dataset datasets/<crudo>.zarr --start-poses experiments/v8_validation/<crudo>/start_poses.json
 """
 from __future__ import annotations
 
@@ -152,6 +152,10 @@ def cmd_report(a) -> int:
             why.append(f"salto no físico ({row['first_bad_jump']})")
         if starts and not sp.get("usable"):
             why.append("sin pose de inicio")
+        # 2026-11-26, episode_5: bajó a la herramienta y VOLVIÓ a la vista de inicio; el guardado automático se
+        # disparó ahí y el tramo done quedó en HOME3 (inicio-fin 6 mm; las demás >= 0,50 m).
+        if row["start_end_m"] < a.min_start_end_m:
+            why.append(f"termina donde empezó (inicio-fin {100 * row['start_end_m']:.0f} cm)")
         rev = []
         if row["init_spread_mm"] > a.max_init_spread_mm:
             rev.append(f"inicio inestable de DROID ({row['init_spread_mm']:.0f} mm; "
@@ -192,7 +196,7 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("list", "report"):
         p = sub.add_parser(name)
-        p.add_argument("--dataset", default="datasets/demonstrations_real_v8.zarr")
+        p.add_argument("--dataset", required=True, help="dataset crudo del recolector (p. ej. datasets/<nombre>.zarr)")
         if name == "list":
             p.add_argument("--first", type=int, default=0)
             p.add_argument("--last", type=int, default=10**6)
@@ -204,6 +208,8 @@ def main(argv=None) -> int:
             p.add_argument("--max-done-speed-cm-s", type=float, default=3.0)
             p.add_argument("--init-s", type=float, default=0.5, help="inicialización de DROID desde el inicio del bag")
             p.add_argument("--max-init-spread-mm", type=float, default=15.0)
+            p.add_argument("--min-start-end-m", type=float, default=0.25,
+                           help="la cámara debe terminar al menos a esta distancia del inicio (sobre la herramienta)")
     a = ap.parse_args(argv)
     return cmd_list(a) if a.cmd == "list" else cmd_report(a)
 
