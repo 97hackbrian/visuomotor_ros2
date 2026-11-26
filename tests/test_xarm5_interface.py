@@ -22,6 +22,7 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     brake_report,
     clamp_to_workspace,
     clamp_yaw,
+    clamp_yaw_near,
     continuous_rpy,
     joints_near_limits,
     joints_with_bit_cleared,
@@ -182,6 +183,21 @@ class TestStepLimits(unittest.TestCase):
             cur = limit_angle_step(cur, -2.5, 0.05, wrap=False)
             self.assertLessEqual(abs(cur), 2.5 + 1e-12)
         self.assertAlmostEqual(cur, -2.5)
+
+    def test_clamp_yaw_near(self):
+        """2026-11-26: fuera del rango, el límite más cercano al yaw ACTUAL; dentro, igual que clamp_yaw."""
+        lim = (-3.0892, 3.0892)                                         # ±177°
+        self.assertAlmostEqual(clamp_yaw_near(1.0, 3.0, *lim), 1.0)       # dentro: sin cambios (giro largo incluido)
+        self.assertAlmostEqual(clamp_yaw_near(-2.0, 2.5, *lim), -2.0)
+        # El pedido oscila alrededor de 180° (+179.5° / -179.5°): queda en el límite del lado donde está el robot
+        for cur in (3.0, 3.0892):
+            for y in (math.radians(179.5), math.radians(-179.5)):
+                self.assertAlmostEqual(clamp_yaw_near(y, cur, *lim), 3.0892)
+        self.assertAlmostEqual(clamp_yaw_near(math.radians(179.5), -2.9, *lim), -3.0892)
+        self.assertAlmostEqual(clamp_yaw_near(math.radians(179.5), 0.0, *lim), 3.0892)   # equidistante: lado del pedido
+        self.assertAlmostEqual(clamp_yaw_near(math.radians(-179.5), 0.0, *lim), -3.0892)
+        with self.assertRaises(ValueError):
+            clamp_yaw_near(3.13, 0.0, 1.0, -1.0)
 
     def test_clamp_yaw(self):
         self.assertAlmostEqual(clamp_yaw(3.0, -2.6, 2.6), 2.6)

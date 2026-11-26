@@ -126,6 +126,28 @@ class TestConvertVioDataset(unittest.TestCase):
 
 
 
+class YawNearPiTest(unittest.TestCase):
+    """2026-11-26: con las hojas a 180° y la cámara alineada, el giro pedido oscila alrededor de ±180°. Proyectando
+    cada frame por separado, el yaw saltaba de un límite al otro (velocidad angular 5,4 rad/s marcada en 10 demos).
+    Recordando el yaw del frame anterior (como el puente con su yaw comandado) queda de un solo lado."""
+
+    def test_jitter_around_pi_does_not_flip(self):
+        conv = Converter(dict(BRIDGE, yaw_min=-3.0892, yaw_max=3.0892), ALIGN, POLICY)
+        xyz = np.array([0.40, 0.0, 0.30])
+        az = arm_azimuth(xyz)
+        reqs = [arm_plane_quat(az, 0.0, math.radians(s * 179.5)) for s in (1, -1) * 10]
+        prev, yaws, quats = None, [], []
+        for q in reqs:
+            qp, prev = conv.project(xyz, q, prev)
+            yaws.append(prev)
+            quats.append(qp)
+        self.assertEqual(len({round(y, 6) for y in yaws}), 1, yaws)                  # siempre el mismo límite
+        self.assertLess(max(rotation_angle(quats[i], quats[i + 1]) for i in range(len(quats) - 1)), 1e-6)
+        self.assertLess(rotation_angle(reqs[0], quats[0]), math.radians(3.1))       # a <= 3° de lo pedido
+        old = [conv.project(xyz, q)[1] for q in reqs]                                  # sin memoria: salta
+        self.assertEqual(len({round(y, 6) for y in old}), 2)
+
+
 class DiscardedEpisodeTest(unittest.TestCase):
     """Las demos marcadas ``discarded`` al grabar ([U] del recolector o a pedido del usuario, 2026-11-25) no se
     convierten y el informe lo dice; las demás sí."""

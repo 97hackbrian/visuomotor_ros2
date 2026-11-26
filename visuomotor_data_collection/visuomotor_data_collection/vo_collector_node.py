@@ -184,6 +184,7 @@ class VOCollectorNode(Node):
         d('reach_home_file', 'deploy/jetson/config/jetson_policy_params.yaml')
         d('reach_warn_ratio', 0.97)            # "cerca del límite" desde este porcentaje del alcance del puente
         d('reach_warn_period_s', 2.5)
+        d('reach_yaw_tolerance_deg', 5.0)       # giro de muñeca: avisar solo si pasa el límite del puente por más que esto
         d('terminal_bell', True)
         d('schedule_file', '')
         d('schedule_cells_file', 'visuomotor_bringup/config/realsense/v8_cells_home3.yaml')
@@ -272,7 +273,8 @@ class VOCollectorNode(Node):
             paths = [Path(str(g(n))) for n in ('reach_bridge_params_file', 'reach_alignment_file', 'reach_home_file')]
             paths = [x if x.is_absolute() else self.repo / x for x in paths]
             try:
-                self.reach_mon = ReachMonitor(*paths, warn_ratio=float(g('reach_warn_ratio')))
+                self.reach_mon = ReachMonitor(*paths, warn_ratio=float(g('reach_warn_ratio')),
+                                              yaw_tolerance_deg=float(g('reach_yaw_tolerance_deg')))
                 self.get_logger().info(" Monitor de alcance del xArm5: activo (aviso desde el "
                                        f"{100 * float(g('reach_warn_ratio')):.0f} % del alcance del puente).")
             except Exception as e:  # noqa: BLE001

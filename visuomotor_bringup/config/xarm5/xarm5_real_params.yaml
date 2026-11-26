@@ -88,8 +88,12 @@ xarm5_bridge:
     fixed_yaw: 0.0
     yaw_offset: 0.0
     # Rango de yaw permitido (rad). El yaw se interpola SIN cruzar ±pi para evitar giros de 2*pi de la muñeca.
-    yaw_min: -2.6
-    yaw_max: 2.6
+    # 2026-11-26, decisión del usuario: ±177° (antes ±2,6 = ±149°). Las demos v8 con las hojas a 180° terminan con la
+    # cámara alineada (hojas hacia arriba en la imagen), lo que pide ~±180° de muñeca; 3° de margen a ±pi. Fuera del
+    # rango, el puente va al límite más CERCANO al yaw actual (clamp_yaw_near): cerca de ±pi el pedido salta entre
+    # +pi y -pi, y antes el objetivo alternaba entre los dos límites (casi una vuelta de muñeca ida y vuelta).
+    yaw_min: -3.0892
+    yaw_max: 3.0892
 
     # --- Volumen de trabajo en link_base (metros) -------------------------------
     # Conservador para las primeras pruebas; ampliar tras medir la celda real. Es una decisión de SEGURIDAD DE LA CELDA,

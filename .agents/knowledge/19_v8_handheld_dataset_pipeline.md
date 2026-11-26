@@ -91,4 +91,23 @@ Resultado sobre 119 demos: 106 OK, 8 REVISAR y 5 REPETIR (descartadas a pedido d
   6. verificación.
   - Las REPETIR no se marcan solas: hace falta el OK del usuario.
 - **Monitor de alcance en vivo** (`reach_monitor.py`): avisa por voz sobre la posición (caja y alcance) y el giro de muñeca (±149°): "baja primero y después avanza", "gira menos la cámara".
-- **Obsoleto:** `datasets/demonstrations_real_v8_droid.zarr` (armado v1, con el error de la referencia). No usar.
+- **Borrado (2026-11-26, a pedido del usuario):** `datasets/demonstrations_real_v8_droid.zarr` (7,8 GB), el armado v1 con el error de la referencia (borraba movimiento real al inicio). No se usó para entrenar; se reemplazó por `demonstrations_real_v8_droid_v2.zarr` (armado v2).
+
+## 6. Giro de muñeca a ±177° (decisión del usuario, 2026-11-26)
+
+El proyecto es SOLO aproximación (sin pinza), y las demos con las hojas a 180° deben terminar con las hojas hacia ARRIBA en la imagen (cámara alineada). Esa vista pide ~±180° de J5, y el puente la acotaba a ±2,6 rad (±149°).
+- **Cambios:**
+  - `yaw_min/max` pasa a ±3,0892 rad (±177°, con 3° de margen a ±π) en `xarm5_real_params.yaml` y en los valores por defecto del puente;
+  - nueva función `xarm5_interface.clamp_yaw_near`: si el yaw pedido queda FUERA del rango, se usa el límite más cercano al yaw ACTUAL (el comandado, o el del frame anterior), no el del lado del pedido.
+- **Por qué hacía falta:** cerca de ±π el pedido salta entre +π y −π. Con el recorte anterior, el objetivo alternaba entre los dos límites, y como el yaw se interpola sin cruzar ±π, la muñeca intentaba casi una vuelta entera ida y vuelta. Dentro del rango nada cambia.
+- **Dónde se usa:** en el puente (modo `arm_plane` y los demás) y en el conversor, que ahora proyecta secuencialmente recordando el yaw del frame anterior.
+- **Monitor en vivo:** solo avisa del giro si pasa el límite en más de `reach_yaw_tolerance_deg` (5°). Con ±177° no avisa al alinear a 180°, porque el robot queda 3° corto.
+- **Pruebas:** `test_clamp_yaw_near`, `YawNearPiTest` (el yaw oscilando a ±179,5° ya no salta) y la del monitor.
+- **Despliegue:** el puente corre en la Jetson. Hay que llevarle este cambio (sincronizar el repo y recompilar/reconstruir la imagen) antes de ejecutar políticas entrenadas con demos de 180°.
+- **Reconversión:** `demonstrations_real_v8_xarm5_v2.zarr` es el dataset de ENTRENAMIENTO.
+  - Pasan de 26 a 20 demos marcadas, todas por alcance.
+  - En las 15 de 180°, la desviación de orientación baja de 31,3° a 12,0° (mediana; máx. 21,5°), como en los demás ángulos.
+  - Verificado contra `v7_xarm5_v2`: LISTO, con un paso de entrenamiento de pérdida 1,11.
+  - `demonstrations_real_v8_xarm5.zarr` (v1, a ±149°) queda obsoleto.
+- **Nota para entrenar:** las demos de 180° terminan en +177° o −177°, según el lado desde el que se giró la cámara. Físicamente están a 6° una de la otra, pero en la convención `home` sus cuaterniones quedan casi opuestos (producto punto mínimo con home: 0,009 ≥ 0). Con `relative_ee`, la acción relativa al efector no se afecta; el estado de entrada tiene esos dos grupos.
+- **Pendiente aparte (no relacionado):** `tests/test_hand_eye.py::test_solve_command_end_to_end` espera que `solve` se niegue con el tablero "sin medir", pero `charuco_board.yaml` ya está medido (`measured: true`). Las otras 4 fallas de la batería completa son del simulador Isaac Sim y de `analyze_convergence.py` (argumento `language`).

@@ -391,6 +391,24 @@ def clamp_yaw(yaw: float, yaw_min: float, yaw_max: float) -> float:
     return min(max(wrap_angle(yaw), yaw_min), yaw_max)
 
 
+def clamp_yaw_near(yaw: float, current: float, yaw_min: float, yaw_max: float) -> float:
+    """Como :func:`clamp_yaw`, pero si el yaw pedido queda FUERA del rango se usa el límite más cercano al yaw
+    ``current`` (el comandado en el ciclo anterior, o el del frame anterior), no el del lado del pedido.
+
+    Cerca de ±pi el pedido salta entre +pi y -pi de un ciclo a otro (2026-11-26: demos con las hojas a 180° y la
+    cámara alineada). Con :func:`clamp_yaw` el objetivo alternaría entre los dos límites, y como el yaw se interpola
+    sin cruzar ±pi, la muñeca intentaría dar casi una vuelta entera ida y vuelta. Dentro del rango es idéntico a
+    :func:`clamp_yaw` (también los giros largos sin cruzar ±pi)."""
+    y = wrap_angle(yaw)
+    if yaw_min <= y <= yaw_max:
+        return clamp_yaw(y, yaw_min, yaw_max)
+    clamp_yaw(0.0, yaw_min, yaw_max)                                   # valida el rango
+    d_min, d_max = abs(float(current) - yaw_min), abs(float(current) - yaw_max)
+    if abs(d_min - d_max) < 1e-9:                                      # equidistante: el lado del pedido
+        return yaw_max if y >= 0.0 else yaw_min
+    return yaw_min if d_min < d_max else yaw_max
+
+
 def is_finite_pose(xyz: Sequence[float], quat: Sequence[float]) -> bool:
     """``True`` si posición y cuaternión son finitos y el cuaternión no es nulo."""
     values = list(xyz) + list(quat)

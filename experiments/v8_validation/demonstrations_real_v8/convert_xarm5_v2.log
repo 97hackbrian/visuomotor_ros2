@@ -1,0 +1,116 @@
+episode_0 -> episode_0 | 423 frames | desv. orient. máx 17.7° | v máx 0.082 m/s | fuera de volumen 0 | ok
+episode_1 -> episode_1 | 304 frames | desv. orient. máx 13.9° | v máx 0.130 m/s | fuera de volumen 0 | ok
+episode_2 -> episode_2 | 417 frames | desv. orient. máx 6.5° | v máx 0.064 m/s | fuera de volumen 0 | ok
+episode_3 -> episode_3 | 365 frames | desv. orient. máx 10.0° | v máx 0.073 m/s | fuera de volumen 0 | ok
+episode_4 -> episode_4 | 664 frames | desv. orient. máx 6.4° | v máx 0.087 m/s | fuera de volumen 0 | ok
+episode_6 -> episode_5 | 764 frames | desv. orient. máx 8.8° | v máx 0.080 m/s | fuera de volumen 0 | ok
+episode_7 -> episode_6 | 751 frames | desv. orient. máx 5.7° | v máx 0.065 m/s | fuera de volumen 0 | ok
+episode_8 -> episode_7 | 469 frames | desv. orient. máx 10.5° | v máx 0.076 m/s | fuera de volumen 0 | ok
+episode_9 -> episode_8 | 308 frames | desv. orient. máx 7.8° | v máx 0.094 m/s | fuera de volumen 0 | ok
+episode_10 -> episode_9 | 600 frames | desv. orient. máx 7.1° | v máx 0.074 m/s | fuera de volumen 201 | ok
+episode_11 -> episode_10 | 476 frames | desv. orient. máx 6.0° | v máx 0.082 m/s | fuera de volumen 0 | ok
+episode_12 -> episode_11 | 606 frames | desv. orient. máx 10.6° | v máx 0.107 m/s | fuera de volumen 325 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_14 -> episode_12 | 656 frames | desv. orient. máx 17.6° | v máx 0.090 m/s | fuera de volumen 0 | ok
+episode_15 -> episode_13 | 491 frames | desv. orient. máx 6.1° | v máx 0.077 m/s | fuera de volumen 0 | ok
+episode_16 -> episode_14 | 665 frames | desv. orient. máx 11.9° | v máx 0.077 m/s | fuera de volumen 287 | ok
+episode_17 -> episode_15 | 692 frames | desv. orient. máx 7.3° | v máx 0.076 m/s | fuera de volumen 0 | ok
+episode_18 -> episode_16 | 566 frames | desv. orient. máx 9.2° | v máx 0.051 m/s | fuera de volumen 0 | ok
+episode_19 -> episode_17 | 456 frames | desv. orient. máx 12.2° | v máx 0.079 m/s | fuera de volumen 0 | ok
+episode_20 -> episode_18 | 614 frames | desv. orient. máx 13.7° | v máx 0.069 m/s | fuera de volumen 153 | ok
+episode_21 -> episode_19 | 536 frames | desv. orient. máx 15.0° | v máx 0.065 m/s | fuera de volumen 83 | ok
+episode_22 -> episode_20 | 473 frames | desv. orient. máx 10.6° | v máx 0.112 m/s | fuera de volumen 0 | ok
+episode_26 -> episode_21 | 500 frames | desv. orient. máx 11.5° | v máx 0.070 m/s | fuera de volumen 17 | ok
+episode_27 -> episode_22 | 525 frames | desv. orient. máx 6.7° | v máx 0.099 m/s | fuera de volumen 238 | ok
+episode_28 -> episode_23 | 626 frames | desv. orient. máx 8.5° | v máx 0.065 m/s | fuera de volumen 160 | ok
+episode_29 -> episode_24 | 391 frames | desv. orient. máx 4.4° | v máx 0.069 m/s | fuera de volumen 0 | ok
+episode_30 -> episode_25 | 510 frames | desv. orient. máx 6.4° | v máx 0.065 m/s | fuera de volumen 31 | ok
+episode_31 -> episode_26 | 552 frames | desv. orient. máx 7.4° | v máx 0.072 m/s | fuera de volumen 74 | ok
+episode_33 -> episode_27 | 624 frames | desv. orient. máx 17.1° | v máx 0.087 m/s | fuera de volumen 458 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_34 -> episode_28 | 521 frames | desv. orient. máx 18.6° | v máx 0.089 m/s | fuera de volumen 282 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_35 -> episode_29 | 513 frames | desv. orient. máx 14.7° | v máx 0.072 m/s | fuera de volumen 68 | ok
+episode_36 -> episode_30 | 677 frames | desv. orient. máx 12.7° | v máx 0.074 m/s | fuera de volumen 389 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_37 -> episode_31 | 531 frames | desv. orient. máx 5.6° | v máx 0.064 m/s | fuera de volumen 0 | ok
+episode_38 -> episode_32 | 548 frames | desv. orient. máx 6.3° | v máx 0.078 m/s | fuera de volumen 0 | ok
+episode_39 -> episode_33 | 357 frames | desv. orient. máx 13.2° | v máx 0.166 m/s | fuera de volumen 52 | ok
+episode_41 -> episode_34 | 495 frames | desv. orient. máx 6.5° | v máx 0.099 m/s | fuera de volumen 245 | ok
+episode_42 -> episode_35 | 433 frames | desv. orient. máx 13.1° | v máx 0.128 m/s | fuera de volumen 0 | ok
+episode_43 -> episode_36 | 411 frames | desv. orient. máx 6.3° | v máx 0.062 m/s | fuera de volumen 0 | ok
+episode_44 -> episode_37 | 435 frames | desv. orient. máx 15.2° | v máx 0.090 m/s | fuera de volumen 0 | ok
+episode_45 -> episode_38 | 488 frames | desv. orient. máx 11.0° | v máx 0.138 m/s | fuera de volumen 244 | ok
+episode_46 -> episode_39 | 458 frames | desv. orient. máx 9.4° | v máx 0.089 m/s | fuera de volumen 0 | ok
+episode_47 -> episode_40 | 384 frames | desv. orient. máx 13.6° | v máx 0.084 m/s | fuera de volumen 56 | ok
+episode_48 -> episode_41 | 530 frames | desv. orient. máx 11.7° | v máx 0.117 m/s | fuera de volumen 336 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_49 -> episode_42 | 526 frames | desv. orient. máx 13.9° | v máx 0.123 m/s | fuera de volumen 402 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_50 -> episode_43 | 633 frames | desv. orient. máx 7.8° | v máx 0.102 m/s | fuera de volumen 503 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_51 -> episode_44 | 401 frames | desv. orient. máx 13.8° | v máx 0.171 m/s | fuera de volumen 48 | ok
+episode_52 -> episode_45 | 629 frames | desv. orient. máx 9.7° | v máx 0.139 m/s | fuera de volumen 235 | ok
+episode_53 -> episode_46 | 615 frames | desv. orient. máx 7.1° | v máx 0.070 m/s | fuera de volumen 161 | ok
+episode_55 -> episode_47 | 506 frames | desv. orient. máx 6.0° | v máx 0.108 m/s | fuera de volumen 364 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_56 -> episode_48 | 415 frames | desv. orient. máx 12.4° | v máx 0.061 m/s | fuera de volumen 0 | ok
+episode_57 -> episode_49 | 343 frames | desv. orient. máx 9.6° | v máx 0.135 m/s | fuera de volumen 343 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_58 -> episode_50 | 335 frames | desv. orient. máx 19.6° | v máx 0.144 m/s | fuera de volumen 57 | ok
+episode_60 -> episode_51 | 449 frames | desv. orient. máx 4.7° | v máx 0.079 m/s | fuera de volumen 40 | ok
+episode_61 -> episode_52 | 429 frames | desv. orient. máx 12.9° | v máx 0.113 m/s | fuera de volumen 271 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_62 -> episode_53 | 469 frames | desv. orient. máx 21.6° | v máx 0.105 m/s | fuera de volumen 161 | ok
+episode_63 -> episode_54 | 468 frames | desv. orient. máx 6.9° | v máx 0.074 m/s | fuera de volumen 0 | ok
+episode_64 -> episode_55 | 451 frames | desv. orient. máx 20.2° | v máx 0.089 m/s | fuera de volumen 181 | ok
+episode_65 -> episode_56 | 416 frames | desv. orient. máx 16.5° | v máx 0.116 m/s | fuera de volumen 327 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_67 -> episode_57 | 558 frames | desv. orient. máx 16.9° | v máx 0.073 m/s | fuera de volumen 27 | ok
+episode_68 -> episode_58 | 401 frames | desv. orient. máx 20.1° | v máx 0.107 m/s | fuera de volumen 27 | ok
+episode_69 -> episode_59 | 495 frames | desv. orient. máx 22.6° | v máx 0.095 m/s | fuera de volumen 50 | ok
+episode_70 -> episode_60 | 605 frames | desv. orient. máx 11.9° | v máx 0.088 m/s | fuera de volumen 486 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_72 -> episode_61 | 289 frames | desv. orient. máx 13.6° | v máx 0.130 m/s | fuera de volumen 25 | ok
+episode_73 -> episode_62 | 529 frames | desv. orient. máx 17.0° | v máx 0.124 m/s | fuera de volumen 399 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_74 -> episode_63 | 445 frames | desv. orient. máx 6.1° | v máx 0.102 m/s | fuera de volumen 14 | ok
+episode_75 -> episode_64 | 564 frames | desv. orient. máx 8.3° | v máx 0.108 m/s | fuera de volumen 451 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_77 -> episode_65 | 517 frames | desv. orient. máx 12.1° | v máx 0.086 m/s | fuera de volumen 95 | ok
+episode_78 -> episode_66 | 333 frames | desv. orient. máx 20.2° | v máx 0.112 m/s | fuera de volumen 174 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_79 -> episode_67 | 608 frames | desv. orient. máx 9.7° | v máx 0.092 m/s | fuera de volumen 250 | ok
+episode_80 -> episode_68 | 411 frames | desv. orient. máx 9.7° | v máx 0.072 m/s | fuera de volumen 44 | ok
+episode_81 -> episode_69 | 438 frames | desv. orient. máx 9.4° | v máx 0.089 m/s | fuera de volumen 0 | ok
+episode_82 -> episode_70 | 449 frames | desv. orient. máx 10.1° | v máx 0.098 m/s | fuera de volumen 0 | ok
+episode_83 -> episode_71 | 455 frames | desv. orient. máx 6.4° | v máx 0.056 m/s | fuera de volumen 26 | ok
+episode_84 -> episode_72 | 442 frames | desv. orient. máx 4.4° | v máx 0.076 m/s | fuera de volumen 57 | ok
+episode_85 -> episode_73 | 317 frames | desv. orient. máx 17.9° | v máx 0.138 m/s | fuera de volumen 31 | ok
+episode_86 -> episode_74 | 291 frames | desv. orient. máx 17.7° | v máx 0.182 m/s | fuera de volumen 25 | ok
+episode_87 -> episode_75 | 397 frames | desv. orient. máx 21.5° | v máx 0.128 m/s | fuera de volumen 36 | ok
+episode_88 -> episode_76 | 468 frames | desv. orient. máx 10.5° | v máx 0.091 m/s | fuera de volumen 239 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_89 -> episode_77 | 309 frames | desv. orient. máx 18.6° | v máx 0.130 m/s | fuera de volumen 32 | ok
+episode_90 -> episode_78 | 516 frames | desv. orient. máx 12.8° | v máx 0.082 m/s | fuera de volumen 187 | ok
+episode_91 -> episode_79 | 431 frames | desv. orient. máx 16.1° | v máx 0.139 m/s | fuera de volumen 25 | ok
+episode_92 -> episode_80 | 564 frames | desv. orient. máx 7.5° | v máx 0.084 m/s | fuera de volumen 286 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_93 -> episode_81 | 444 frames | desv. orient. máx 8.9° | v máx 0.110 m/s | fuera de volumen 57 | ok
+episode_94 -> episode_82 | 514 frames | desv. orient. máx 9.1° | v máx 0.041 m/s | fuera de volumen 0 | ok
+episode_95 -> episode_83 | 537 frames | desv. orient. máx 9.7° | v máx 0.078 m/s | fuera de volumen 213 | ok
+episode_96 -> episode_84 | 417 frames | desv. orient. máx 7.2° | v máx 0.095 m/s | fuera de volumen 61 | ok
+episode_97 -> episode_85 | 347 frames | desv. orient. máx 3.3° | v máx 0.080 m/s | fuera de volumen 12 | ok
+episode_98 -> episode_86 | 576 frames | desv. orient. máx 12.0° | v máx 0.106 m/s | fuera de volumen 128 | ok
+episode_99 -> episode_87 | 423 frames | desv. orient. máx 8.3° | v máx 0.121 m/s | fuera de volumen 0 | ok
+episode_100 -> episode_88 | 385 frames | desv. orient. máx 10.0° | v máx 0.062 m/s | fuera de volumen 36 | ok
+episode_102 -> episode_89 | 329 frames | desv. orient. máx 19.6° | v máx 0.124 m/s | fuera de volumen 97 | ok
+episode_103 -> episode_90 | 593 frames | desv. orient. máx 23.1° | v máx 0.098 m/s | fuera de volumen 31 | ok
+episode_104 -> episode_91 | 429 frames | desv. orient. máx 11.7° | v máx 0.085 m/s | fuera de volumen 158 | ok
+episode_105 -> episode_92 | 349 frames | desv. orient. máx 14.9° | v máx 0.125 m/s | fuera de volumen 14 | ok
+episode_106 -> episode_93 | 365 frames | desv. orient. máx 20.0° | v máx 0.107 m/s | fuera de volumen 50 | ok
+episode_107 -> episode_94 | 443 frames | desv. orient. máx 13.3° | v máx 0.094 m/s | fuera de volumen 48 | ok
+episode_108 -> episode_95 | 423 frames | desv. orient. máx 11.7° | v máx 0.089 m/s | fuera de volumen 32 | ok
+episode_109 -> episode_96 | 333 frames | desv. orient. máx 19.2° | v máx 0.113 m/s | fuera de volumen 34 | ok
+episode_110 -> episode_97 | 626 frames | desv. orient. máx 10.9° | v máx 0.082 m/s | fuera de volumen 94 | ok
+episode_111 -> episode_98 | 333 frames | desv. orient. máx 7.1° | v máx 0.089 m/s | fuera de volumen 0 | ok
+episode_112 -> episode_99 | 348 frames | desv. orient. máx 7.2° | v máx 0.078 m/s | fuera de volumen 0 | ok
+episode_113 -> episode_100 | 239 frames | desv. orient. máx 22.4° | v máx 0.164 m/s | fuera de volumen 18 | ok
+episode_114 -> episode_101 | 549 frames | desv. orient. máx 25.8° | v máx 0.106 m/s | fuera de volumen 68 | ok
+episode_115 -> episode_102 | 423 frames | desv. orient. máx 28.9° | v máx 0.119 m/s | fuera de volumen 37 | ok
+episode_116 -> episode_103 | 339 frames | desv. orient. máx 7.3° | v máx 0.071 m/s | fuera de volumen 0 | ok
+episode_118 -> episode_104 | 283 frames | desv. orient. máx 14.3° | v máx 0.121 m/s | fuera de volumen 33 | ok
+episode_119 -> episode_105 | 363 frames | desv. orient. máx 19.8° | v máx 0.148 m/s | fuera de volumen 164 | ok
+episode_120 -> episode_106 | 413 frames | desv. orient. máx 18.3° | v máx 0.136 m/s | fuera de volumen 255 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_121 -> episode_107 | 491 frames | desv. orient. máx 10.3° | v máx 0.072 m/s | fuera de volumen 292 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_122 -> episode_108 | 429 frames | desv. orient. máx 7.1° | v máx 0.065 m/s | fuera de volumen 41 | ok
+episode_123 -> episode_109 | 421 frames | desv. orient. máx 7.9° | v máx 0.091 m/s | fuera de volumen 21 | ok
+episode_124 -> episode_110 | 285 frames | desv. orient. máx 14.0° | v máx 0.105 m/s | fuera de volumen 31 | ok
+episode_125 -> episode_111 | 391 frames | desv. orient. máx 19.1° | v máx 0.123 m/s | fuera de volumen 253 | MARCADO: TCP fuera del volumen de trabajo o del alcance del brazo
+episode_126 -> episode_112 | 291 frames | desv. orient. máx 18.6° | v máx 0.118 m/s | fuera de volumen 18 | ok
+episode_127 -> episode_113 | 355 frames | desv. orient. máx 22.4° | v máx 0.116 m/s | fuera de volumen 165 | ok
+
+114 episodios, 0 descartados al grabar (omitidos), 20 marcados, 114 escritos en /ros/datasets/demonstrations_real_v8_xarm5_v2.zarr. Informe: /ros/datasets/demonstrations_real_v8_xarm5_v2_conversion_report.json

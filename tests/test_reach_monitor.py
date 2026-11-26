@@ -55,7 +55,12 @@ class ReachMonitorTest(unittest.TestCase):
         """2026-11-26: con las hojas a 180° y la cámara alineada, el giro pedido (~180°) sale de ±2,6 rad del puente."""
         half = np.eye(4)
         half[:3, :3] = Rotation.from_euler("x", 180, degrees=True).as_matrix()   # media vuelta sobre su eje óptico (x de camera_link)
-        r = self.m.check(half)
+        # Con el puente a ±177° (2026-11-26) y 5° de tolerancia, alinear la cámara a 180° NO avisa (el robot queda 3°
+        # corto); con el rango anterior (±2,6 rad = ±149°) sí
+        self.assertNotIn("cámara demasiado girada", self.m.check(half)["reasons"])
+        old = ReachMonitor(*CFG)
+        old.yaw_limits = (-2.6, 2.6)
+        r = old.check(half)
         self.assertIn("cámara demasiado girada", r["reasons"], r)
         self.assertTrue(advice(r["reasons"]).startswith("gira menos la cámara"), advice(r["reasons"]))
         quarter = np.eye(4)

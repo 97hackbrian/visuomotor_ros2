@@ -241,7 +241,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
 18. **Manipulador Real xArm5 (UFACTORY, 5 GDL) en Jetson Orin Nano:**
    - *Cadena:* `policy_node` → `target_frame_raw` → `pose_smoother` → `target_frame` → `xarm5_bridge` → `/xarm/set_servo_cartesian` (modo 1). TF `link_base→xarm_tcp` y `/visuomotor/gripper_joint_states` (escala de la política) los publica el puente.
    - *Seguridad obligatoria:* el puente arranca **desarmado** y con `dry_run: true`; solo `~/arm` habilita movimiento. Caja de trabajo, límites de velocidad, rechazo de objetivos lejanos, watchdog y desarme ante error del controlador. Nunca desactivar estas protecciones en código; ajustarlas en `visuomotor_bringup/config/xarm5/xarm5_real_params.yaml`.
-   - *5 GDL:* orientación 6D no alcanzable. `orientation_mode: arm_plane` (defecto) = inclinación solo en el plano vertical del brazo (±`arm_plane_pitch_*`, 1.48 rad ≈ 85°; tope < π/2 por bloqueo de cardán del rpy del controlador) + giro J5, interpolado en (pitch, yaw); con pitch 0 equivale a `top_down_yaw`. RViz2: anillo verde (inclinación, eje según acimut, ajuste al soltar) y azul (giro de la herramienta).
+   - *5 GDL:* orientación 6D no alcanzable. `orientation_mode: arm_plane` (defecto) = inclinación solo en el plano vertical del brazo (±`arm_plane_pitch_*`, 1.48 rad ≈ 85°; tope < π/2 por bloqueo de cardán del rpy del controlador) + giro J5, interpolado en (pitch, yaw); con pitch 0 equivale a `top_down_yaw`. Giro J5 acotado a ±177° (`yaw_min/max` ±3,0892 rad desde el 2026-11-26; antes ±2,6) y, si el pedido cae fuera, al límite más cercano al giro ACTUAL (`clamp_yaw_near`): cerca de ±π el pedido salta de signo y antes la muñeca intentaba casi una vuelta.) RViz2: anillo verde (inclinación, eje según acimut, ajuste al soltar) y azul (giro de la herramienta).
    - *Dataset real → xArm5:* entrenar SOLO con la salida de `tools/xarm5/convert_vio_dataset_to_xarm5.py`, que lleva la cámara en `odom` al TCP en `link_base` (home = HOME3 de `jetson_policy_params.yaml`, extrínseca en `xarm5_dataset_alignment.yaml`), proyecta con el modo del puente y audita. Escribe una copia nueva y nunca sobrescribe.
    - *Teleop RViz2 remota:* Jetson corre `xarm5_real.launch.py` (driver + puente + `robot_state_publisher` + `xarm5_teleop_marker`); el otro equipo solo `xarm5_rviz.launch.py`. `ROS_DOMAIN_ID=42` + `rmw_cyclonedds_cpp` para el robot real (mismo dominio que la simulación: con el brazo conectado, simulación y políticas solo con `ROS_LOCALHOST_ONLY=1`); DDS por `wlan0` (`deploy/jetson/config/cyclonedds.xml`).
    - *Frenos:* tras habilitar motores, todos los ejes deben reportar freno liberado (bit 1 en `mt_brake`) y motor habilitado (bit 1 en `mt_able`) o no se envía movimiento; `~/check_brakes` solo lee. No usar `motion_enable` data=0 con el brazo en el aire (caída de ~5 cm medida).
@@ -309,9 +309,9 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Memoria Modular:* `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
 
 23. **Dataset Real v8 (demos a mano con la D435i, poses de DROID) para el xArm5 (2026-11-25/26):**
-    - *Dataset de entrenamiento:* `datasets/demonstrations_real_v8_xarm5.zarr` (114 demos, 53 208 frames, conversor v3 con la pose real de inicio y la extrínseca medida). Intermedio: `demonstrations_real_v8_droid_v2.zarr` (poses de `camera_link` según DROID-SLAM). `demonstrations_real_v8_droid.zarr` es OBSOLETO (armado v1 con un error de referencia): no usar.
+    - *Dataset de entrenamiento:* `datasets/demonstrations_real_v8_xarm5_v2.zarr` (114 demos, 53 208 frames, conversor v3 con la pose real de inicio, la extrínseca medida y el giro de muñeca a ±177°). Intermedio: `demonstrations_real_v8_droid_v2.zarr` (poses de `camera_link` según DROID-SLAM). `demonstrations_real_v8_xarm5.zarr` (v1) es OBSOLETO (giro de muñeca a ±149°: 10 demos de 180° con saltos); `demonstrations_real_v8_droid.zarr` (armado v1) se borró a pedido del usuario.
     - *Verificado contra el dataset del modelo que funcionó en el robot* (`train_real_v7x5v2_relative_ee_e300` se entrenó con `demonstrations_real_v7_xarm5_v2.zarr`): mismos arreglos, convenciones, lote de `ZarrDataset` y desfase acción/estado; paso de entrenamiento en la GPU finito. Veredicto LISTO (`tools/xarm5/verify_training_dataset.py`).
-    - *26 demos marcadas por el conversor (se conservan):* 20 por alcance (la mano avanza alta antes de bajar) y 10 por giro de muñeca: con las hojas a 180° y la cámara alineada se piden ±180° de J5, fuera de `yaw_min/max` ±2,6 rad del puente. Entrenar con todas o solo con las factibles y comparar. No mezclar con `v7_xarm5_v2` (extrínseca vieja); usar `v7_xarm5_v3`.
+    - *20 demos marcadas por el conversor (se conservan):* por alcance (la mano avanza alta antes de bajar; finales en el borde en celdas lejanas). Entrenar con todas o solo con las 94 factibles y comparar. Las demos con las hojas a 180° (cámara alineada, hojas arriba: decisión del usuario) piden ±180° de J5: el puente pasó a ±177° con `clamp_yaw_near` (ver §18); llevar ese cambio a la Jetson antes de ejecutar políticas entrenadas con ellas. No mezclar con `v7_xarm5_v2` (extrínseca vieja); usar `v7_xarm5_v3`.
     - *Para sumar demos:* `tools/xarm5/make_v8_training_set.sh <droid_out> <xarm5_out>` (DROID, inicio, informe, armado, conversión y verificación; nunca sobrescribe). Marcar las REPETIR como descartadas requiere el OK del usuario.
     - *Memoria Modular:* `.agents/knowledge/19_v8_handheld_dataset_pipeline.md`.
 
@@ -478,10 +478,10 @@ tools/xarm5/validate_v8_batch.sh 0 100000 demonstrations_real_v8
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/validate_v8_episodes.py report --dataset datasets/demonstrations_real_v8.zarr --start-poses experiments/v8_validation/demonstrations_real_v8/start_poses.json
 
 # 45. Dataset v8 de entrenamiento de punta a punta (sumar demos nuevas; nunca sobrescribe)
-tools/xarm5/make_v8_training_set.sh demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v2
+tools/xarm5/make_v8_training_set.sh demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v3
 
 # 46. ¿Listo para entrenar y consistente con el dataset de un modelo que funcionó?
-docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/verify_training_dataset.py --dataset datasets/demonstrations_real_v8_xarm5.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --forward
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/verify_training_dataset.py --dataset datasets/demonstrations_real_v8_xarm5_v2.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --forward
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
 ```
 

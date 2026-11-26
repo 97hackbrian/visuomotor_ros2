@@ -12,7 +12,7 @@
 #
 #   tools/xarm5/make_v8_training_set.sh <salida_droid> <salida_xarm5> [crudo=demonstrations_real_v8] \
 #       [referencia=demonstrations_real_v7_xarm5_v2]
-#   p. ej. (2026-11-26): ... demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v2
+#   p. ej. (siguiente toma): ... demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v3
 set -euo pipefail
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$REPO"

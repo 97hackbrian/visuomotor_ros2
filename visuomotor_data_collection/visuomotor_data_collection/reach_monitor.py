@@ -40,7 +40,8 @@ def rpy_rotation(roll: float, pitch: float, yaw: float) -> Rotation:
 class ReachMonitor:
     """``check(T_rel)`` -> dónde estaría el TCP y si el robot llega (caja + alcance), con el motivo."""
 
-    def __init__(self, bridge_yaml, alignment_yaml, home_yaml, warn_ratio: float = 0.97, z_tolerance_m: float = 0.02):
+    def __init__(self, bridge_yaml, alignment_yaml, home_yaml, warn_ratio: float = 0.97, z_tolerance_m: float = 0.02,
+                 yaw_tolerance_deg: float = 5.0):
         g = yaml.safe_load(open(bridge_yaml))["xarm5_bridge"]["ros__parameters"]
         self.box = WorkspaceLimits(g["workspace_x_min"], g["workspace_x_max"], g["workspace_y_min"],
                                    g["workspace_y_max"], g["workspace_z_min"], g["workspace_z_max"],
@@ -51,6 +52,8 @@ class ReachMonitor:
         # Giro de la herramienta (J5) que acepta el puente: sin cruzar ±pi (2026-11-26: las demos con las hojas a 180°
         # y la cámara alineada piden ±180°, fuera de ±2,6 rad; el conversor las recorta y marca)
         self.yaw_limits = (float(g["yaw_min"]), float(g["yaw_max"]))
+        # Unos grados fuera del rango solo dejan al robot un poco menos girado (va al límite más cercano): no se avisa
+        self.yaw_tol = math.radians(float(yaw_tolerance_deg))
         al = yaml.safe_load(open(alignment_yaml))["xarm5_dataset_alignment"]
         self.T_tcp_cam = pose_matrix(al["tcp_to_camera_xyz_m"], rpy_rotation(*al["tcp_to_camera_rpy_rad"]))
         self.T_cam_tcp = np.linalg.inv(self.T_tcp_cam)
@@ -81,7 +84,7 @@ class ReachMonitor:
             reasons.append("demasiado alto")
         if p[2] < self.box.z_min:
             reasons.append("demasiado bajo")
-        if not (self.yaw_limits[0] <= yaw <= self.yaw_limits[1]):
+        if not (self.yaw_limits[0] - self.yaw_tol <= yaw <= self.yaw_limits[1] + self.yaw_tol):
             reasons.append("cámara demasiado girada")
         outside = bool(reasons)
         return {"outside": outside, "near": (not outside) and ratio > self.warn_ratio, "ratio": float(ratio),

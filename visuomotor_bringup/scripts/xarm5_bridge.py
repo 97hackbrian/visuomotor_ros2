@@ -56,6 +56,7 @@ from visuomotor_bringup.xarm5_interface import (
     brake_report,
     clamp_to_workspace,
     clamp_yaw,
+    clamp_yaw_near,
     continuous_rpy,
     joints_near_limits,
     from_robot_pose,
@@ -213,8 +214,8 @@ class XArm5Bridge(Node):
         d("top_down_pitch", 0.0)
         d("fixed_yaw", 0.0)
         d("yaw_offset", 0.0)
-        d("yaw_min", -2.6)
-        d("yaw_max", 2.6)
+        d("yaw_min", -3.0892)      # ±177° (2026-11-26); ver xarm5_real_params.yaml
+        d("yaw_max", 3.0892)
         d("arm_plane_pitch_min", -0.5)
         d("arm_plane_pitch_max", 0.5)
         d("arm_plane_warn_deviation_rad", 0.15)
@@ -981,7 +982,7 @@ class XArm5Bridge(Node):
         else:
             goal_rpy = list(project_orientation(q, self.orientation_mode, self.fixed_rpy, self.yaw_offset,
                                                 fallback_yaw=cmd_rpy[2]))
-            goal_rpy[2] = clamp_yaw(goal_rpy[2], self.yaw_min, self.yaw_max)
+            goal_rpy[2] = clamp_yaw_near(goal_rpy[2], cmd_rpy[2], self.yaw_min, self.yaw_max)
             new_rpy = [limit_angle_step(cmd_rpy[0], goal_rpy[0], ang_step),
                        limit_angle_step(cmd_rpy[1], goal_rpy[1], ang_step),
                        limit_angle_step(cmd_rpy[2], goal_rpy[2], ang_step, wrap=False)]
@@ -1028,8 +1029,9 @@ class XArm5Bridge(Node):
             self.get_logger().warn(
                 f"Target orientation {deviation:.3f} rad away from what the xArm5 can reach (tilt only in the arm "
                 f"plane, |pitch| limits {self.pitch_limits}): projected.", throttle_duration_sec=2.0)
-        goal_yaw = clamp_yaw(goal_yaw, self.yaw_min, self.yaw_max)
         cmd_pitch, cmd_yaw = arm_plane_params(rpy_to_quat(*cmd_rpy), arm_azimuth(cmd_xyz))
+        # Fuera del rango: el límite más cercano al yaw ACTUAL (sin dar la vuelta cerca de ±pi; ver clamp_yaw_near)
+        goal_yaw = clamp_yaw_near(goal_yaw, cmd_yaw, self.yaw_min, self.yaw_max)
         pitch = limit_angle_step(cmd_pitch, goal_pitch, ang_step, wrap=False)
         yaw = limit_angle_step(cmd_yaw, goal_yaw, ang_step, wrap=False)
         rpy = quat_to_rpy(arm_plane_quat(arm_azimuth(new_xyz), pitch, yaw))

@@ -53,6 +53,7 @@ from visuomotor_bringup.xarm5_interface import (  # noqa: E402
     arm_plane_quat,
     clamp_to_workspace,
     clamp_yaw,
+    clamp_yaw_near,
     matrix_to_quat,
     project_arm_plane,
     project_orientation,
@@ -129,14 +130,21 @@ class Converter:
             raise ValueError(f"quaternion_hemisphere={self.hemisphere!r}; opciones: {HEMISPHERE_MODES}")
         self.q_ref = rpy_to_quat(*self.home_rpy)
 
-    def project(self, xyz: np.ndarray, quat) -> np.ndarray:
-        """Orientación ejecutable con la misma secuencia que xarm5_bridge (sin yaw_offset: es calibración del robot)."""
+    def project(self, xyz: np.ndarray, quat, prev_yaw: Optional[float] = None):
+        """Orientación ejecutable con la misma secuencia que xarm5_bridge (sin yaw_offset: es calibración del robot).
+        Devuelve (cuaternión, yaw). Con ``prev_yaw`` (el del frame anterior), un yaw fuera del rango va al límite más
+        cercano a ``prev_yaw``, como hace el puente con su yaw comandado (``clamp_yaw_near``): cerca de ±pi no salta
+        de un límite al otro."""
         az = arm_azimuth(xyz)
+        lim = (lambda y: clamp_yaw(y, *self.yaw_limits)) if prev_yaw is None else \
+            (lambda y: clamp_yaw_near(y, prev_yaw, *self.yaw_limits))
         if self.mode == "arm_plane":
             pitch, yaw, _ = project_arm_plane(quat, az, self.pitch_limits[0], self.pitch_limits[1])
-            return arm_plane_quat(az, pitch, clamp_yaw(yaw, *self.yaw_limits))
+            yaw = lim(yaw)
+            return arm_plane_quat(az, pitch, yaw), yaw
         roll, pitch, yaw = project_orientation(quat, "top_down_yaw", self.fixed_rpy)
-        return rpy_to_quat(roll, pitch, clamp_yaw(yaw, *self.yaw_limits))
+        yaw = lim(yaw)
+        return rpy_to_quat(roll, pitch, yaw), yaw
 
     def to_base(self, poses: np.ndarray, ref_inv: np.ndarray, t_base_start: Optional[np.ndarray] = None):
         """poses [T, 7] (xyz + quat en odom) -> (xyz [T,3] TCP en link_base, quat original [T,4] en link_base).
@@ -182,7 +190,11 @@ class Converter:
         stats = {}
         for name, arr in (("state", state), ("action", action)):
             xyz, q_req = self.to_base(poses[name], ref_inv, t_base_start)
-            q_proj = np.array([self.project(xyz[i], q_req[i]) for i in range(len(xyz))])
+            q_proj, prev = [], None
+            for i in range(len(xyz)):                              # secuencial: el yaw recuerda el frame anterior
+                qi, prev = self.project(xyz[i], q_req[i], prev)
+                q_proj.append(qi)
+            q_proj = np.array(q_proj)
             dev = np.array([rotation_angle(q_req[i], q_proj[i]) for i in range(len(xyz))])
             q_proj = canonicalize(q_proj, self.hemisphere, self.q_ref)
             new = arr.astype(np.float64).copy()
