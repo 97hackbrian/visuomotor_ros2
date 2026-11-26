@@ -748,6 +748,10 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         - una demo puede terminar donde empezó (`episode_5`), así que la validación exige ≥ 0,25 m de inicio a fin;
         - con las hojas a 180° y la cámara alineada se piden ±180° de muñeca, fuera de ±2,6 rad del puente (13 de 15
           demos marcadas). El monitor en vivo ahora avisa "gira menos la cámara".
+      - Después, a pedido del usuario: se mantiene la vista con las hojas arriba en 180°, y el puente pasa a ±177° de
+        J5 con `clamp_yaw_near` (fuera del rango, el límite más cercano al giro actual, para no dar la vuelta cerca de
+        ±π). El conversor proyecta recordando el yaw anterior. `demonstrations_real_v8_xarm5_v2.zarr` queda con 20
+        marcadas, todas por alcance, y está LISTO. Falta llevar el cambio del puente a la Jetson.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).
