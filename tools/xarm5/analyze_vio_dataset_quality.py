@@ -358,8 +358,9 @@ def run_raw_diagnostics(args, raw, fcfg) -> int:
           f"{summary['duplicate_consecutive_images']} images.",
           f"* Jumps > {args.jump_m * 1000:.0f} mm between frames: {summary['jumps']['count']}; persistent "
           f"discontinuities > {args.discontinuity_m * 1000:.0f} mm: {summary['jumps']['discontinuities']} in "
-          f"{summary['jumps']['episodes_with_discontinuities']} episodes (median "
-          f"{summary['jumps']['discontinuity_median_mm']:.1f} mm, p90 {summary['jumps']['discontinuity_p90_mm']:.1f} mm).",
+          f"{summary['jumps']['episodes_with_discontinuities']} episodes"
+          + (f" (median {summary['jumps']['discontinuity_median_mm']:.1f} mm, p90 "
+             f"{summary['jumps']['discontinuity_p90_mm']:.1f} mm)." if summary['jumps']['discontinuities'] else "."),
           f"* done labels: {summary['done']['episodes_at_floor_only']}/{len(rows)} episodes have only the "
           f"{floor_frames}-frame floor; {100 * summary['done']['moving_fraction']:.1f}% of done frames move faster than "
           f"{args.static_speed_m_s * 100:.0f} cm/s (filtered); {len(moving)} episodes with > 25% moving done frames.", ""]

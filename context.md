@@ -763,6 +763,16 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
       - Para seguir sumando: el programa v2 quedó con 104 de 108 hechas, y al agotarse el recolector graba sin celda
         ni orientación. `v8_schedule_v3.csv` (220) empieza por las 4 pendientes de v2 y sigue con 4 ciclos nuevos
         (`make_collection_schedule.py --continue-from`); `run_v8_session.sh` lo usa por defecto.
+      - Segunda sesión (2026-11-26): 124 demos guardadas, con meta de 112 anunciada por la voz. Dataset final de 230
+        demos (95 429 frames), todas con poses de DROID y verificado. Durante la sesión: límites del puente ampliados
+        (0,70 / ±0,35 / 97 %), aviso de alcance callado con la cámara quieta, y guardado automático que espera la quietud
+        del GIRO (rechazos: 4 de 46 antes del arreglo, 0 de 82 después). Las 6 demos que DROID mandó a repetir fueron a
+        180°: al girar media vuelta mirando el mantel blanco, DROID salta.
+      - Métricas como las de v7 (`datasets/evaluations_real_v8_xarm5/README.md`): DROID no tiene saltos ni
+        discontinuidades (en vivo: 709 y 652). Pero el 15 % de los frames pasa el codo recto (inalcanzable; v7: 0,8 %),
+        porque la mano avanza alta antes de bajar. El conversor solo marca más del 50 % fuera (25 demos), así que para
+        la ablación "factibles" hay que usar el criterio físico (137 demos con ≤ 5 % fuera). Lección: medir el alcance
+        del camino completo, no solo el del final.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

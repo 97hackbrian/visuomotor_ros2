@@ -60,7 +60,8 @@ from sensor_msgs.msg import Image, Imu, JointState
 from visuomotor_msgs.srv import EpisodeTrigger
 from visuomotor_data_collection.utils.zarr_storage import ZarrStorage
 from visuomotor_data_collection.vo_episode_logic import (
-    EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, check_done_segment, continuous_quat,
+    EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, auto_save_ready, camera_still, check_done_segment,
+    continuous_quat,
     imu_moving_fraction, imu_still_since,
     detect_hold_start, episode_quality, is_null_odometry, max_travel, smoothed_speeds)
 from visuomotor_data_collection.vo_schedule import (
@@ -185,6 +186,7 @@ class VOCollectorNode(Node):
         d('reach_warn_ratio', 0.97)            # "cerca del límite" desde este porcentaje del alcance del puente
         d('reach_warn_period_s', 2.5)
         d('reach_yaw_tolerance_deg', 5.0)       # giro de muñeca: avisar solo si pasa el límite del puente por más que esto
+        d('reach_mute_when_still', True)        # sin avisos con la cámara quieta ni con la demo esperando [S]/[D]
         d('terminal_bell', True)
         d('schedule_file', '')
         d('schedule_cells_file', 'visuomotor_bringup/config/realsense/v8_cells_home3.yaml')
@@ -437,6 +439,7 @@ class VOCollectorNode(Node):
             self.imu_acc, self.imu_frame, self.n_null = [], "", 0
             self.state, self.t_arm, self.t_reset, self.odom_reset_ok = ARMING, time.time(), None, False
             self.imu_hold_start = None
+            self._gyro_wait_warned = False
             # v3.1: el bag crudo empieza YA, con la cámara quieta en la pose de inicio. Esos frames y el acelerómetro
             # dan la pose REAL de inicio (estimate_start_poses.py). Antes empezaba con el pitido de "Grabando", justo
             # cuando la mano empieza a moverse, y no quedaba ningún momento quieto.
@@ -521,6 +524,24 @@ class VOCollectorNode(Node):
                                                    float(self.p('min_hold_duration_s')),
                                                    float(self.p('auto_save_margin_s')),
                                                    float(self.p('static_speed_m_s')), float(self.p('static_window_s')))
+                        if save_now and str(self.p('qa_hold_motion_source')) == "imu" and len(self.imu_buf) > 10:
+                            # 2026-11-26: la quietud de la TRASLACIÓN no basta. Si al llegar la mano todavía gira la
+                            # cámara, el control del tramo final (giróscopo) rechazaba la demo entera (3 de 16 hoy).
+                            # Se espera a que también el GIRO lleve ``need`` s quieto, y el HOLD empieza cuando lo
+                            # están ambos (_save_frames lo toma de imu_hold_start).
+                            imu = np.array(self.imu_buf)
+                            t_still = imu_still_since(imu[:, 0], imu[:, 1:4], float(self.p('imu_still_gyro_rad_s')),
+                                                      float(self.p('imu_still_smooth_s')))
+                            if t_still is None or imu[-1, 0] - t_still < need:
+                                save_now = False
+                                if not getattr(self, '_gyro_wait_warned', False):
+                                    self._gyro_wait_warned = True
+                                    self.get_logger().warn("[AUTO] Esperando que la cámara deje de girar para guardar.")
+                            else:
+                                i = detect_hold_start(p, self.rate, float(self.p('static_speed_m_s')),
+                                                      float(self.p('static_window_s')))
+                                t_trans = fr[i].timestamp if i is not None else t_still
+                                self.imu_hold_start = max(t_still, t_trans)
                     else:
                         # Odometría perdida al final: su pose congelada parecería quieta. La quietud se decide con el
                         # giróscopo (no depende de la imagen) y el recorrido con los frames que sí tenían pose.
@@ -552,6 +573,12 @@ class VOCollectorNode(Node):
         st["frames"] += 1
         st["outside"] += int(r["outside"])
         st["max_ratio"] = max(st["max_ratio"], r["ratio"])
+        # Sin avisos con la cámara QUIETA (la quietud final del guardado automático) ni con la demo ya terminada y
+        # esperando [S]/[D] (2026-11-26). En celdas lejanas o a 180° el final puede quedar fuera por geometría, y el
+        # aviso repetido empujaba a mover la cámara justo cuando debía quedarse quieta (rechazo del QA: "la cámara
+        # gira en el 88 % del tramo final"). El aviso sirve en el CAMINO. Las estadísticas se cuentan igual.
+        if self.p('reach_mute_when_still') and (self.auto_save_blocked or self._still_now(fr)):
+            return
         now = time.time()
         if (r["outside"] or r["near"]) and now - self._reach_last >= float(self.p('reach_warn_period_s')):
             self._reach_last = now
@@ -561,6 +588,13 @@ class VOCollectorNode(Node):
                                        f"{pct} %): {advice(r['reasons'])}.")
             else:
                 self.get_logger().warn(f"[ALCANCE] cerca del límite del robot (brazo al {pct} %).")
+
+    def _still_now(self, fr) -> bool:
+        """¿La cámara está quieta ahora? (últimos ``static_window_s`` sin rastreo perdido)."""
+        w = float(self.p('static_window_s'))
+        tail = fr[-max(2, int(round(w * self.rate))):]
+        return not any(f.lost for f in tail) and camera_still([f.p for f in tail], self.rate, w,
+                                                              float(self.p('static_speed_m_s')))
 
     def _status(self):
         with self.lock:

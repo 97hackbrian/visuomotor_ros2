@@ -105,6 +105,7 @@ vo_collector_node:
     reach_monitor_enabled: false
     reach_warn_ratio: 0.97
     reach_warn_period_s: 2.5
+    reach_mute_when_still: true            # sin avisos con la cámara quieta (quietud final) ni esperando [S]/[D]
     terminal_bell: true                    # pitido de la terminal al empezar, guardar o rechazar
     # Programa de recolección (CSV de tools/hardware/make_collection_schedule.py; "" = sin programa).
     schedule_file: ""

@@ -289,6 +289,17 @@ def max_travel(p: np.ndarray) -> float:
     return float(np.linalg.norm(p - p[0], axis=1).max()) if len(p) else 0.0
 
 
+def camera_still(points, rate_hz: float, window_s: float, static_speed_m_s: float) -> bool:
+    """¿La cámara está QUIETA en los últimos ``window_s``? (desplazamiento entre los extremos de la ventana dividido
+    por su duración, bajo ``static_speed_m_s``; el mismo criterio de quietud que el guardado automático). Con menos
+    frames que la ventana: no."""
+    n = max(2, int(round(window_s * rate_hz)))
+    if len(points) < n:
+        return False
+    p = np.asarray(points[-n:], dtype=np.float64)
+    return float(np.linalg.norm(p[-1] - p[0])) / ((n - 1) / rate_hz) < static_speed_m_s
+
+
 def imu_still_since(t: np.ndarray, gyro: np.ndarray, gyro_thr: float, smooth_s: float = 0.15) -> Optional[float]:
     """Inicio del tramo FINAL quieto según el giróscopo (|w| suavizado < ``gyro_thr``), o ``None`` si al final se mueve.
 

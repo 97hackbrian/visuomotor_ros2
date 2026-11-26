@@ -1,0 +1,36 @@
+{
+  "dataset_path": "datasets/demonstrations_real_v8_xarm5.zarr",
+  "is_valid": true,
+  "total_episodes": 230,
+  "total_steps": 95429,
+  "episodes_passed": 230,
+  "episodes_failed": 0,
+  "episodes_warned": 0,
+  "errors": [],
+  "warnings": [],
+  "metrics": {
+    "total_episodes": 230,
+    "total_steps": 95429,
+    "min_steps": 165,
+    "max_steps": 764,
+    "mean_steps": 414.9086956521739,
+    "std_steps": 111.85159194234924,
+    "min_done_frames": 40,
+    "max_done_frames": 319,
+    "mean_done_frames": 68.7,
+    "std_done_frames": 37.58447297349868,
+    "min_done_duration_s": 2.0,
+    "total_chunks_decompressed": 95429,
+    "spurious_zeros_count": 0
+  },
+  "dataloader_compatible": true,
+  "dataloader_batch_shapes": {
+    "observation.image": "(16, 2, 3, 256, 256)",
+    "observation.state": "(16, 2, 8)",
+    "action": "(16, 16, 9)",
+    "action_is_pad": "(16, 16)"
+  },
+  "policy_step_verified": true,
+  "initial_policy_loss": 1.2419778108596802,
+  "elapsed_time_s": 30.106876611709595
+}

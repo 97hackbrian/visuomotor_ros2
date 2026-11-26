@@ -1,0 +1,631 @@
+{
+ "dataset": "datasets/demonstrations_real_v8_xarm5.zarr",
+ "episodes": 230,
+ "frames": 95429,
+ "manufacturer_spec": {
+  "model": "UFACTORY xArm 5, XF1305",
+  "nominal_reach_m": 0.7,
+  "cartesian_range_m": {
+   "x": [
+    -0.7,
+    0.7
+   ],
+   "y": [
+    -0.7,
+    0.7
+   ],
+   "z": [
+    -0.4,
+    0.9515
+   ]
+  },
+  "link_envelope_m": {
+   "radius": 0.77,
+   "above_base": 1.037,
+   "below_base": 0.416
+  },
+  "joint_ranges_deg": {
+   "J1": [
+    -360,
+    360
+   ],
+   "J2": [
+    -117,
+    116
+   ],
+   "J3": [
+    -219,
+    10
+   ],
+   "J4": [
+    -97,
+    180
+   ],
+   "J5": [
+    -360,
+    360
+   ]
+  },
+  "sources": [
+   "bio/xarm5_ufactory_XF1305/xArm_Hardware_Manual_v2.7.1.pdf (Preface, \u00a72.2.2, \u00a78.1-8.2)",
+   "bio/xarm5_ufactory_XF1305/xArm_Developer_Manual_v2.0.1.pdf (\u00a74.1)"
+  ]
+ },
+ "kinematic_model": {
+  "shoulder_xyz_m": [
+   0.0,
+   0.0,
+   0.267
+  ],
+  "wrist_offset_m": [
+   -0.076,
+   0.0,
+   -0.097
+  ],
+  "straight_elbow_m": 0.6406,
+  "bridge_max_reach_m": 0.6214,
+  "bridge_reach_fraction": 0.9700280986575086,
+  "min_reach_m": 0.12
+ },
+ "bridge_box": {
+  "x": [
+   0.15,
+   0.7
+  ],
+  "y": [
+   -0.35,
+   0.35
+  ],
+  "z": [
+   0.1,
+   0.75
+  ],
+  "radius_xy": [
+   0.15,
+   0.7
+  ]
+ },
+ "demos": {
+  "home_xyz_m": [
+   0.1483715596740693,
+   0.0017903087427839637,
+   0.7512003417359665
+  ],
+  "x_range_m": [
+   0.04697391238451004,
+   0.7851359456443787
+  ],
+  "y_range_m": [
+   -0.40453872084617615,
+   0.4345049560070038
+  ],
+  "z_range_m": [
+   0.27361512184143066,
+   0.832857295870781
+  ],
+  "radius_xy_max_m": 0.8344512707258114,
+  "endpoint_z_median_m": 0.33452005684375763,
+  "endpoint_pitch_median_rad": -0.004526540284156475,
+  "shoulder_wrist_max_m": 0.8284548812643863,
+  "straight_elbow_utilization_max": 1.2932483316646681,
+  "frames_outside_bridge_box_fraction": 0.06612245753387336,
+  "frames_outside_by_y_fraction": 0.0055433882781963555,
+  "frames_beyond_bridge_reach_fraction": 0.21019815779270454,
+  "endpoints_outside_bridge_box": 12,
+  "frames_beyond_straight_elbow_fraction": 0.1515367445954584,
+  "episodes_beyond_bridge_reach": {
+   "episode_5": {
+    "frames": 2,
+    "max_excess_mm": 0.08760495954884817,
+    "beyond_straight_elbow": false
+   },
+   "episode_9": {
+    "frames": 286,
+    "max_excess_mm": 93.97962771343826,
+    "beyond_straight_elbow": true
+   },
+   "episode_11": {
+    "frames": 404,
+    "max_excess_mm": 105.31947016536547,
+    "beyond_straight_elbow": true
+   },
+   "episode_14": {
+    "frames": 324,
+    "max_excess_mm": 51.140518086071786,
+    "beyond_straight_elbow": true
+   },
+   "episode_18": {
+    "frames": 177,
+    "max_excess_mm": 37.17519774099976,
+    "beyond_straight_elbow": true
+   },
+   "episode_19": {
+    "frames": 117,
+    "max_excess_mm": 46.840292464987996,
+    "beyond_straight_elbow": true
+   },
+   "episode_21": {
+    "frames": 61,
+    "max_excess_mm": 20.86365127051659,
+    "beyond_straight_elbow": true
+   },
+   "episode_22": {
+    "frames": 278,
+    "max_excess_mm": 92.24041622429769,
+    "beyond_straight_elbow": true
+   },
+   "episode_23": {
+    "frames": 196,
+    "max_excess_mm": 40.880543488368225,
+    "beyond_straight_elbow": true
+   },
+   "episode_25": {
+    "frames": 73,
+    "max_excess_mm": 24.78695528065067,
+    "beyond_straight_elbow": true
+   },
+   "episode_26": {
+    "frames": 147,
+    "max_excess_mm": 33.861811716910275,
+    "beyond_straight_elbow": true
+   },
+   "episode_27": {
+    "frames": 534,
+    "max_excess_mm": 110.81849614066486,
+    "beyond_straight_elbow": true
+   },
+   "episode_28": {
+    "frames": 311,
+    "max_excess_mm": 110.9882220794972,
+    "beyond_straight_elbow": true
+   },
+   "episode_29": {
+    "frames": 159,
+    "max_excess_mm": 33.9485292001519,
+    "beyond_straight_elbow": true
+   },
+   "episode_30": {
+    "frames": 408,
+    "max_excess_mm": 79.80438377328736,
+    "beyond_straight_elbow": true
+   },
+   "episode_31": {
+    "frames": 6,
+    "max_excess_mm": 0.32924914515197745,
+    "beyond_straight_elbow": false
+   },
+   "episode_33": {
+    "frames": 64,
+    "max_excess_mm": 42.3024432292084,
+    "beyond_straight_elbow": true
+   },
+   "episode_34": {
+    "frames": 261,
+    "max_excess_mm": 121.64191784661982,
+    "beyond_straight_elbow": true
+   },
+   "episode_35": {
+    "frames": 6,
+    "max_excess_mm": 0.3940726673463679,
+    "beyond_straight_elbow": false
+   },
+   "episode_37": {
+    "frames": 38,
+    "max_excess_mm": 14.933854034551386,
+    "beyond_straight_elbow": false
+   },
+   "episode_38": {
+    "frames": 297,
+    "max_excess_mm": 185.2297544542809,
+    "beyond_straight_elbow": true
+   },
+   "episode_40": {
+    "frames": 87,
+    "max_excess_mm": 30.698190866697338,
+    "beyond_straight_elbow": true
+   },
+   "episode_41": {
+    "frames": 374,
+    "max_excess_mm": 173.6163249590922,
+    "beyond_straight_elbow": true
+   },
+   "episode_42": {
+    "frames": 456,
+    "max_excess_mm": 114.98674499805972,
+    "beyond_straight_elbow": true
+   },
+   "episode_43": {
+    "frames": 510,
+    "max_excess_mm": 105.45298000335501,
+    "beyond_straight_elbow": true
+   },
+   "episode_44": {
+    "frames": 115,
+    "max_excess_mm": 39.10781046755751,
+    "beyond_straight_elbow": true
+   },
+   "episode_45": {
+    "frames": 307,
+    "max_excess_mm": 55.21262364038482,
+    "beyond_straight_elbow": true
+   },
+   "episode_46": {
+    "frames": 351,
+    "max_excess_mm": 71.53270711255976,
+    "beyond_straight_elbow": true
+   },
+   "episode_47": {
+    "frames": 389,
+    "max_excess_mm": 207.05488126438632,
+    "beyond_straight_elbow": true
+   },
+   "episode_49": {
+    "frames": 309,
+    "max_excess_mm": 128.3211566899073,
+    "beyond_straight_elbow": true
+   },
+   "episode_52": {
+    "frames": 234,
+    "max_excess_mm": 66.76907902181117,
+    "beyond_straight_elbow": true
+   },
+   "episode_53": {
+    "frames": 154,
+    "max_excess_mm": 72.96779632805273,
+    "beyond_straight_elbow": true
+   },
+   "episode_54": {
+    "frames": 26,
+    "max_excess_mm": 5.377130580523248,
+    "beyond_straight_elbow": false
+   },
+   "episode_55": {
+    "frames": 181,
+    "max_excess_mm": 72.51553290953339,
+    "beyond_straight_elbow": true
+   },
+   "episode_56": {
+    "frames": 331,
+    "max_excess_mm": 105.69892301517858,
+    "beyond_straight_elbow": true
+   },
+   "episode_60": {
+    "frames": 498,
+    "max_excess_mm": 203.001366842957,
+    "beyond_straight_elbow": true
+   },
+   "episode_62": {
+    "frames": 382,
+    "max_excess_mm": 160.4841318431951,
+    "beyond_straight_elbow": true
+   },
+   "episode_63": {
+    "frames": 58,
+    "max_excess_mm": 19.309249492247883,
+    "beyond_straight_elbow": true
+   },
+   "episode_64": {
+    "frames": 447,
+    "max_excess_mm": 133.13048017511775,
+    "beyond_straight_elbow": true
+   },
+   "episode_65": {
+    "frames": 110,
+    "max_excess_mm": 52.187731270857185,
+    "beyond_straight_elbow": true
+   },
+   "episode_67": {
+    "frames": 250,
+    "max_excess_mm": 57.21225699879917,
+    "beyond_straight_elbow": true
+   },
+   "episode_69": {
+    "frames": 50,
+    "max_excess_mm": 13.551830162524038,
+    "beyond_straight_elbow": false
+   },
+   "episode_70": {
+    "frames": 75,
+    "max_excess_mm": 6.134213095266627,
+    "beyond_straight_elbow": false
+   },
+   "episode_72": {
+    "frames": 185,
+    "max_excess_mm": 18.501895824200364,
+    "beyond_straight_elbow": false
+   },
+   "episode_75": {
+    "frames": 96,
+    "max_excess_mm": 15.166214890611318,
+    "beyond_straight_elbow": false
+   },
+   "episode_78": {
+    "frames": 201,
+    "max_excess_mm": 47.80065470693828,
+    "beyond_straight_elbow": true
+   },
+   "episode_80": {
+    "frames": 423,
+    "max_excess_mm": 41.957574561476754,
+    "beyond_straight_elbow": true
+   },
+   "episode_81": {
+    "frames": 164,
+    "max_excess_mm": 30.16323765944151,
+    "beyond_straight_elbow": true
+   },
+   "episode_83": {
+    "frames": 247,
+    "max_excess_mm": 82.62668612263158,
+    "beyond_straight_elbow": true
+   },
+   "episode_86": {
+    "frames": 153,
+    "max_excess_mm": 78.18195100273284,
+    "beyond_straight_elbow": true
+   },
+   "episode_89": {
+    "frames": 69,
+    "max_excess_mm": 23.21444771665737,
+    "beyond_straight_elbow": true
+   },
+   "episode_92": {
+    "frames": 14,
+    "max_excess_mm": 14.397701226056547,
+    "beyond_straight_elbow": false
+   },
+   "episode_97": {
+    "frames": 119,
+    "max_excess_mm": 62.98756184920406,
+    "beyond_straight_elbow": true
+   },
+   "episode_105": {
+    "frames": 155,
+    "max_excess_mm": 44.297113134330935,
+    "beyond_straight_elbow": true
+   },
+   "episode_106": {
+    "frames": 245,
+    "max_excess_mm": 148.1594831588713,
+    "beyond_straight_elbow": true
+   },
+   "episode_107": {
+    "frames": 272,
+    "max_excess_mm": 79.86932991118312,
+    "beyond_straight_elbow": true
+   },
+   "episode_111": {
+    "frames": 259,
+    "max_excess_mm": 94.98516014561164,
+    "beyond_straight_elbow": true
+   },
+   "episode_113": {
+    "frames": 150,
+    "max_excess_mm": 36.81066039558556,
+    "beyond_straight_elbow": true
+   },
+   "episode_115": {
+    "frames": 164,
+    "max_excess_mm": 20.722330731164806,
+    "beyond_straight_elbow": true
+   },
+   "episode_116": {
+    "frames": 169,
+    "max_excess_mm": 48.93789170363871,
+    "beyond_straight_elbow": true
+   },
+   "episode_117": {
+    "frames": 245,
+    "max_excess_mm": 114.71032118646762,
+    "beyond_straight_elbow": true
+   },
+   "episode_118": {
+    "frames": 173,
+    "max_excess_mm": 92.92872940626529,
+    "beyond_straight_elbow": true
+   },
+   "episode_121": {
+    "frames": 119,
+    "max_excess_mm": 57.52049776943202,
+    "beyond_straight_elbow": true
+   },
+   "episode_128": {
+    "frames": 270,
+    "max_excess_mm": 58.46509548265932,
+    "beyond_straight_elbow": true
+   },
+   "episode_132": {
+    "frames": 6,
+    "max_excess_mm": 1.113711084450686,
+    "beyond_straight_elbow": false
+   },
+   "episode_139": {
+    "frames": 59,
+    "max_excess_mm": 13.932685636737329,
+    "beyond_straight_elbow": false
+   },
+   "episode_141": {
+    "frames": 54,
+    "max_excess_mm": 23.231400948386938,
+    "beyond_straight_elbow": true
+   },
+   "episode_142": {
+    "frames": 34,
+    "max_excess_mm": 13.518421991580155,
+    "beyond_straight_elbow": false
+   },
+   "episode_144": {
+    "frames": 182,
+    "max_excess_mm": 61.516893000782225,
+    "beyond_straight_elbow": true
+   },
+   "episode_146": {
+    "frames": 170,
+    "max_excess_mm": 54.30070270176635,
+    "beyond_straight_elbow": true
+   },
+   "episode_152": {
+    "frames": 87,
+    "max_excess_mm": 18.828327201694805,
+    "beyond_straight_elbow": false
+   },
+   "episode_155": {
+    "frames": 378,
+    "max_excess_mm": 79.0483992880262,
+    "beyond_straight_elbow": true
+   },
+   "episode_157": {
+    "frames": 544,
+    "max_excess_mm": 140.90256197971863,
+    "beyond_straight_elbow": true
+   },
+   "episode_159": {
+    "frames": 500,
+    "max_excess_mm": 78.79902209528144,
+    "beyond_straight_elbow": true
+   },
+   "episode_160": {
+    "frames": 11,
+    "max_excess_mm": 4.792127959250214,
+    "beyond_straight_elbow": false
+   },
+   "episode_161": {
+    "frames": 224,
+    "max_excess_mm": 24.685852509283123,
+    "beyond_straight_elbow": true
+   },
+   "episode_164": {
+    "frames": 140,
+    "max_excess_mm": 61.251640951394236,
+    "beyond_straight_elbow": true
+   },
+   "episode_167": {
+    "frames": 362,
+    "max_excess_mm": 74.07228408448118,
+    "beyond_straight_elbow": true
+   },
+   "episode_168": {
+    "frames": 340,
+    "max_excess_mm": 88.98647098055102,
+    "beyond_straight_elbow": true
+   },
+   "episode_169": {
+    "frames": 166,
+    "max_excess_mm": 33.64575270722514,
+    "beyond_straight_elbow": true
+   },
+   "episode_171": {
+    "frames": 118,
+    "max_excess_mm": 47.42613935706564,
+    "beyond_straight_elbow": true
+   },
+   "episode_173": {
+    "frames": 15,
+    "max_excess_mm": 6.434041428112991,
+    "beyond_straight_elbow": false
+   },
+   "episode_174": {
+    "frames": 158,
+    "max_excess_mm": 68.23834295079733,
+    "beyond_straight_elbow": true
+   },
+   "episode_175": {
+    "frames": 391,
+    "max_excess_mm": 77.58628673579848,
+    "beyond_straight_elbow": true
+   },
+   "episode_183": {
+    "frames": 118,
+    "max_excess_mm": 23.688919400088217,
+    "beyond_straight_elbow": true
+   },
+   "episode_185": {
+    "frames": 271,
+    "max_excess_mm": 44.97104509503802,
+    "beyond_straight_elbow": true
+   },
+   "episode_190": {
+    "frames": 71,
+    "max_excess_mm": 24.476293198448907,
+    "beyond_straight_elbow": true
+   },
+   "episode_192": {
+    "frames": 121,
+    "max_excess_mm": 54.36301714863645,
+    "beyond_straight_elbow": true
+   },
+   "episode_195": {
+    "frames": 335,
+    "max_excess_mm": 157.13624722249642,
+    "beyond_straight_elbow": true
+   },
+   "episode_202": {
+    "frames": 57,
+    "max_excess_mm": 8.338440137277914,
+    "beyond_straight_elbow": false
+   },
+   "episode_209": {
+    "frames": 173,
+    "max_excess_mm": 37.596689357857095,
+    "beyond_straight_elbow": true
+   },
+   "episode_214": {
+    "frames": 88,
+    "max_excess_mm": 37.70768155083448,
+    "beyond_straight_elbow": true
+   },
+   "episode_217": {
+    "frames": 7,
+    "max_excess_mm": 0.3615285215086139,
+    "beyond_straight_elbow": false
+   },
+   "episode_218": {
+    "frames": 14,
+    "max_excess_mm": 3.2946564576792348,
+    "beyond_straight_elbow": false
+   },
+   "episode_220": {
+    "frames": 27,
+    "max_excess_mm": 11.588506170922773,
+    "beyond_straight_elbow": false
+   },
+   "episode_221": {
+    "frames": 212,
+    "max_excess_mm": 78.53739411958183,
+    "beyond_straight_elbow": true
+   },
+   "episode_224": {
+    "frames": 272,
+    "max_excess_mm": 71.51784429788755,
+    "beyond_straight_elbow": true
+   },
+   "episode_225": {
+    "frames": 261,
+    "max_excess_mm": 142.3422750076502,
+    "beyond_straight_elbow": true
+   },
+   "episode_226": {
+    "frames": 140,
+    "max_excess_mm": 59.33921725493796,
+    "beyond_straight_elbow": true
+   },
+   "episode_228": {
+    "frames": 18,
+    "max_excess_mm": 7.347618780159881,
+    "beyond_straight_elbow": false
+   },
+   "episode_229": {
+    "frames": 200,
+    "max_excess_mm": 55.74797367017148,
+    "beyond_straight_elbow": true
+   }
+  },
+  "endpoint_lateral_limit_m": {
+   "bridge_reach_95pct_median": 0.3910863475734832,
+   "bridge_reach_95pct_min": 0.07154688878966163,
+   "straight_elbow_median": 0.41898935884680566,
+   "bridge_box_and_radius_median": 0.35,
+   "demo_abs_y_max": 0.40453872084617615
+  }
+ }
+}

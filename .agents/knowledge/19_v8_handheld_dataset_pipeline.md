@@ -81,7 +81,7 @@ Resultado sobre 119 demos: 106 OK, 8 REVISAR y 5 REPETIR (descartadas a pedido d
 
 ## 5. Para entrenar y para seguir sumando
 
-- **Entrenamiento:** con todas las demos (114) o solo con las factibles (94, sin las 20 marcadas por alcance tras la corrección de la muñeca, §6; lista en `datasets/demonstrations_real_v8_xarm5_conversion_report.json`), y comparar (ablación para el paper). Antes, congelar una copia (§7).
+- **Entrenamiento:** con todas las demos o solo con las que quedan dentro del alcance del robot, y comparar (ablación para el paper). Desde el 2026-11-26 son 230 demos; las que están dentro del alcance salen del criterio físico de las métricas (§8: 137 con ≤ 5 % de frames fuera), no de las marcas del conversor, que solo marca más del 50 % fuera. Antes de entrenar, congelar una copia (§7).
 - **No mezclar con `v7_xarm5_v2`:** usa la extrínseca vieja. Si se combina con v7, usar `v7_xarm5_v3`.
 - **Demos nuevas:** `tools/xarm5/make_v8_training_set.sh`, sin argumentos (ver §7), rehace el dataset de entrenamiento completo:
   1. DROID en las nuevas;
@@ -142,3 +142,41 @@ La regla literal del repo ("nunca sobrescribir ni borrar un dataset; cada correc
   - La conversión v1, con la muñeca a ±149°.
   - `demonstrations_real_v8_xarm5_v2.zarr`, después de comprobar que el de nombre fijo es idéntico. Sus 161 336 archivos coinciden byte a byte, salvo los 115 `.zattrs`, que solo cambian la procedencia. Los episodios del informe de conversión también son iguales.
   - Se liberaron 15 GB. Los registros de esos armados quedan en `experiments/v8_validation/demonstrations_real_v8/historial_2026-11-26/`.
+
+## 8. Segunda sesión de recolección (2026-11-26) y dataset final
+
+**Recolección:**
+- **Programa v3**, empezando por las 4 pendientes de v2.
+- **Meta de la sesión: 112, pedida por el usuario.** La voz dice "N de 112" (`V8_GOAL=112 tools/hardware/v8_tmux.sh collect`) y avisa una sola vez al cumplirla. Se llegó a 116 de 220: unas 1,1 min por demo y ~2 h 40 min en total, con 3 reinicios del recolector para aplicar arreglos.
+- **Se guardaron 124 demos** (`episode_128` a `episode_251`):
+  - 5 descartadas: 164, 177 y 197 por la validación, con el OK del usuario, y 187 y 188 con [U];
+  - 3 que DROID mandó a repetir y que no se marcaron: 237 (#106), 248 (#66, segunda vez) y 249 (#116). Quedan fuera del entrenamiento solas.
+- **Las 6 demos que DROID mandó a repetir en la sesión son a 180°** (las 3 descartadas y las 3 sin marcar). Al girar media vuelta, la cámara mira el mantel blanco y DROID salta (22–187 mm). La #66 (celda 4) falló dos veces, a los 8,6 s y a los 8,8 s.
+  - Sugerencia para la próxima: hacer el giro arriba, al principio, con los ArUco a la vista, y acercarse después.
+
+**Cambios hechos durante la sesión:**
+- **Límites del puente ampliados, a pedido del usuario:** x ≤ 0,70, |y| ≤ 0,35, radio ≤ 0,70 y alcance al 97 % del codo recto (antes 0,65 / ±0,30 / 0,65 / 95 %). Con los nuevos, 98 de las 114 demos de ayer terminan dentro (antes 80). Hay que llevarlos a la Jetson junto con el giro de ±177° y comprobar en la celda los bordes nuevos.
+- **Aviso de alcance callado con la cámara quieta** (`reach_mute_when_still`). En celdas lejanas el final queda fuera por geometría, y el aviso repetido empujaba a mover la cámara justo en la quietud final.
+- **El guardado automático espera también a que el GIRO esté quieto** (modo `imu`), y la llegada empieza cuando lo están giro y traslación. Antes se guardaba con la traslación quieta y el control del giróscopo rechazaba la demo completa: 4 rechazos en 46 intentos. Después del arreglo: 0 rechazos en 82 demos, con 8 esperas por giro en las que la voz dice "quieto, sin girar".
+- **Inicio:** las primeras demos del día arrancaron a 8–11 cm de HOME3. La guía aceptaba el error en píxeles con escala 0,98–1,10, o sea, la cámara ~5–7 cm más baja. Se corrigió pidiendo una escala de ~1,00 al arrancar. Mediana del día: 57 mm (ayer 44).
+
+**Dataset final** (`make_v8_training_set.sh`, 4 min 50 s):
+- `datasets/demonstrations_real_v8_xarm5.zarr`: 230 demos (114 + 116) y 95 429 frames, todas con poses de DROID.
+- 25 demos marcadas por el conversor; se conservan.
+- Verificado LISTO contra `v7_xarm5_v2`. `verify_zarr_dataset.py` pasa en 230/230, con las 95 429 imágenes y un paso de DiffusionPolicy (pérdida 1,242).
+- Cambio en el verificador: con `start_anchor: measured`, el paso 0 es el desfase medido respecto de HOME3, no [0,0,0]. Solo es error si pasa de `--max-start-offset-m`, 0,20 m por defecto.
+
+**Métricas como las de v7** (`datasets/evaluations_real_v8_xarm5/README.md`, tabla v7 vs v8):
+- **Poses de DROID frente a la odometría en vivo** (mismo código, mismas demos): 0 saltos > 30 mm y 0 discontinuidades > 20 mm, contra 709 y 652 en vivo (v7: 926 y 784).
+- **Ruido que quita el filtro:** 0,9 mm (v7: 8,8). Llegada en movimiento: 11,9 % (v7: 21 %).
+- **Altura final del TCP:** p5–p95 de 0,305 a 0,365 m, IQR 2,2 cm (v7: 9,7 cm).
+- **Hallazgo principal, el alcance:**
+  - El 21 % de los frames pasa el alcance del puente y el 15 % pasa el codo recto, es decir, es inalcanzable. Lo hacen 80 de 230 demos, casi todo al comienzo de la aproximación: la mano avanza ALTA antes de bajar.
+  - v7, con la misma extrínseca y los mismos límites: 3,3 % y 0,8 %.
+  - Solo 12 finales quedan fuera de la caja.
+  - El conversor marca una demo solo si más del 50 % de sus frames está fuera, así que marca solo 25.
+  - Solo 129 demos quedan enteras dentro del alcance (137 con ≤ 5 % de frames fuera), y les faltan sobre todo 180° y ±90° en las celdas lejanas y laterales (figura 5).
+  - Antes de entrenar hay que decidir: con todas, solo con las que quedan dentro del alcance, o regrabar bajando primero.
+- **Herramientas:**
+  - `tools/xarm5/analyze_v8_dataset_quality.py`: versión v8 de la auditoría de v7 (figuras 1–3 y 5). Compara odometría en vivo, DROID y DROID filtrado, y pone v7 y v8 en los mismos ejes.
+  - `analyze_vio_dataset_quality.py --raw-diagnostics`: corre también sobre el armado con DROID. Se arregló el informe cuando no hay discontinuidades.

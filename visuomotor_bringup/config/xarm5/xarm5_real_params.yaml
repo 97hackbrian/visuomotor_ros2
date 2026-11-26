@@ -101,20 +101,24 @@ xarm5_bridge:
     # el alcance lateral cinemático es ±0.47 m (con el 95% de workspace_max_reach_m) a la profundidad de los objetos;
     # alcance nominal del fabricante 700 mm (tools/xarm5/analyze_xarm5_workspace.py, 2026-11-22).
     workspace_x_min: 0.15
-    workspace_x_max: 0.65                # alcance físico ~0.716 m (FK, garra vertical); 6 cm de margen a la singularidad
-    workspace_y_min: -0.30
-    workspace_y_max: 0.30
+    # 2026-11-26, decisión del usuario ("límites del alcance un poco más lejanos"): caja y alcance ampliados con las
+    # demos v8 a mano. Con 0.65 / ±0.30 / 95 % solo 80 de 114 terminaban dentro; con 0.70 / ±0.35 / 97 %, 98 (el resto
+    # pide más del 97 % del codo recto, hasta 119 %: físicamente imposible). Antes de usarlo en el robot, comprobar
+    # en la celda, despacio, que los bordes nuevos son seguros.
+    workspace_x_max: 0.70                # alcance físico ~0.716 m (FK, garra vertical); antes 0.65
+    workspace_y_min: -0.35               # antes ±0.30 (decisión de la celda; el brazo llega a ±0.47 a esa altura)
+    workspace_y_max: 0.35
     workspace_z_min: 0.10
     workspace_z_max: 0.75               # la altura real la limita el alcance (abajo): ~0.75 m cerca de la base
     workspace_min_radius_xy: 0.15       # evita la singularidad sobre el eje de J1
-    workspace_max_radius_xy: 0.65       # alcance nominal del xArm5: 0.70 m (codo recto = singularidad)
+    workspace_max_radius_xy: 0.70       # alcance nominal del xArm5: 0.70 m (codo recto = singularidad); antes 0.65
     # Alcance del brazo (además de la caja): distancia hombro (J2) - muñeca (J4) <= workspace_max_reach_m.
     # La altura alcanzable baja con el radio; con la garra vertical y este límite (FK URDF, 2026-11-20):
     #   x = 0.15 -> z <= 0.77 | 0.35 -> 0.72 | 0.50 -> 0.61 | 0.60 -> 0.49 | 0.65 -> 0.38 m
     # Muñeca = brida + Rz(acimut)·Ry(pitch)·Rx(pi)·wrist_offset (válido con la garra inclinada).
     workspace_shoulder_xyz_m: [0.0, 0.0, 0.267]     # eje de J2 (URDF xarm5: joint1 a 0.267 m)
     workspace_wrist_offset_m: [-0.076, 0.0, -0.097] # J4 respecto a la brida, marco del plano del brazo (URDF)
-    workspace_max_reach_m: 0.6086                   # 95% de 0.6406 m (codo recto = singularidad, C24)
+    workspace_max_reach_m: 0.6214                   # 97% de 0.6406 m (codo a ~28° de recto; antes 95% = 0.6086, ~36°)
     # Brazo muy plegado junto a la base (x ~0.15-0.22, z bajo): inalcanzable por J3/J4. HOME3 está a 0.156 m.
     # Con inclinaciones grandes (|pitch| ~1 rad) quedan zonas límite que corta el guard de joint_limit_margin_rad.
     workspace_min_reach_m: 0.12

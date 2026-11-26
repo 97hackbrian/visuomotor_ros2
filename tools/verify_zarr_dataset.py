@@ -252,6 +252,7 @@ def verify_episode(
     chunk_batch_size: int = 64,
     min_done_frames: int = 40,
     expected_image_shape: Tuple[int, int, int] = (256, 256, 3),
+    max_start_offset_m: float = 0.20,
 ) -> EpisodeReport:
     """
     Verifica minuciosamente un episodio individual:
@@ -486,7 +487,16 @@ def verify_episode(
     zero_pos_rows = np.where(np.all(pos_state == 0.0, axis=1))[0]
     
     if is_relative:
-        if not np.allclose(pos_state[0], [0.0, 0.0, 0.0], atol=1e-5):
+        if ep_group.attrs.get("start_anchor") == "measured":
+            # Conversor v3 con --start-poses (2026-11-25): las coordenadas son relativas a HOME3 y el paso 0 es la pose
+            # REAL de inicio medida (ArUco + IMU), no el origen. Solo es error si el desfase es inverosímil.
+            offset = float(np.linalg.norm(pos_state[0]))
+            if offset > max_start_offset_m:
+                report.errors.append(
+                    f"Inicio medido a {1000 * offset:.0f} mm de HOME3 (> {1000 * max_start_offset_m:.0f} mm): {pos_state[0]}"
+                )
+                report.is_valid = False
+        elif not np.allclose(pos_state[0], [0.0, 0.0, 0.0], atol=1e-5):
             report.errors.append(
                 f"Dataset marcado con relative_coordinates=True pero el paso 0 no arranca en [0,0,0]: {pos_state[0]}"
             )
@@ -837,6 +847,7 @@ def verify_dataset(
     check_all_images: bool = True,
     chunk_batch_size: int = 64,
     min_done_frames: int = 40,
+    max_start_offset_m: float = 0.20,
     test_dataloader: bool = True,
     test_policy_step: bool = True,
     batch_size: int = 16,
@@ -899,6 +910,7 @@ def verify_dataset(
             check_image_chunks=check_all_images,
             chunk_batch_size=chunk_batch_size,
             min_done_frames=min_done_frames,
+            max_start_offset_m=max_start_offset_m,
         )
 
         lengths.append(ep_rep.steps)
@@ -1082,6 +1094,12 @@ def main():
         help="Mínimo número de fotogramas requeridos con done_flag=1.0 para validar el piso de parada (40 frames = 2.0s a 20Hz).",
     )
     parser.add_argument(
+        "--max-start-offset-m",
+        type=float,
+        default=0.20,
+        help="Con inicio medido (start_anchor=measured, conversor v3): desfase máximo creíble del paso 0 respecto de HOME3.",
+    )
+    parser.add_argument(
         "--skip-dataloader",
         action="store_true",
         default=False,
@@ -1147,6 +1165,7 @@ def main():
         check_all_images=not args.skip_images,
         chunk_batch_size=args.chunk_batch_size,
         min_done_frames=args.min_done_frames,
+        max_start_offset_m=args.max_start_offset_m,
         test_dataloader=not args.skip_dataloader,
         test_policy_step=not args.skip_policy_step,
         batch_size=args.batch_size,

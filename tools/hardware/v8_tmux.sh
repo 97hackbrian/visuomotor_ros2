@@ -12,7 +12,8 @@
 #   tools/hardware/v8_tmux.sh log [ventana] [líneas]   # últimas líneas de una ventana (por defecto el recolector)
 #   tools/hardware/v8_tmux.sh stop [ventana]           # Ctrl-C a una ventana, o a todas (cámara la última)
 #
-# Variables: V8_TMUX_SESSION (por defecto v8), V8_DATASET (por defecto demonstrations_real_v8).
+# Variables: V8_TMUX_SESSION (por defecto v8), V8_DATASET (por defecto demonstrations_real_v8), V8_GOAL (meta de la
+# sesión que dice la voz, p. ej. 112; vacío = el largo del programa).
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 S=${V8_TMUX_SESSION:-v8}
@@ -58,7 +59,7 @@ case "${1:-}" in
     # Registro de la sesión (trazabilidad) + avisos por los parlantes (v8_announcer.sh) en la ventana "voz"
     LOGDIR="$REPO/experiments/collection_sessions/$(date +%F)"; mkdir -p "$LOGDIR"
     LOG="$LOGDIR/collector_${DATASET}_$(date +%H%M%S).log"
-    has_win voz || new_win voz "./tools/hardware/v8_announcer.sh '$LOG'"
+    has_win voz || new_win voz "V8_GOAL='${V8_GOAL:-}' ./tools/hardware/v8_announcer.sh '$LOG'"
     new_win recolector "./tools/hardware/run_v8_session.sh $DATASET" || exit 1
     tmux pipe-pane -o -t "=$S:recolector" "cat >> '$LOG'"
     tmux select-window -t "=$S:recolector"

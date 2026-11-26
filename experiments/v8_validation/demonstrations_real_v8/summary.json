@@ -1,9 +1,13 @@
 {
- "validated": 114,
- "OK": 106,
- "REVISAR": 8,
- "REPETIR": 0,
- "repeat": [],
+ "validated": 233,
+ "OK": 195,
+ "REVISAR": 35,
+ "REPETIR": 3,
+ "repeat": [
+  "episode_237",
+  "episode_248",
+  "episode_249"
+ ],
  "review": [
   "episode_1",
   "episode_46",
@@ -12,6 +16,33 @@
   "episode_80",
   "episode_81",
   "episode_111",
-  "episode_112"
+  "episode_112",
+  "episode_143",
+  "episode_150",
+  "episode_157",
+  "episode_158",
+  "episode_162",
+  "episode_165",
+  "episode_167",
+  "episode_169",
+  "episode_192",
+  "episode_195",
+  "episode_196",
+  "episode_202",
+  "episode_204",
+  "episode_218",
+  "episode_226",
+  "episode_230",
+  "episode_231",
+  "episode_232",
+  "episode_233",
+  "episode_240",
+  "episode_241",
+  "episode_243",
+  "episode_244",
+  "episode_245",
+  "episode_246",
+  "episode_247",
+  "episode_250"
  ]
 }

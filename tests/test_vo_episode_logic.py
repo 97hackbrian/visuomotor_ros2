@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 from visuomotor_data_collection.vo_episode_logic import (  # noqa: E402
     imu_moving_fraction,
     EpisodeSampler, PoseBuffer, PoseSample, StampedBuffer, check_done_segment, continuous_quat, detect_hold_start,
-    episode_quality, imu_still_since, is_null_odometry)
+    camera_still, episode_quality, imu_still_since, is_null_odometry)
 
 Q_DOWN = np.array([0.0, 0.7071068, 0.0, 0.7071068])
 
@@ -184,6 +184,20 @@ class ImuMovingFractionTest(unittest.TestCase):
         self.assertAlmostEqual(frac, (0.5 + 0.15) / 2.0, delta=0.03)          # el suavizado alarga el giro 0,15 s
         self.assertEqual(imu_moving_fraction(frames, t, np.zeros_like(w), 0.08), 0.0)
         self.assertIsNone(imu_moving_fraction(frames + 5.0, t, w, 0.08))       # el IMU no cubre esos frames
+
+
+class CameraStillTest(unittest.TestCase):
+    """2026-11-26: el aviso de alcance se calla con la cámara quieta (quietud final), con el mismo criterio que el
+    guardado automático: desplazamiento en la ventana / duración < velocidad estática."""
+
+    def test_still_moving_and_short(self):
+        rate, w, v = 20.0, 0.5, 0.02
+        still = [np.array([0.40, 0.0, 0.30]) + 0.0005 * np.sin(i) for i in range(20)]   # ruido de 0,5 mm
+        moving = [np.array([0.40 + 0.003 * i, 0.0, 0.30]) for i in range(20)]           # 6 cm/s
+        self.assertTrue(camera_still(still, rate, w, v))
+        self.assertFalse(camera_still(moving, rate, w, v))
+        self.assertFalse(camera_still(still[:5], rate, w, v))                           # menos que la ventana
+        self.assertTrue(camera_still(moving + [moving[-1]] * 11, rate, w, v))            # llegó y se quedó quieta
 
 
 if __name__ == "__main__":
