@@ -123,6 +123,8 @@ experiments/vio_gt/*/replay*/
 # Corridas de medición con el robot (JSON, npz y figuras pequeñas): sí van a git
 !experiments/vio_gt/*/runs/
 datasets/vio_frames/
+# Carpeta de trabajo de tools/xarm5/make_v8_training_set.sh (intermedio de DROID e informe; se borra al terminar)
+datasets/_work_*/
 experiments/vio_gt/*/frameworks/*/traj_work/
 # Figuras de los experimentos de odometría con el robot (evidencia para el paper): sí van a git
 !experiments/vio_gt/**/*.png

@@ -1,6 +1,7 @@
 """Pruebas del armado del dataset v8 con poses de DROID (tools/xarm5/build_dataset_from_bags.py), sin ROS."""
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "xarm5"))
 sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
-from build_dataset_from_bags import build_episode  # noqa: E402
+from build_dataset_from_bags import build_episode, main  # noqa: E402
 
 
 class BuildEpisodeTest(unittest.TestCase):
@@ -49,6 +50,37 @@ class BuildEpisodeTest(unittest.TestCase):
         xyz2, _q2, _i2 = build_episode(ts, t, p, q, T_link_opt, 1.0, 0.5, 0.4)
         self.assertGreater(abs(xyz2[-1, 0]), 0.25)                         # x de camera_link = z óptico
         self.assertLess(abs(xyz2[-1, 1]) + abs(xyz2[-1, 2]), 1e-6)
+
+
+class RequireDroidTest(unittest.TestCase):
+    """2026-11-26, a pedido del usuario: el dataset que se entrena lleva SIEMPRE las poses de DROID. Una demo no
+    descartada sin trayectoria de DROID detiene el armado sin escribir nada (antes se omitía y se perdía)."""
+
+    def setUp(self):
+        import zarr
+        self.tmp = tempfile.TemporaryDirectory()
+        d = Path(self.tmp.name)
+        g = zarr.open_group(str(d / "raw.zarr"), mode="w")
+        g.create_group("episode_0").attrs["discarded"] = True       # descartada: no necesita DROID
+        g.create_group("episode_1")                                  # válida y sin trayectoria
+        (d / "droid").mkdir()
+        self.args = ["--src", str(d / "raw.zarr"), "--droid-dir", str(d / "droid"), "--frames-dir", str(d / "frames"),
+                     "--report", str(d / "no_report.csv")]
+        self.dst = d / "out.zarr"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_valid_demo_without_droid_stops_the_build(self):
+        self.assertEqual(main(self.args + ["--dst", str(self.dst)]), 2)
+        self.assertFalse(self.dst.exists())
+
+    def test_allow_missing_droid_omits_it(self):
+        import zarr
+        self.assertEqual(main(self.args + ["--dst", str(self.dst), "--allow-missing-droid"]), 0)
+        out = zarr.open_group(str(self.dst), mode="r")
+        self.assertEqual(list(out.group_keys()), [])
+        self.assertEqual(out.attrs["skipped"], {"episode_0": "descartada", "episode_1": "sin trayectoria de DROID"})
 
 
 if __name__ == "__main__":

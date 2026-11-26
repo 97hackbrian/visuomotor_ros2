@@ -11,6 +11,8 @@ probado con éxito en el xArm5) en tres niveles:
 3. **Entrenamiento**: el MISMO ``ZarrDataset`` que usa ``visuomotor_core/train.py`` (ventanas, copy-padding,
    ``relative_ee``), sus estadísticas de normalización, un lote del DataLoader y, con ``--forward``, un paso de
    entrenamiento (forward + backward) de ``DiffusionPolicy`` en la GPU.
+4. **Origen de las poses** (atributo ``pose_source`` de cada episodio): con ``--require-pose-source droid_rgbd``, TODOS
+   deben traer las poses de DROID-SLAM (2026-11-26, a pedido del usuario: el dataset que se entrena pasa por DROID).
 Solo lectura. Los nombres de los datasets se pasan siempre por argumento (AGENTS.md §16).
 
     python3 tools/xarm5/verify_training_dataset.py --dataset datasets/<nuevo>.zarr \\
@@ -36,6 +38,14 @@ CONV_KEYS = ("converter_version", "relative_coordinates", "quaternion_hemisphere
 def q(v, ps=(5, 50, 95)):
     v = np.asarray(v, dtype=np.float64)
     return [round(float(np.percentile(v, p)), 4) for p in ps] if len(v) else []
+
+
+def pose_sources(g, eps) -> dict:
+    """Episodios por origen de sus poses (``pose_source``; sin el atributo, las de la odometría en vivo)."""
+    out = {}
+    for k in eps:
+        out.setdefault(str(g[k].attrs.get("pose_source", "sin pose_source")), []).append(k)
+    return out
 
 
 def structure(g) -> dict:
@@ -142,12 +152,17 @@ def main(argv=None) -> int:
     ap.add_argument("--forward", action="store_true", help="un paso de entrenamiento en la GPU")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--out", default="")
+    ap.add_argument("--require-pose-source", default="",
+                    help="exigir este pose_source en TODOS los episodios (droid_rgbd = poses de DROID-SLAM)")
     a = ap.parse_args(argv)
     res = {}
     for tag, path in (("dataset", a.dataset), ("reference", a.reference)):
         root = str(REPO / path) if not Path(path).is_absolute() else path
         g = zarr.open_group(root, mode="r")
         st = structure(g)
+        if tag == "dataset":
+            by_source = pose_sources(g, st["episode_keys"])
+            res["pose_sources"] = {s: len(ks) for s, ks in by_source.items()}
         res[tag] = {"path": path, "structure": {k: v for k, v in st.items() if k != "episode_keys"},
                     "physics": physics(g, st["episode_keys"], a.min_done_frames),
                     "training": training_check(root, st["episode_keys"], a.forward and tag == "dataset", a.batch_size)}
@@ -176,6 +191,15 @@ def main(argv=None) -> int:
         issues.append(f"cuaternión: norma ±{p['quat_norm_max_dev']}, hemisferio mín {p['hemisphere_min_dot']}")
     if "forward_backward" in d["training"] and not d["training"]["forward_backward"]["finite"]:
         issues.append("paso de entrenamiento con pérdida o gradiente no finito")
+    if a.require_pose_source:
+        bad = sorted((k for s, ks in by_source.items() if s != a.require_pose_source for k in ks),
+                     key=lambda k: int(k.split("_")[-1]) if k.split("_")[-1].isdigit() else 0)
+        res["episodes_without_required_pose_source"] = bad
+        if bad:
+            issues.append(f"{len(bad)} episodios sin poses de {a.require_pose_source}: {', '.join(bad[:10])}"
+                          + (" ..." if len(bad) > 10 else ""))
+    print("\nOrigen de las poses: " + "; ".join(f"{s}: {n}" for s, n in res["pose_sources"].items())
+          + (f" (se exige {a.require_pose_source})" if a.require_pose_source else ""))
     # Demos marcadas por el conversor (no son errores de formato: quedan en el dataset, ver el informe de conversión)
     rp = Path(str(REPO / a.dataset) if not Path(a.dataset).is_absolute() else a.dataset)
     rp = rp.with_name(rp.stem + "_conversion_report.json")

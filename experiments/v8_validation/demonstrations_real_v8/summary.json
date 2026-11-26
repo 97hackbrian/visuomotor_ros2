@@ -1,15 +1,9 @@
 {
- "validated": 119,
+ "validated": 114,
  "OK": 106,
  "REVISAR": 8,
- "REPETIR": 5,
- "repeat": [
-  "episode_5",
-  "episode_40",
-  "episode_71",
-  "episode_101",
-  "episode_117"
- ],
+ "REPETIR": 0,
+ "repeat": [],
  "review": [
   "episode_1",
   "episode_46",

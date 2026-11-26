@@ -752,6 +752,14 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         J5 con `clamp_yaw_near` (fuera del rango, el límite más cercano al giro actual, para no dar la vuelta cerca de
         ±π). El conversor proyecta recordando el yaw anterior. `demonstrations_real_v8_xarm5_v2.zarr` queda con 20
         marcadas, todas por alcance, y está LISTO. Falta llevar el cambio del puente a la Jetson.
+      - Organización de los datasets (aclaración del usuario): la regla de no borrar protege los CRUDOS y los
+        FUNCIONALES (los que entrenaron un modelo), no los derivados. Aplicada al pie de la letra, cada corrección
+        dejaba una copia con sufijo (`_droid_v2`, `_xarm5_v2`) y el usuario no sabía cuál era la oficial. Ahora el
+        derivado tiene nombre fijo (`demonstrations_real_v8_xarm5.zarr`): `make_v8_training_set.sh` lo rehace completo
+        desde el crudo (1 min 36 s más ~1 min de DROID por demo nueva) y lo reemplaza solo si pasa la verificación, con
+        las poses de DROID obligatorias en cada episodio. Para entrenar se congela una copia con fecha
+        (`freeze_training_set.sh`). Rehecho idéntico al `_xarm5_v2` (byte a byte, salvo la procedencia); los
+        sobrantes se borraron a pedido del usuario. AGENTS.md §2.3 y `.agents/knowledge/19` §7.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

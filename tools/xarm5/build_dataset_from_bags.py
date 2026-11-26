@@ -21,13 +21,14 @@ Por episodio:
    relativas). Imágenes, sellos y el resto se copian tal cual; los atributos se conservan y se agrega la
    trazabilidad. NUNCA sobrescribe: ``--dst`` no debe existir.
 
-Se omiten los episodios descartados, los que no tienen trayectoria de DROID y los que el informe de validación marca
-``--skip-verdicts`` (por defecto REPETIR). Después, el conversor v3 lo ancla con la pose real de inicio y lo lleva al
-xArm5:
-    python3 tools/xarm5/build_dataset_from_bags.py --src datasets/demonstrations_real_v8.zarr --dst datasets/demonstrations_real_v8_droid_v2.zarr
-    python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src datasets/demonstrations_real_v8_droid_v2.zarr \\
-        --dst datasets/demonstrations_real_v8_xarm5.zarr \\
-        --start-poses experiments/v8_validation/demonstrations_real_v8/start_poses.json
+Se omiten los episodios descartados y los que el informe de validación marca ``--skip-verdicts`` (por defecto
+REPETIR). Si a una demo NO descartada le falta la trayectoria de DROID, se detiene sin escribir nada (2026-11-26, a
+pedido del usuario: el dataset que se entrena lleva SIEMPRE las poses de DROID; ``--allow-missing-droid`` la omite).
+Cada episodio guarda ``raw_dataset`` y ``raw_episode`` (su demo en el crudo), que el conversor copia al dataset final.
+
+Normalmente lo corre ``tools/xarm5/make_v8_training_set.sh`` (armado, conversión al xArm5 con la pose real de inicio,
+verificación y reemplazo del dataset de entrenamiento). A mano:
+    python3 tools/xarm5/build_dataset_from_bags.py --src datasets/demonstrations_real_v8.zarr --dst <nuevo>.zarr
 """
 from __future__ import annotations
 
@@ -122,6 +123,8 @@ def main(argv=None) -> int:
     ap.add_argument("--static-speed", type=float, default=0.02)
     ap.add_argument("--static-window-s", type=float, default=0.5)
     ap.add_argument("--episodes", default="", help="solo estos (coma), p. ej. episode_41,episode_55")
+    ap.add_argument("--allow-missing-droid", action="store_true",
+                    help="omitir (en vez de detenerse) las demos no descartadas sin trayectoria de DROID")
     a = ap.parse_args(argv)
 
     src = REPO / a.src if not Path(a.src).is_absolute() else Path(a.src)
@@ -141,6 +144,14 @@ def main(argv=None) -> int:
     only = {e.strip() for e in a.episodes.split(",") if e.strip()}
 
     g = zarr.open_group(str(src), mode="r")
+    # Poses de DROID obligatorias: una demo válida sin trayectoria se corrige ANTES (DROID o descarte), no se pierde
+    missing = [k for k in episode_keys(g) if (not only or k in only) and not g[k].attrs.get("discarded")
+               and not (droid_dir / f"{k}.tum").is_file()]
+    if missing and not a.allow_missing_droid:
+        print(f"ERROR: {len(missing)} demos no descartadas sin trayectoria de DROID: {', '.join(missing)}\n"
+              "  Correr DROID (tools/xarm5/validate_v8_batch.sh) o marcarlas descartadas (con el OK del usuario). "
+              "--allow-missing-droid las omite.")
+        return 2
     out = zarr.open_group(str(dst), mode="w-")
     summary = {"built": [], "skipped": {}}
     for k in episode_keys(g):
@@ -186,6 +197,7 @@ def main(argv=None) -> int:
             else:
                 zarr.copy(e[name], ep, name=name)
         new_at = dict(at)
+        new_at.update({"raw_dataset": str(src.relative_to(REPO)) if src.is_relative_to(REPO) else str(src), "raw_episode": k})
         new_at.update({"pose_source": "droid_rgbd", "build_version": BUILD_VERSION, "droid_tum": str(tum.relative_to(REPO)),
                        "depth_scale": a.depth_scale, "start_reference": info, "done_source_build": done_src,
                        "done_frames": int(done.sum()), "done_frames_collector": int(done_old.sum()),

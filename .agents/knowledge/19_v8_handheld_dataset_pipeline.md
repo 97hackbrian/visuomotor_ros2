@@ -56,7 +56,7 @@ Resultado sobre 119 demos: 106 OK, 8 REVISAR y 5 REPETIR (descartadas a pedido d
 ## 4. Conversión al xArm5 y verificación
 
 **Conversión:** `convert_vio_dataset_to_xarm5.py` (conversor v3) con `--start-poses`, SIN `--drop-flagged`: se conservan todas las demos, por decisión del usuario.
-- Resultado: `demonstrations_real_v8_xarm5.zarr`, con 114 demos y 53 208 frames.
+- Resultado de esta primera conversión (v1, muñeca a ±149°; borrada, ver §7): 114 demos y 53 208 frames.
 - 26 demos marcadas:
   - **Alcance:** 20. La mano avanza ALTA antes de bajar, y algunos finales de celdas lejanas quedan en el borde. En v8, el 64 % de las demos pasa el alcance del puente (v7: 20 %), con una extensión máxima mediana del 101 % del codo recto (v7: 88 %).
   - **Giro de muñeca:** 10, todas con las hojas a 180°. Con la cámara alineada se piden ±180° de J5, y el puente acota el giro a ±2,6 rad (±149°) para no cruzar ±π. El conversor lo recorta, y la orientación se desvía ~31° (mediana) frente a 9-14° en los otros ángulos.
@@ -80,17 +80,18 @@ Resultado sobre 119 demos: 106 OK, 8 REVISAR y 5 REPETIR (descartadas a pedido d
 
 ## 5. Para entrenar y para seguir sumando
 
-- **Entrenamiento:** con todas las demos (114) o solo con las factibles (88, sin las 26 marcadas; lista en `datasets/demonstrations_real_v8_xarm5_conversion_report.json`), y comparar (ablación para el paper).
+- **Entrenamiento:** con todas las demos (114) o solo con las factibles (94, sin las 20 marcadas por alcance tras la corrección de la muñeca, §6; lista en `datasets/demonstrations_real_v8_xarm5_conversion_report.json`), y comparar (ablación para el paper). Antes, congelar una copia (§7).
 - **No mezclar con `v7_xarm5_v2`:** usa la extrínseca vieja. Si se combina con v7, usar `v7_xarm5_v3`.
-- **Demos nuevas:** `tools/xarm5/make_v8_training_set.sh <droid_out> <xarm5_out>` corre todo de punta a punta, de forma reanudable y sin sobrescribir:
+- **Demos nuevas:** `tools/xarm5/make_v8_training_set.sh`, sin argumentos (ver §7), rehace el dataset de entrenamiento completo:
   1. DROID en las nuevas;
   2. poses de inicio;
   3. informe;
-  4. armado;
+  4. armado (se detiene si a una demo válida le falta la trayectoria de DROID);
   5. conversión;
-  6. verificación.
+  6. verificación (poses de DROID obligatorias);
+  7. reemplazo del dataset oficial, solo si la verificación pasa.
   - Las REPETIR no se marcan solas: hace falta el OK del usuario.
-- **Monitor de alcance en vivo** (`reach_monitor.py`): avisa por voz sobre la posición (caja y alcance) y el giro de muñeca (±149°): "baja primero y después avanza", "gira menos la cámara".
+- **Monitor de alcance en vivo** (`reach_monitor.py`): avisa por voz sobre la posición (caja y alcance) y el giro de muñeca (±177° desde §6, con 5° de tolerancia): "baja primero y después avanza", "gira menos la cámara".
 - **Borrado (2026-11-26, a pedido del usuario):** `datasets/demonstrations_real_v8_droid.zarr` (7,8 GB), el armado v1 con el error de la referencia (borraba movimiento real al inicio). No se usó para entrenar; se reemplazó por `demonstrations_real_v8_droid_v2.zarr` (armado v2).
 
 ## 6. Giro de muñeca a ±177° (decisión del usuario, 2026-11-26)
@@ -104,10 +105,39 @@ El proyecto es SOLO aproximación (sin pinza), y las demos con las hojas a 180°
 - **Monitor en vivo:** solo avisa del giro si pasa el límite en más de `reach_yaw_tolerance_deg` (5°). Con ±177° no avisa al alinear a 180°, porque el robot queda 3° corto.
 - **Pruebas:** `test_clamp_yaw_near`, `YawNearPiTest` (el yaw oscilando a ±179,5° ya no salta) y la del monitor.
 - **Despliegue:** el puente corre en la Jetson. Hay que llevarle este cambio (sincronizar el repo y recompilar/reconstruir la imagen) antes de ejecutar políticas entrenadas con demos de 180°.
-- **Reconversión:** `demonstrations_real_v8_xarm5_v2.zarr` es el dataset de ENTRENAMIENTO.
+- **Reconversión** (`demonstrations_real_v8_xarm5_v2.zarr`, que en §7 pasó al nombre fijo `demonstrations_real_v8_xarm5.zarr`):
   - Pasan de 26 a 20 demos marcadas, todas por alcance.
   - En las 15 de 180°, la desviación de orientación baja de 31,3° a 12,0° (mediana; máx. 21,5°), como en los demás ángulos.
   - Verificado contra `v7_xarm5_v2`: LISTO, con un paso de entrenamiento de pérdida 1,11.
-  - `demonstrations_real_v8_xarm5.zarr` (v1, a ±149°) queda obsoleto.
+  - La conversión v1 (a ±149°) quedó obsoleta y se borró (§7).
 - **Nota para entrenar:** las demos de 180° terminan en +177° o −177°, según el lado desde el que se giró la cámara. Físicamente están a 6° una de la otra, pero en la convención `home` sus cuaterniones quedan casi opuestos (producto punto mínimo con home: 0,009 ≥ 0). Con `relative_ee`, la acción relativa al efector no se afecta; el estado de entrada tiene esos dos grupos.
 - **Pendiente aparte (no relacionado):** `tests/test_hand_eye.py::test_solve_command_end_to_end` espera que `solve` se niegue con el tablero "sin medir", pero `charuco_board.yaml` ya está medido (`measured: true`). Las otras 4 fallas de la batería completa son del simulador Isaac Sim y de `analyze_convergence.py` (argumento `language`).
+
+## 7. Organización de los datasets (decisión del usuario, 2026-11-26)
+
+La regla literal del repo ("nunca sobrescribir ni borrar un dataset; cada corrección va a una copia nueva") dejó, además del crudo, tres carpetas v8: `_droid_v2`, `_xarm5` y `_xarm5_v2`. El usuario no sabía cuál era la oficial. Aclaró que la regla protege los crudos y los funcionales, no lo que rehace un script; quedó escrito en AGENTS.md §2.3.
+
+- **Crudo** (la fuente; solo crece):
+  - `datasets/demonstrations_real_v8.zarr`: lo que guarda el recolector (imágenes de 256 px, odometría en vivo, programa y marcas de descarte).
+  - `datasets/raw_bags/demonstrations_real_v8/`: un bag MCAP por demo, con color y profundidad a resolución completa e IMU.
+  - Cada sesión agrega sus demos a este mismo crudo, y el programa sigue donde quedó.
+- **Entrenamiento** (derivado, nombre fijo): `datasets/demonstrations_real_v8_xarm5.zarr`, con su `_conversion_report.json`.
+  - `tools/xarm5/make_v8_training_set.sh`, sin argumentos, lo rehace COMPLETO desde el crudo después de cada sesión. Así todas las demos pasan por el mismo código: agregando las nuevas a la versión anterior, las viejas habrían quedado con la muñeca a ±149° y las nuevas a ±177°.
+  - Arma en `datasets/_work_demonstrations_real_v8/`, ignorada por git, y reemplaza el oficial solo si la verificación pasa. Si no pasa, el oficial queda intacto y el nuevo queda en la carpeta de trabajo para revisarlo.
+  - El intermedio con las poses de DROID no se guarda: se rehace en ~25 s.
+  - Primera corrida (2026-11-26, sin demos nuevas para DROID): 1 min 36 s de punta a punta. Cada demo nueva suma ~1 min de DROID.
+- **Poses de DROID obligatorias** (pedido del usuario): cada episodio del dataset que se entrena lleva las poses de DROID-SLAM.
+  - `build_dataset_from_bags.py` se detiene sin escribir nada si a una demo no descartada le falta la trayectoria. Antes la omitía en silencio; `--allow-missing-droid` conserva ese comportamiento.
+  - `verify_training_dataset.py --require-pose-source droid_rgbd` no da LISTO si algún episodio no tiene `pose_source: droid_rgbd`. Con el dataset v7 (odometría en vivo) da REVISAR en 76 de 76.
+  - El ancla de inicio en el marco del robot sigue saliendo de los ArUco y el IMU: DROID solo da el movimiento relativo de la cámara.
+- **Funcional** (intocable): para entrenar, `tools/xarm5/freeze_training_set.sh` copia el oficial con fecha (`demonstrations_real_v8_xarm5_<AAAA-MM-DD>.zarr`, de solo lectura) y se entrena con esa copia. Así el `training_meta.json` del modelo nombra un dataset que no cambia. Si un entrenamiento usó el nombre fijo y su contenido no está congelado, `make_v8_training_set.sh` se niega a reemplazarlo.
+- **Caché de DROID** (se conserva):
+  - `datasets/vio_frames/demonstrations_real_v8/` (8,4 GB): cuadros, calibración e IMU exportados de cada bag, que usan DROID, la pose de inicio y el armado (`calib.json`);
+  - `experiments/v8_validation/demonstrations_real_v8/droid/`: trayectorias TUM y registros.
+- **Trazabilidad:** cada episodio de entrenamiento guarda `raw_dataset`, `raw_episode` (su clave en el crudo) y `raw_bag`.
+- **Borrados a pedido del usuario (2026-11-26):**
+  - `demonstrations_real_v8_droid.zarr`: armado v1, con el error de la referencia.
+  - `demonstrations_real_v8_droid_v2.zarr`: intermedio.
+  - La conversión v1, con la muñeca a ±149°.
+  - `demonstrations_real_v8_xarm5_v2.zarr`, después de comprobar que el de nombre fijo es idéntico. Sus 161 336 archivos coinciden byte a byte, salvo los 115 `.zattrs`, que solo cambian la procedencia. Los episodios del informe de conversión también son iguales.
+  - Se liberaron 15 GB. Los registros de esos armados quedan en `experiments/v8_validation/demonstrations_real_v8/historial_2026-11-26/`.

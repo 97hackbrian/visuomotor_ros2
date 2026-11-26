@@ -41,10 +41,12 @@ El repositorio se divide en 5 paquetes desacoplados:
 2. **Gestión de Git Exclusiva en el Host Local:**
    - **NUNCA ejecutes comandos de Git (`git status`, `git add`, `git commit`, `git config`, etc.) dentro del contenedor Docker.**
    - El control de versiones Git lo gestiona exclusivamente el usuario desde su entorno local en el Host.
-3. **Protección Absoluta de Datasets:**
-   - NUNCA sobrescribas, borres ni alteres los datasets existentes en `datasets/` (ej. `demonstrations_v7.zarr`).
-   - Cualquier enriquecimiento o corrección debe generar una copia explícita (ej. `demonstrations_v7_done_fixed.zarr`).
-   - Los nuevos datasets usan modo `"AUTO"` generando automáticamente versiones incrementales (`demonstrations_v8.zarr`, etc.).
+3. **Protección de Datasets (alcance aclarado por el usuario el 2026-11-26):**
+   - **Crudos** (lo que graba el recolector o la simulación, con sus bags; p. ej. `demonstrations_v7.zarr`, `demonstrations_real_v8.zarr` y `datasets/raw_bags/`): NUNCA se sobrescriben, borran ni alteran. Solo crecen (modo `AUMENTO`) y, con el OK explícito del usuario, se marcan episodios descartados (atributo, sin borrar datos).
+   - **Funcionales** (los que entrenaron un modelo; p. ej. `demonstrations_real_v7_xarm5_v2.zarr` y las copias congeladas `<dataset>_<fecha>.zarr`): intocables. Para entrenar con un derivado, antes se congela una copia (`tools/xarm5/freeze_training_set.sh`) y se entrena con ella.
+   - **Derivados** (los rehace un script desde el crudo; p. ej. `demonstrations_real_v8_xarm5.zarr`): nombre fijo, sin sufijos de versión. Su script los rehace completos y los reemplaza solo si pasan la verificación.
+   - Una corrección de un crudo o de un funcional genera una copia explícita (ej. `demonstrations_v7_done_fixed.zarr`). Borrar un dataset que no sea derivado requiere el pedido explícito del usuario.
+   - Los nuevos datasets crudos usan modo `"AUTO"`, que genera versiones incrementales (`demonstrations_v8.zarr`, etc.).
 4. **Prohibición Total de Hardcoding:**
    - Ningún tópico de ROS, umbral numérico, duración de reset, tamaño de imagen o geometría de gripper debe estar quemado en código Python.
    - Todo debe declararse como parámetro ROS 2 y leerse de `visuomotor_ros2/config/policy_params.yaml` o `visuomotor_data_collection/config/data_collection_params.yaml`.
@@ -309,10 +311,15 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Memoria Modular:* `.agents/knowledge/17_real_vio_dataset_curation_and_relative_actions.md`.
 
 23. **Dataset Real v8 (demos a mano con la D435i, poses de DROID) para el xArm5 (2026-11-25/26):**
-    - *Dataset de entrenamiento:* `datasets/demonstrations_real_v8_xarm5_v2.zarr` (114 demos, 53 208 frames, conversor v3 con la pose real de inicio, la extrínseca medida y el giro de muñeca a ±177°). Intermedio: `demonstrations_real_v8_droid_v2.zarr` (poses de `camera_link` según DROID-SLAM). `demonstrations_real_v8_xarm5.zarr` (v1) es OBSOLETO (giro de muñeca a ±149°: 10 demos de 180° con saltos); `demonstrations_real_v8_droid.zarr` (armado v1) se borró a pedido del usuario.
+    - *Datasets (nombres fijos desde el 2026-11-26, decisión del usuario; ver §2.3):*
+      - **Crudo:** `datasets/demonstrations_real_v8.zarr` + `datasets/raw_bags/demonstrations_real_v8/` (bags MCAP). Cada sesión agrega sus demos a ese mismo crudo.
+      - **Entrenamiento:** `datasets/demonstrations_real_v8_xarm5.zarr` (+ `_conversion_report.json`). Lleva las poses de DROID-SLAM, OBLIGATORIAS en cada episodio (el armado se detiene si a una demo válida le falta su trayectoria y la verificación lo exige), más la pose real de inicio, la extrínseca medida y la muñeca a ±177°. Lo rehace completo `tools/xarm5/make_v8_training_set.sh`.
+      - **Caché de DROID (se conserva):** `datasets/vio_frames/demonstrations_real_v8/` (cuadros de cada bag) y `experiments/v8_validation/demonstrations_real_v8/droid/` (trayectorias).
+      - **Para entrenar:** `tools/xarm5/freeze_training_set.sh` congela una copia con fecha y de solo lectura; se entrena con ella.
+      - **Borrados a pedido del usuario (2026-11-26):** `_droid` y `_droid_v2` (intermedios), `_xarm5` (v1, muñeca a ±149°) y `_xarm5_v2` (reemplazado por el de nombre fijo). Historial en `experiments/v8_validation/demonstrations_real_v8/historial_2026-11-26/`.
     - *Verificado contra el dataset del modelo que funcionó en el robot* (`train_real_v7x5v2_relative_ee_e300` se entrenó con `demonstrations_real_v7_xarm5_v2.zarr`): mismos arreglos, convenciones, lote de `ZarrDataset` y desfase acción/estado; paso de entrenamiento en la GPU finito. Veredicto LISTO (`tools/xarm5/verify_training_dataset.py`).
     - *20 demos marcadas por el conversor (se conservan):* por alcance (la mano avanza alta antes de bajar; finales en el borde en celdas lejanas). Entrenar con todas o solo con las 94 factibles y comparar. Las demos con las hojas a 180° (cámara alineada, hojas arriba: decisión del usuario) piden ±180° de J5: el puente pasó a ±177° con `clamp_yaw_near` (ver §18); llevar ese cambio a la Jetson antes de ejecutar políticas entrenadas con ellas. No mezclar con `v7_xarm5_v2` (extrínseca vieja); usar `v7_xarm5_v3`.
-    - *Para sumar demos:* `tools/xarm5/make_v8_training_set.sh <droid_out> <xarm5_out>` (DROID, inicio, informe, armado, conversión y verificación; nunca sobrescribe). Marcar las REPETIR como descartadas requiere el OK del usuario.
+    - *Para sumar demos:* `tools/xarm5/make_v8_training_set.sh`, sin argumentos. Corre DROID en las nuevas, la pose de inicio, el informe, el armado, la conversión y la verificación contra `v7_xarm5_v2`, y reemplaza el dataset solo si pasa. Marcar las REPETIR como descartadas requiere el OK del usuario.
     - *Memoria Modular:* `.agents/knowledge/19_v8_handheld_dataset_pipeline.md`.
 
 ---
@@ -470,6 +477,7 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/convert_vio_data
 ./tools/hardware/run_v8_session.sh
 
 # 42. Celdas de la mesa en metros (zona que el robot alcanza) y su dibujo en la vista de HOME3 para la guía del recolector
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
 # 43. Ajustar la grilla a mano: ventana con barras, celdas verdes/rojas según el alcance del robot y límite de los ArUco; [G] guarda v8_cells.yaml y regenera (en vivo si la cámara corre)
 tools/hardware/v8_tmux.sh grid
 
@@ -477,12 +485,15 @@ tools/hardware/v8_tmux.sh grid
 tools/xarm5/validate_v8_batch.sh 0 100000 demonstrations_real_v8
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/validate_v8_episodes.py report --dataset datasets/demonstrations_real_v8.zarr --start-poses experiments/v8_validation/demonstrations_real_v8/start_poses.json
 
-# 45. Dataset v8 de entrenamiento de punta a punta (sumar demos nuevas; nunca sobrescribe)
-tools/xarm5/make_v8_training_set.sh demonstrations_real_v8_droid_v3 demonstrations_real_v8_xarm5_v3
+# 45. Dataset v8 de ENTRENAMIENTO tras cada sesión: rehace datasets/demonstrations_real_v8_xarm5.zarr desde el crudo (DROID solo en las demos nuevas; poses de DROID obligatorias) y lo reemplaza solo si pasa la verificación
+tools/xarm5/make_v8_training_set.sh
 
-# 46. ¿Listo para entrenar y consistente con el dataset de un modelo que funcionó?
-docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/verify_training_dataset.py --dataset datasets/demonstrations_real_v8_xarm5_v2.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --forward
-docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/hardware/make_v8_cells.py
+# 46. ¿Listo para entrenar y consistente con el dataset de un modelo que funcionó? (el 45 ya lo corre)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/verify_training_dataset.py --dataset datasets/demonstrations_real_v8_xarm5.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --require-pose-source droid_rgbd --forward
+
+# 47. Congelar el dataset para un entrenamiento (copia con fecha, solo lectura) y entrenar con la copia (resto de argumentos como en el 17)
+tools/xarm5/freeze_training_set.sh demonstrations_real_v8_xarm5
+docker exec -d -u 1000 -w /ros visuomotor_ros2 bash -c "python3 visuomotor_core/train.py --root /ros/datasets/demonstrations_real_v8_xarm5_<fecha>.zarr <argumentos del 17> --out_dir /ros/visuomotor_core/outputs/<corrida>"
 ```
 
 ---

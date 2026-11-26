@@ -1,0 +1,37 @@
+/ros/tools/xarm5/verify_training_dataset.py:140: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  out["forward_backward"] = {"loss": round(float(loss), 4), "grad_norm": round(gn, 3),
+
+Origen de las poses: droid_rgbd: 114 (se exige droid_rgbd)
+
+Marcadas por el conversor (se conservan): 20 de 114 | TCP fuera del volumen de trabajo o del alcance del brazo: 20
+Arreglos extra (el cargador de entrenamiento los ignora): ['image_stamp', 'inliers', 'lost', 'pose_stamp', 'timestamp']
+                                                          DATASET                         REFERENCIA
+episodes                                                      114                                 76
+frames                                                      53208                              23731
+duration_s_p5_50_95                        [14.9725, 22.5, 32.94]           [12.225, 15.275, 19.775]
+done_frames_min_p50                                      [42, 54]                           [40, 40]
+episodes_with_bad_done                                          0                                  0
+gripper_max_abs                                               0.0                                0.0
+quat_norm_max_dev                                             0.0                                0.0
+hemisphere_min_dot                                          0.009                             0.5805
+max_step_mm_p50_95_max                            [4.6, 7.1, 9.3]                   [6.5, 9.2, 10.6]
+max_speed_m_s_p50_95                               [0.0894, 0.14]                   [0.1236, 0.1763]
+tcp_xyz_min                                [0.047, -0.405, 0.291]             [0.129, -0.351, 0.158]
+tcp_xyz_max                                 [0.762, 0.435, 0.816]              [0.605, 0.269, 0.776]
+start_offset_from_home_mm_p50_95                      [45.1, 104.8]                         [0.0, 0.0]
+final_tcp_min                              [0.412, -0.405, 0.296]             [0.333, -0.347, 0.158]
+final_tcp_max                               [0.743, 0.336, 0.407]                [0.596, 0.26, 0.49]
+windows                                                     53094                              23655
+action_offset                                                   0                                  0
+batch_shapes                   {'observation.image': [8, 2, 3, 256, 256], 'observation.state': [8, 2, 8], 'action': [8, 16, 9], 'action_is_pad': [8, 16]} {'observation.image': [8, 2, 3, 256, 256], 'observation.state': [8, 2, 8], 'action': [8, 16, 9], 'action_is_pad': [8, 16]}
+converter_version                                               3                                  2
+quaternion_hemisphere                                        home                               home
+orientation_mode                                        arm_plane                          arm_plane
+tcp_to_camera_xyz_m                  [0.06293, -0.01626, 0.01849]                    [0.0, 0.0, 0.0]
+start_poses                    experiments/v8_validation/demonstr                               None
+paso de entrenamiento (GPU)    {'loss': 1.1143, 'grad_norm': 3.853, 'finite': True, 'gpu_peak_gb': 0.66}
+
+Sin problemas de estructura, convenciones, física ni entrenamiento.
+VEREDICTO: LISTO para entrenar (consistente con la referencia)
+-> /ros/experiments/v8_validation/demonstrations_real_v8/verify.json

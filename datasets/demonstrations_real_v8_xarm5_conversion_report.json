@@ -1,15 +1,15 @@
 {
-  "source": "demonstrations_real_v8_droid_v2.zarr",
+  "source": "demonstrations_real_v8_droid.zarr",
   "destination": "demonstrations_real_v8_xarm5.zarr",
-  "timestamp": 1795663189.5184162,
+  "timestamp": 1795671870.300528,
   "orientation_mode": "arm_plane",
   "pitch_limits_rad": [
     -1.48,
     1.48
   ],
   "yaw_limits_rad": [
-    -2.6,
-    2.6
+    -3.0892,
+    3.0892
   ],
   "home_xyz_m": [
     0.15009,
@@ -545,12 +545,12 @@
       "quaternion_sign_flips": 1,
       "workspace_violation_fraction": 0.5363036303630363,
       "workspace_max_clamp_m": 0.1255762680675971,
-      "max_orientation_deviation_rad": 0.5444114696398842,
-      "mean_orientation_deviation_rad": 0.22769925682351783,
+      "max_orientation_deviation_rad": 0.18545336327361361,
+      "mean_orientation_deviation_rad": 0.08958635746781785,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 325,
       "max_linear_speed_m_s": 0.1070591478799981,
-      "max_angular_speed_rad_s": 5.4161975728139256,
+      "max_angular_speed_rad_s": 0.5288700501087613,
       "tcp_xyz_min": [
         0.15167103271986007,
         0.007497850791016775,
@@ -564,8 +564,7 @@
       "start_offset_from_home_m": 0.007732843967536415,
       "start_anchor": "measured",
       "flags": [
-        "TCP fuera del volumen de trabajo o del alcance del brazo",
-        "velocidad angular 5.416 > 3.000 rad/s"
+        "TCP fuera del volumen de trabajo o del alcance del brazo"
       ],
       "source_episode": "episode_12",
       "written_as": "episode_11"
@@ -588,15 +587,15 @@
         "orientation_spikes_replaced": 15,
         "orientation_removed_rms_deg": 0.26902329669401553
       },
-      "quaternion_sign_flips": 2,
+      "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.0,
       "workspace_max_clamp_m": 0.003000023725384151,
-      "max_orientation_deviation_rad": 0.6197181113837925,
-      "mean_orientation_deviation_rad": 0.22518672065692233,
+      "max_orientation_deviation_rad": 0.3068500887079859,
+      "mean_orientation_deviation_rad": 0.12836380214623122,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 0,
       "max_linear_speed_m_s": 0.08992713157137622,
-      "max_angular_speed_rad_s": 5.4165855804078635,
+      "max_angular_speed_rad_s": 0.5070676690261575,
       "tcp_xyz_min": [
         0.1471364111694303,
         -0.06984524084014512,
@@ -609,9 +608,7 @@
       ],
       "start_offset_from_home_m": 0.0039296405087459125,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.417 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_14",
       "written_as": "episode_12"
     },
@@ -977,15 +974,15 @@
         "orientation_spikes_replaced": 10,
         "orientation_removed_rms_deg": 0.22314347654203995
       },
-      "quaternion_sign_flips": 2,
+      "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.034,
       "workspace_max_clamp_m": 0.03366364344595364,
-      "max_orientation_deviation_rad": 0.5542553466097192,
-      "mean_orientation_deviation_rad": 0.2477151601025078,
+      "max_orientation_deviation_rad": 0.20084875447376457,
+      "mean_orientation_deviation_rad": 0.11164332151876732,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 17,
       "max_linear_speed_m_s": 0.07043605650019492,
-      "max_angular_speed_rad_s": 5.416888132053003,
+      "max_angular_speed_rad_s": 0.5664358843068876,
       "tcp_xyz_min": [
         0.1538456804869623,
         -0.30437555407481454,
@@ -998,9 +995,7 @@
       ],
       "start_offset_from_home_m": 0.00791820056604367,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.417 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_26",
       "written_as": "episode_21"
     },
@@ -1240,12 +1235,12 @@
       "quaternion_sign_flips": 2,
       "workspace_violation_fraction": 0.7339743589743589,
       "workspace_max_clamp_m": 0.12836818662960545,
-      "max_orientation_deviation_rad": 0.5874771288978817,
-      "mean_orientation_deviation_rad": 0.24804489543540775,
+      "max_orientation_deviation_rad": 0.2975795654870762,
+      "mean_orientation_deviation_rad": 0.15172202391632475,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 458,
       "max_linear_speed_m_s": 0.0869476297601938,
-      "max_angular_speed_rad_s": 5.4201508408683825,
+      "max_angular_speed_rad_s": 0.610211368263929,
       "tcp_xyz_min": [
         0.15273111481505638,
         -0.34966133206346606,
@@ -1259,8 +1254,7 @@
       "start_offset_from_home_m": 0.006447713992373324,
       "start_anchor": "measured",
       "flags": [
-        "TCP fuera del volumen de trabajo o del alcance del brazo",
-        "velocidad angular 5.420 > 3.000 rad/s"
+        "TCP fuera del volumen de trabajo o del alcance del brazo"
       ],
       "source_episode": "episode_33",
       "written_as": "episode_27"
@@ -1371,15 +1365,15 @@
         "orientation_spikes_replaced": 11,
         "orientation_removed_rms_deg": 0.1594947045505805
       },
-      "quaternion_sign_flips": 2,
+      "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.5745937961595273,
       "workspace_max_clamp_m": 0.09260438205710946,
-      "max_orientation_deviation_rad": 0.5707558932625855,
-      "mean_orientation_deviation_rad": 0.22747199465908507,
+      "max_orientation_deviation_rad": 0.22200429873506972,
+      "mean_orientation_deviation_rad": 0.0852995713686173,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 389,
       "max_linear_speed_m_s": 0.07437136090456921,
-      "max_angular_speed_rad_s": 5.416269858317742,
+      "max_angular_speed_rad_s": 0.44163086878996394,
       "tcp_xyz_min": [
         0.15896889094542382,
         -0.2751466105640659,
@@ -1393,8 +1387,7 @@
       "start_offset_from_home_m": 0.013134062786097401,
       "start_anchor": "measured",
       "flags": [
-        "TCP fuera del volumen de trabajo o del alcance del brazo",
-        "velocidad angular 5.416 > 3.000 rad/s"
+        "TCP fuera del volumen de trabajo o del alcance del brazo"
       ],
       "source_episode": "episode_36",
       "written_as": "episode_30"
@@ -1549,12 +1542,12 @@
       "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.494949494949495,
       "workspace_max_clamp_m": 0.13444191883257525,
-      "max_orientation_deviation_rad": 0.3637654255523509,
-      "mean_orientation_deviation_rad": 0.16659399913119916,
+      "max_orientation_deviation_rad": 0.11295380119409545,
+      "mean_orientation_deviation_rad": 0.03567511368415782,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 245,
       "max_linear_speed_m_s": 0.0990461088207075,
-      "max_angular_speed_rad_s": 0.5724550606754422,
+      "max_angular_speed_rad_s": 0.597557055189779,
       "tcp_xyz_min": [
         0.14641348376040964,
         -0.07575998832035633,
@@ -2028,12 +2021,12 @@
       "quaternion_sign_flips": 1,
       "workspace_violation_fraction": 0.37360890302066774,
       "workspace_max_clamp_m": 0.06886235672330034,
-      "max_orientation_deviation_rad": 0.5459479770517194,
-      "mean_orientation_deviation_rad": 0.20437719477931685,
+      "max_orientation_deviation_rad": 0.16844771251498591,
+      "mean_orientation_deviation_rad": 0.06402415038820228,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 235,
       "max_linear_speed_m_s": 0.13944306879608523,
-      "max_angular_speed_rad_s": 5.41605023091855,
+      "max_angular_speed_rad_s": 0.5827203545481661,
       "tcp_xyz_min": [
         0.15070408482103842,
         0.0028278098219664156,
@@ -2046,9 +2039,7 @@
       ],
       "start_offset_from_home_m": 0.004002613961303561,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.416 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_52",
       "written_as": "episode_45"
     },
@@ -2116,8 +2107,8 @@
       "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.7193675889328063,
       "workspace_max_clamp_m": 0.22785151285144403,
-      "max_orientation_deviation_rad": 0.5390116725157506,
-      "mean_orientation_deviation_rad": 0.16562360167476764,
+      "max_orientation_deviation_rad": 0.10434298603138585,
+      "mean_orientation_deviation_rad": 0.05238127188355302,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 364,
       "max_linear_speed_m_s": 0.10798060680261834,
@@ -2683,12 +2674,12 @@
       "quaternion_sign_flips": 1,
       "workspace_violation_fraction": 0.8033057851239669,
       "workspace_max_clamp_m": 0.23528056656429885,
-      "max_orientation_deviation_rad": 0.5482171687517212,
-      "mean_orientation_deviation_rad": 0.2717175040774469,
+      "max_orientation_deviation_rad": 0.20823577128302978,
+      "mean_orientation_deviation_rad": 0.1261976459809593,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 486,
       "max_linear_speed_m_s": 0.08840509389717774,
-      "max_angular_speed_rad_s": 5.416052180336943,
+      "max_angular_speed_rad_s": 0.5420934231763624,
       "tcp_xyz_min": [
         0.12280946258446769,
         0.02828175256487018,
@@ -2702,8 +2693,7 @@
       "start_offset_from_home_m": 0.039871901928864494,
       "start_anchor": "measured",
       "flags": [
-        "TCP fuera del volumen de trabajo o del alcance del brazo",
-        "velocidad angular 5.416 > 3.000 rad/s"
+        "TCP fuera del volumen de trabajo o del alcance del brazo"
       ],
       "source_episode": "episode_70",
       "written_as": "episode_60"
@@ -2772,8 +2762,8 @@
       "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.7542533081285444,
       "workspace_max_clamp_m": 0.18445125977937468,
-      "max_orientation_deviation_rad": 0.5834901922422612,
-      "mean_orientation_deviation_rad": 0.3238405551404026,
+      "max_orientation_deviation_rad": 0.2974545943206798,
+      "mean_orientation_deviation_rad": 0.22237776699154713,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 399,
       "max_linear_speed_m_s": 0.12437724856408829,
@@ -3337,8 +3327,8 @@
       "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.0906801007556675,
       "workspace_max_clamp_m": 0.08296561102995187,
-      "max_orientation_deviation_rad": 0.47899056001820944,
-      "mean_orientation_deviation_rad": 0.32135452223966743,
+      "max_orientation_deviation_rad": 0.3752493058596376,
+      "mean_orientation_deviation_rad": 0.20538189767863596,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 36,
       "max_linear_speed_m_s": 0.12814403368366495,
@@ -3508,15 +3498,15 @@
         "orientation_spikes_replaced": 10,
         "orientation_removed_rms_deg": 0.22379566798481268
       },
-      "quaternion_sign_flips": 1,
+      "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.058004640371229696,
       "workspace_max_clamp_m": 0.055529570772670483,
-      "max_orientation_deviation_rad": 0.5413035451642482,
-      "mean_orientation_deviation_rad": 0.27546602880574256,
+      "max_orientation_deviation_rad": 0.28078067965852416,
+      "mean_orientation_deviation_rad": 0.15407442198078736,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 25,
       "max_linear_speed_m_s": 0.13893104164648934,
-      "max_angular_speed_rad_s": 5.416307273462566,
+      "max_angular_speed_rad_s": 0.4973339308635498,
       "tcp_xyz_min": [
         0.09508237507928022,
         0.014528834315036007,
@@ -3529,9 +3519,7 @@
       ],
       "start_offset_from_home_m": 0.06478378630358833,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.416 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_91",
       "written_as": "episode_79"
     },
@@ -3816,12 +3804,12 @@
       "quaternion_sign_flips": 2,
       "workspace_violation_fraction": 0.2222222222222222,
       "workspace_max_clamp_m": 0.09214973549502317,
-      "max_orientation_deviation_rad": 0.5632754897029987,
-      "mean_orientation_deviation_rad": 0.19306637607108973,
+      "max_orientation_deviation_rad": 0.20984940877837321,
+      "mean_orientation_deviation_rad": 0.07968044192705412,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 128,
       "max_linear_speed_m_s": 0.1063903477736554,
-      "max_angular_speed_rad_s": 5.416069765651207,
+      "max_angular_speed_rad_s": 0.6789439660756408,
       "tcp_xyz_min": [
         0.1070128210579779,
         -0.1467608114663802,
@@ -3834,9 +3822,7 @@
       ],
       "start_offset_from_home_m": 0.06827731125410334,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.416 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_98",
       "written_as": "episode_86"
     },
@@ -4288,15 +4274,15 @@
         "orientation_spikes_replaced": 7,
         "orientation_removed_rms_deg": 0.3025286205708495
       },
-      "quaternion_sign_flips": 3,
+      "quaternion_sign_flips": 1,
       "workspace_violation_fraction": 0.1501597444089457,
       "workspace_max_clamp_m": 0.07584604289641639,
-      "max_orientation_deviation_rad": 0.5428494102219026,
-      "mean_orientation_deviation_rad": 0.22939641017670523,
+      "max_orientation_deviation_rad": 0.1905252584249619,
+      "mean_orientation_deviation_rad": 0.0707884586209043,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 94,
       "max_linear_speed_m_s": 0.08196378462961451,
-      "max_angular_speed_rad_s": 5.41607922627219,
+      "max_angular_speed_rad_s": 0.6145351104967904,
       "tcp_xyz_min": [
         0.13943672607124927,
         -0.3236014544233447,
@@ -4309,9 +4295,7 @@
       ],
       "start_offset_from_home_m": 0.045108062437742805,
       "start_anchor": "measured",
-      "flags": [
-        "velocidad angular 5.416 > 3.000 rad/s"
-      ],
+      "flags": [],
       "source_episode": "episode_110",
       "written_as": "episode_97"
     },
@@ -4680,8 +4664,8 @@
       "quaternion_sign_flips": 0,
       "workspace_violation_fraction": 0.6174334140435835,
       "workspace_max_clamp_m": 0.1711777526126867,
-      "max_orientation_deviation_rad": 0.536990806872683,
-      "mean_orientation_deviation_rad": 0.30288399164051355,
+      "max_orientation_deviation_rad": 0.31870384923015577,
+      "mean_orientation_deviation_rad": 0.1552911618169332,
       "frames_over_deviation": 0,
       "workspace_violation_frames": 255,
       "max_linear_speed_m_s": 0.13614516590861175,
