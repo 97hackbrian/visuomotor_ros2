@@ -15,7 +15,7 @@
 
 - **Entrenamiento de DP con v8** (`train_real_v8x5_relative_ee_e400`):
   - empezó el 2026-11-27 a las 09:24 (−03); los logs van en UTC (12:24);
-  - va a 0,200 s por paso (~4 min 25 s por época) y debería terminar el **2026-11-28 hacia las 15:00–16:00**;
+  - va a 0,178 s por paso (3 min 57 s por época, 48 s por evaluación) y debería terminar el **2026-11-28 hacia las 12:45**;
   - se mira con `tmux attach -t train_v8` (ventanas `monitor`, `log` y `sin_suspender`). `Ctrl-b d` sale sin detener
     nada. Si la sesión se cerró: `TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --monitor-only`;
   - la suspensión del equipo queda bloqueada mientras corre (`systemd-inhibit`).

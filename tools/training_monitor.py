@@ -153,24 +153,33 @@ def gpu_status():
         return None
 
 
-def timing(rows: list):
-    """(segundos por paso, sobrecosto medio de cada pausa larga = evaluación + checkpoint, n de pausas)."""
-    per_step, gaps = [], []
+def timing(rows: list, epoch_rows: list = (), steps_per_epoch: int = 0):
+    """(segundos por paso, sobrecosto medio de cada pausa larga = evaluación + checkpoint, n de pausas).
+
+    Los sellos de los CSV tienen resolución de 1 s y las filas van cada ~2 s: la mediana de los intervalos queda
+    cuantizada (con v8 daba 0,200 s/paso en vez de 0,178). Se usa la duración medida de las épocas completas (sin la
+    primera: compilación y arranque), que excluye la evaluación, o la suma de los intervalos normales si aún no hay.
+    """
+    intervals = []
     prev = None
     for r in rows:
         t, s = parse_ts(r.get("timestamp", "")), fnum(r.get("step"))
         if t is None or s != s:
             continue
         if prev is not None and s > prev[1]:
-            per_step.append(((t - prev[0]).total_seconds() / (s - prev[1]), (t - prev[0]).total_seconds(), s - prev[1]))
+            intervals.append(((t - prev[0]).total_seconds(), s - prev[1]))
         prev = (t, s)
-    if len(per_step) < 3:
+    if len(intervals) < 3:
         return None, None, 0
-    sec_per_step = statistics.median(p[0] for p in per_step)
-    for sps, dt, ds in per_step:
-        expected = sec_per_step * ds
-        if dt > max(10.0, 6 * expected):
-            gaps.append(dt - expected)
+    rough = statistics.median(dt / ds for dt, ds in intervals)      # solo para separar las pausas largas
+    is_gap = [dt > max(10.0, 6 * rough * ds) for dt, ds in intervals]
+    normal = [iv for iv, g in zip(intervals, is_gap) if not g]
+    sec_per_step = sum(dt for dt, _ in normal) / max(1.0, sum(ds for _, ds in normal))
+    durs = [fnum(r.get("duration_s")) for r in list(epoch_rows)[1:]]
+    durs = [d for d in durs if d == d and d > 0]
+    if steps_per_epoch and durs:
+        sec_per_step = statistics.median(durs[-10:]) / steps_per_epoch
+    gaps = [dt - sec_per_step * ds for (dt, ds), g in zip(intervals, is_gap) if g]
     return sec_per_step, (statistics.mean(gaps) if gaps else None), len(gaps)
 
 
@@ -207,7 +216,7 @@ def summarize(run_dir: Path, shown_dir: str = "") -> dict:
     start = parse_ts(first[0]["timestamp"]) if first else None
     last_ts = parse_ts(last.get("timestamp", "")) if last else None
 
-    sec_per_step, eval_overhead, n_gaps = timing(recent)
+    sec_per_step, eval_overhead, n_gaps = timing(recent, epoch_rows, steps_per_epoch)
     remaining_steps = max(0, total_steps - step) if total_steps else None
     remaining_evals = 0
     if eval_every and epochs:

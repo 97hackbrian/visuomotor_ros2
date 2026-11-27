@@ -47,10 +47,12 @@ forma continua y la hora estimada de fin visible, y que el resultado sea un mode
 - **Parar antes:** si la validación queda plana durante ≥ 50 épocas, conviene parar (`STOP`) y ahorrar horas. Hay un
   costo: el LR va en coseno sobre las 400 épocas, así que al cortar a la mitad queda en ~50 % del máximo, sin
   recocido. La EMA lo atenúa. Lo decide el usuario.
-- **Tiempo:** 0,200 s por paso, lo mismo que en v7.
-  - Cada época tarda ~4 min 25 s, y cada evaluación de ~10 500 ventanas, alrededor de un minuto.
-  - En total, ~29,5 h de pasos más ~80 evaluaciones: debería terminar el 2026-11-28 hacia las 15:00–16:00, hora
-    local.
+- **Tiempo:** 0,178 s por paso, igual que en v7 (0,180).
+  - Cada época tarda 3 min 57 s (236,5 s medidos) y cada evaluación de ~10 500 ventanas, 48 s.
+  - En total, ~26 h de pasos más 80 evaluaciones (~1 h): fin estimado el 2026-11-28 hacia las 12:45, hora local.
+  - Corrección del monitor: la primera estimación decía 0,200 s por paso y fin a las 14:53. Los sellos tienen
+    resolución de 1 s y las filas van cada ~1,8 s, así que la mediana de los intervalos quedaba cuantizada. Ahora
+    se usa la duración medida de las épocas.
 
 ## 3. Riesgos para que el modelo funcione en el robot, y cómo se revisan
 
@@ -125,4 +127,27 @@ forma continua y la hora estimada de fin visible, y que el resultado sea un mode
 
 ## 6. Resultados
 
-- *(se completa durante el entrenamiento: primeras evaluaciones, meseta, época elegida y por qué)*
+**Validación, primeras épocas** (`eval_metrics.csv`, split `val`, 23 episodios, todas las ventanas):
+
+| Época | ADE | ADE ejecutado | FDE | Rotación | F1 del done | Progreso |
+|---|---|---|---|---|---|---|
+| 1 | 21,1 mm | 16,0 mm | 32,3 mm | 4,49° | 0,227 | 1,24 |
+| 5 | 11,7 mm | 7,2 mm | 20,2 mm | 2,05° | 0,627 | 1,04 |
+
+Líneas base en los mismos episodios:
+- quedarse quieto: ADE 14,8 mm y ADE ejecutado 8,5 mm;
+- velocidad constante: ADE 5,7 mm, ADE ejecutado 2,3 mm y FDE 13,0 mm.
+
+**Hallazgo: en v8, la velocidad constante es una vara mucho más alta que en v7.** Su FDE de validación es 13,0 mm,
+contra 21,3 mm en v7, porque las trayectorias de DROID son suaves (0,9 mm de ruido contra 8,8).
+- En v7, la política ganaba a la velocidad constante en FDE en parte porque extrapolar el ruido salía caro.
+- En v8, extrapolar el movimiento a 0,8 s acierta en casi todas las ventanas en movimiento. Perder con ella en el
+  promedio no prueba que la política sea mala: lo que la política tiene que hacer bien son las decisiones (arrancar
+  desde el reposo hacia la celda correcta, dónde detenerse, cuándo marcar el final). Eso no lo mide el promedio de
+  ADE/FDE.
+- Para elegir la época, además del promedio:
+  - la dirección desde el reposo y la ablación de imagen (`diagnose_policy_baselines.py`);
+  - el error de la posición final y el auto-stop en la reproducción offline;
+  - el F1 del done.
+
+*(se sigue completando: meseta, época elegida y por qué)*
