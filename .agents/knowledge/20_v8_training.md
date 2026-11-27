@@ -150,4 +150,41 @@ contra 21,3 mm en v7, porque las trayectorias de DROID son suaves (0,9 mm de rui
   - el error de la posición final y el auto-stop en la reproducción offline;
   - el F1 del done.
 
+**Validación hasta la época 50:** mejora lenta y casi plana desde la época 30, con el LR todavía al ~98 %.
+
+| Época | ADE | ADE ejecutado | FDE | Rotación | F1 del done |
+|---|---|---|---|---|---|
+| 10 | 11,1 mm | 6,7 mm | 19,2 mm | 1,90° | 0,692 |
+| 20 | 10,7 mm | 6,5 mm | 18,6 mm | 1,81° | 0,713 |
+| 30 | 10,6 mm | 6,4 mm | 18,3 mm | 1,79° | 0,733 |
+| 40 | 10,5 mm | 6,3 mm | 18,3 mm | 1,78° | 0,731 |
+| 50 | 10,4 mm | 6,3 mm | 18,1 mm | 1,76° | 0,734 |
+
+**Diagnóstico de visión en la época 50** (`tools/diagnose_policy_baselines.py`, carpeta
+`baseline_diagnostics_e50/` de la corrida):
+- 23 episodios de validación y 10 208 ventanas.
+- Tardó 1,5 min con el entrenamiento corriendo.
+- La referencia de v7 es su época 200, medida con la misma herramienta.
+
+| Medida | v7, época 200 | v8, época 50 |
+|---|---|---|
+| FDE de la política | 18,5 mm | 18,1 mm |
+| FDE con imágenes de otro episodio (ablación) | 29,2 mm | 29,9 mm (+65 %) |
+| FDE de la velocidad constante | 21,3 mm | 13,0 mm |
+| Dirección desde el reposo, coseno > 0,9: política / dirección media de entrenamiento / imágenes cruzadas | 64 % / 55 % (n = 22) | 47 % / 22 % / 16 % (n = 221) |
+| Coseno mediano de la dirección desde el reposo: política / dirección media | — | 0,887 / 0,706 |
+| Ventanas en movimiento: dirección con coseno > 0,9, política / dirección media | — | 54 % / 18 % |
+
+**Lectura:**
+- **La política usa la imagen para decidir:**
+  - Con imágenes de otro episodio, el FDE sube un 65 %.
+  - Desde el reposo, acierta la dirección 2,2 veces más que "ir siempre hacia la dirección media" (47 % contra 22 %).
+  - En v7, en cambio, la dirección media ya acertaba el 55 %, porque las demos iban casi todas al mismo lado. v8 sí
+    obliga a mirar, y la política lo hace.
+- **Lo que falta:**
+  - Desde el reposo, la mitad de los arranques se desvía más de 26° de la demo.
+  - En las ventanas en movimiento, la velocidad constante sigue ganando en FDE (14,6 contra 20,1 mm).
+  - En lazo cerrado la imagen se actualiza y corrige el rumbo. Eso lo miden la reproducción offline y el robot,
+    no este promedio.
+
 *(se sigue completando: meseta, época elegida y por qué)*
