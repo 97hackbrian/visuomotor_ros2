@@ -13,7 +13,12 @@
 
 ## 1. Qué corre ahora
 
-- **Entrenamiento de DP con v8:** ver §3. Se mira con `tmux attach -t train_v8`; `Ctrl-b d` sale sin detener nada.
+- **Entrenamiento de DP con v8** (`train_real_v8x5_relative_ee_e400`):
+  - empezó el 2026-11-27 a las 09:24 (−03); los logs van en UTC (12:24);
+  - va a 0,200 s por paso (~4 min 25 s por época) y debería terminar el **2026-11-28 hacia las 15:00–16:00**;
+  - se mira con `tmux attach -t train_v8` (ventanas `monitor`, `log` y `sin_suspender`). `Ctrl-b d` sale sin detener
+    nada. Si la sesión se cerró: `TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --monitor-only`;
+  - la suspensión del equipo queda bloqueada mientras corre (`systemd-inhibit`).
 - **Cámara y recolector:** cerrados desde el 2026-11-26.
 
 ## 2. Datasets (niveles de AGENTS §2.3)
@@ -40,9 +45,11 @@
   `.agents/knowledge/20_v8_training.md`.
   - Datos: la copia congelada del 2026-11-27, con 207 demos de entrenamiento y 23 de validación (por episodio).
   - Configuración: `relative_ee`, EMA y `color_jitter`, 400 épocas. Checkpoint y evaluación por muestreo cada 5 épocas.
-  - Estado en una línea (contenedor): `python3 tools/training_monitor.py --run-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400 --once`.
-  - Parar limpio: `touch visuomotor_core/outputs/train_real_v8x5_relative_ee_e400/STOP`. Reanudar: el mismo comando
-    con `--resume` (el comando exacto está en el `README.md` de la carpeta).
+  - Estado de un vistazo: `docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/training_monitor.py --run-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400 --once --tz-offset "$(date +%z)"`.
+  - Parar limpio: `touch visuomotor_core/outputs/train_real_v8x5_relative_ee_e400/STOP`. Reanudar:
+    `TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --resume`.
+  - La última época no tiene por qué ser la mejor: en v7 las métricas se estancaron hacia la época 230 y el F1 del
+    done bajó después. La época se elige con el protocolo de `.agents/knowledge/20_v8_training.md` §5.
   - Gráficas, refrescadas en cada evaluación:
     - `losses/training_curves.png`;
     - `evaluation/offline_eval_curves.png`;

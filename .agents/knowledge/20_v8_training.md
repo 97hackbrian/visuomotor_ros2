@@ -1,0 +1,128 @@
+# 20. Entrenamiento de Diffusion Policy con el dataset v8 (2026-11-27)
+
+Pedido del usuario (2026-11-27): "entrena aún con más épocas que la anterior vez", con el proceso monitorizado de
+forma continua y la hora estimada de fin visible, y que el resultado sea un modelo exitoso.
+
+## 1. Qué se entrena
+
+- **Corrida:** `visuomotor_core/outputs/train_real_v8x5_relative_ee_e400`. El comando exacto está en su `README.md`
+  y los argumentos en `visuomotor_core/outputs/train_real_v8x5_relative_ee_e400.launch`.
+- **Inicio:** 2026-11-27 09:24, hora local (−03). Los CSV y el log usan el reloj del contenedor, que va en UTC: 12:24.
+- **Datos:** `datasets/demonstrations_real_v8_xarm5_2026-11-27.zarr`, la copia congelada del armado v3.
+  - 230 demos con poses de DROID y la llegada recortada a 3 cm.
+  - Partición por episodio de 207 para entrenar y 23 para validar (`--val_ratio 0.1`, semilla 42). La validación
+    está repartida a lo largo del orden de grabación: `episode_7`, `episode_17`, `episode_27`…
+- **Tamaño:** 84 991 ventanas de entrenamiento, 1 327 pasos por época y 400 épocas, o sea 530 800 pasos.
+- **Receta:** la del modelo que funcionó en el robot (época 200 de `train_real_v7x5v2_relative_ee_e300`):
+  - `relative_ee`;
+  - EMA de pesos (potencia 0,75, máx. 0,9999);
+  - warmup de 500 pasos;
+  - LR 1e-4 con batch 64, en coseno hasta 1e-6;
+  - `color_jitter`;
+  - `proprio_dropout` 0,15;
+  - hemisferio `home`, con el mismo cuaternión de referencia que v7 (HOME3).
+- **Cambios frente a la corrida de v7:**
+  - 400 épocas en vez de 300, a pedido del usuario;
+  - checkpoint y evaluación cada 5 épocas en vez de 10;
+  - todas las ventanas de validación en cada evaluación;
+  - `--plot_freq 0`: las curvas se dibujan solo en las épocas de evaluación, porque dibujarlas a menudo hacía crecer
+    la RAM.
+- **Recursos:** `--num_workers 6 --prefetch_factor 2 --max_rss_gb 12`, un entrenamiento pesado a la vez.
+  - Al arrancar: RAM del host 12/31 GB, proceso principal 4,1 GB.
+  - GPU al 99–100 %, con 2,6 de 8 GB en uso y ~57 °C.
+
+## 2. Lectura crítica de "más épocas"
+
+- **Una época de v8 no equivale a una de v7.** Tiene 1 327 pasos contra 329, 4,0 veces más.
+  - Las 300 épocas de v7 fueron 98 700 pasos. Las 400 de v8 son 530 800, 5,4 veces más optimización.
+- **En v7, las épocas de más no aportaron.** Fuente: `train_real_v7x5v2_relative_ee_e300/eval_metrics.csv`.
+  - La validación se estabilizó hacia la época 230: ADE 11,6 mm y FDE 18,4 mm sin cambios hasta la 300.
+  - El F1 del done llegó a su máximo en la época 220 (0,708) y bajó hasta 0,665 en la 300.
+  - Las últimas 70–80 épocas no mejoraron el comportamiento y empeoraron un poco la señal de término.
+- **Consecuencia: la última época no tiene por qué ser la mejor.** La época se elige por comportamiento:
+  - métricas de muestreo en validación;
+  - líneas base exigentes;
+  - reproducción de la ruta de despliegue (§5).
+  - Los checkpoints cada 5 épocas permiten esa elección.
+- **Parar antes:** si la validación queda plana durante ≥ 50 épocas, conviene parar (`STOP`) y ahorrar horas. Hay un
+  costo: el LR va en coseno sobre las 400 épocas, así que al cortar a la mitad queda en ~50 % del máximo, sin
+  recocido. La EMA lo atenúa. Lo decide el usuario.
+- **Tiempo:** 0,200 s por paso, lo mismo que en v7.
+  - Cada época tarda ~4 min 25 s, y cada evaluación de ~10 500 ventanas, alrededor de un minuto.
+  - En total, ~29,5 h de pasos más ~80 evaluaciones: debería terminar el 2026-11-28 hacia las 15:00–16:00, hora
+    local.
+
+## 3. Riesgos para que el modelo funcione en el robot, y cómo se revisan
+
+- **Alcance:** el 21 % de los frames pasa el alcance del puente.
+  - En las celdas lejanas y laterales, la política pedirá poses que el brazo no alcanza, y el puente las recorta.
+  - En los ensayos, empezar por las celdas alcanzables (`datasets/evaluations_real_v8_xarm5/README.md`).
+  - Después, la ablación con solo las 137 factibles.
+- **Uso de la visión:** v8 empieza siempre en la misma vista y termina en 9 celdas × 6 orientaciones, así que la
+  política está obligada a mirar. En v7 esto apenas pasaba: acertaba la dirección desde el reposo en el 64 % de los
+  casos, contra el 55 % de la dirección media.
+  - Cómo se comprueba: con la ablación de imagen de `tools/diagnose_policy_baselines.py`. El FDE con imágenes de
+    otro episodio tiene que subir claramente, y la dirección desde el reposo tiene que ganarle a la dirección media.
+- **Señal de término:** las etiquetas ya vienen recortadas en el armado v3.
+  - Revisar el F1 del done en validación.
+  - Calibrar el umbral × paciencia del auto-stop con la reproducción offline. En v7 quedó en 0,60 × 5.
+- **Qué mide la validación:** las mismas combinaciones celda × orientación están en entrenamiento y en validación
+  (3–6 demos de cada una). La validación mide interpolación dentro de lo cubierto, no la generalización a lugares
+  nuevos; esa solo la mide el robot.
+- **Escena:** en los ensayos, el mismo mantel y los mismos ArUco, la base en su lugar y sin el tablero ChArUco, como
+  en las demos.
+- **Cuaternión:** 15 demos a 180° cruzan el límite del hemisferio `home` en el estado. Afecta solo la entrada de
+  condicionamiento: las acciones relativas no cambian de signo.
+- **Jetson:** antes de un ensayo hay que sincronizar el giro de ±177° con `clamp_yaw_near` y la caja 0,70 / ±0,35 /
+  0,70 al 97 %. Sin eso, las demos a 180° piden giros que el puente viejo recorta a ±149°.
+
+## 4. Monitoreo
+
+- **Lanzador:** `tools/train_with_monitor.sh <run> -- <argumentos de train.py>`.
+  - Lanza el entrenamiento desacoplado (`docker exec -d`): sobrevive a tmux, a la terminal y al agente.
+  - Se niega a correr si ya hay otro `train.py`.
+  - Guarda los argumentos en `<run>.launch` y escribe `<run>/README.md`.
+  - Crea la sesión tmux con tres ventanas: `monitor`, `log` y `sin_suspender`. Esta última bloquea la suspensión,
+    también al cerrar la tapa, mientras el entrenamiento corre (`systemd-inhibit`).
+  - Otros modos: `--resume`, `--monitor-only` y `--show` (abre una terminal del escritorio).
+- **Monitor:** `tools/training_monitor.py --run-dir <run> [--once|--watch 30|--json] --tz-offset "$(date +%z)"`.
+  - Muestra el progreso, la velocidad y la hora estimada de fin.
+  - La hora estimada se calcula así: pasos restantes × mediana de segundos por paso, más evaluaciones restantes ×
+    duración media de las pausas largas.
+  - Muestra también la pérdida, la tabla de validación con las líneas base ("quieto" y velocidad constante), la
+    mejor época por FDE y por F1 del done, la RAM y la GPU, y las carpetas de las gráficas.
+  - Solo lee.
+  - Comprobado con la corrida de v7: reproduce 5 h 04 min, 0,200 s por paso y 16 s por evaluación.
+- **Gráficas**, refrescadas en cada evaluación:
+  - `losses/training_curves.png`;
+  - `evaluation/offline_eval_curves.png`;
+  - al terminar, `convergence/` (criterios de parada) y `final_report/`.
+- **Vigilante del agente (Claude Code):** una tarea Monitor sobre `training.log`. Avisa en cada `[Eval val]`, ante
+  ERROR, Traceback, la guardia de RAM, una pérdida NaN o el fin, y si el proceso deja de existir. Dura 30 min y hay
+  que volver a armarla.
+
+## 5. Cómo elegir la época (al terminar, o antes si la validación se estanca)
+
+1. **Candidatas, desde `eval_metrics.csv` (split `val`):**
+   - FDE y ADE ejecutado más bajos;
+   - F1 del done alto;
+   - ganarle a la velocidad constante en FDE (`cv_fde_mm`); en v7, la época 200 ganaba desde ~0,5 s.
+2. **Ablación visual y líneas base en varias épocas:**
+   ```bash
+   docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/diagnose_policy_baselines.py \
+       --run-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400 --epochs 100,150,200,250,300,350,400 \
+       --highlight <candidata> --out-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400/baseline_diagnostics
+   ```
+3. **Ruta de despliegue y auto-stop:**
+   - `tools/xarm5/replay_policy_offline.py --episodes val`, para calibrar el auto-stop;
+   - `tools/xarm5/check_policy_closed_loop_sim.py`.
+4. **Llevarla a la Jetson**, con el OK del usuario:
+   - copiar a `deploy/jetson/model/`;
+   - sincronizar el puente (§3);
+   - reconstruir la imagen.
+5. **Ensayo en el xArm5:** solo con el pedido explícito del usuario para cada acción, y con él en la parada de
+   emergencia.
+
+## 6. Resultados
+
+- *(se completa durante el entrenamiento: primeras evaluaciones, meseta, época elegida y por qué)*

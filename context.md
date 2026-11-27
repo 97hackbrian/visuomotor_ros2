@@ -839,6 +839,21 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
           las entradas nuevas.
       - **Voz por los parlantes** (`v8_announcer.sh`) y sesión en tmux (`v8_tmux.sh`).
 
+51. **Dataset v8 completo y entrenable, guardado anti-olvido y entrenamiento largo (2026-11-26/27):**
+    - *Dataset:* 230 demos tras 2 sesiones (114 + 116), con poses de DROID. Revisión de entrenabilidad: ENTRENABLE.
+      - En el armado v3 se recortó la llegada a 3 cm: 44 demos se movían hasta 30 cm dentro del done.
+      - Limitación geométrica: 6 combinaciones celda × orientación sin final alcanzable.
+      - Detalle en `.agents/knowledge/19_v8_handheld_dataset_pipeline.md` §8–9.
+    - *Borrado con registro (regla del usuario):* la copia congelada `_2026-11-26`, que nunca se entrenó, se borró dejando su informe. Ahora lo que no se usa o es de prueba se borra, pero queda registrado (AGENTS §2.3).
+    - *Olvido del agente:* en sesiones largas, el contexto de Claude Code se compactó varias veces y el resumen perdía comandos y cifras.
+      - Arreglo: `.agents/STATE.md` (estado vivo, ≤ 150 líneas), que se reescribe primero (skill `update-knowledge` v3, paso 0).
+      - El hook `SessionStart` (`.claude/settings.json`) lo vuelve a cargar al iniciar, al reanudar y tras cada compactación.
+      - El procedimiento de recolección quedó en la skill `v8-handheld-demo-collection`.
+    - *Entrenamiento largo:* 400 épocas de v8 son 5,4 veces los pasos de las 300 de v7, porque una época de v8 tiene 4 veces más ventanas.
+      - En v7, la validación se estancó hacia la época 230 y el F1 del done bajó después. "Más épocas" no garantiza un mejor modelo, así que la época se elige por comportamiento.
+      - El entrenamiento corre desacoplado y con la suspensión del equipo bloqueada; el monitor da la hora de fin (`tools/train_with_monitor.sh`, `tools/training_monitor.py`).
+      - Detalle en `.agents/knowledge/20_v8_training.md`.
+
 ### 6. Metodología Científica para Publicaciones: Los Dos Ejes de Investigación
 El proyecto adopta un diseño factorial riguroso de dos dimensiones ortogonales:
 1. **Eje 1 (Demostrador Experto para Datasets):** Comparación empírica de datasets generados por PID cartesiano vs. SOTA MPC vs. SOTA Impedancia Cartesiana.

@@ -328,6 +328,19 @@ El nodo de inferencia implementa dos capas independientes de detención:
     - *Para sumar demos:* `tools/xarm5/make_v8_training_set.sh`, sin argumentos. Corre DROID en las nuevas, la pose de inicio, el informe, el armado, la conversión y la verificación contra `v7_xarm5_v2`, y reemplaza el dataset solo si pasa. Marcar las REPETIR como descartadas requiere el OK del usuario.
     - *Memoria Modular:* `.agents/knowledge/19_v8_handheld_dataset_pipeline.md`.
 
+24. **Entrenamiento de DP con v8 (2026-11-27):**
+    - *Corrida:* `visuomotor_core/outputs/train_real_v8x5_relative_ee_e400`, sobre la copia congelada `demonstrations_real_v8_xarm5_2026-11-27.zarr`.
+      - 207 demos de entrenamiento y 23 de validación, partidas por episodio.
+      - 400 épocas, a pedido del usuario: 530 800 pasos, 5,4 veces los de la corrida de v7.
+      - Misma receta que el modelo que funcionó (`relative_ee`, EMA, `color_jitter`), con checkpoint y evaluación cada 5 épocas.
+      - Fin estimado: 2026-11-28, 15–16 h (hora local).
+    - *Criterio:* la época se elige por comportamiento (validación contra la velocidad constante, F1 del done, ablación de imagen, reproducción offline y auto-stop), no por la última época ni por la pérdida. En v7 las métricas se estancaron hacia la época 230.
+    - *Herramientas:*
+      - `tools/train_with_monitor.sh`: entrenamiento desacoplado, sesión tmux con monitor, log y bloqueo de suspensión, `README.md` con el comando, y `--resume`.
+      - `tools/training_monitor.py`: progreso, hora de fin, validación con líneas base, GPU y RAM, y rutas de las gráficas. Solo lee.
+    - *Estado vivo:* `.agents/STATE.md`, que el hook `SessionStart` de `.claude/settings.json` vuelve a cargar.
+    - *Memoria Modular:* `.agents/knowledge/20_v8_training.md`.
+
 ---
 
 ## 7. Comandos de Referencia Rápida
@@ -503,6 +516,14 @@ docker exec -d -u 1000 -w /ros visuomotor_ros2 bash -c "python3 visuomotor_core/
 
 # 48. Métricas del dataset v8 como las de v7 (calidad, diagnóstico crudo en vivo y con DROID, alcance, verificación): pasos en datasets/evaluations_real_v8_xarm5/README.md
 docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_v8_dataset_quality.py --raw datasets/demonstrations_real_v8.zarr --droid <armado con DROID>.zarr --train datasets/demonstrations_real_v8_xarm5.zarr --reference datasets/demonstrations_real_v7_xarm5_v2.zarr --out-dir datasets/evaluations_real_v8_xarm5
+
+# 49. Entrenar con monitor: entrenamiento desacoplado + tmux (monitor con hora de fin, log, sin suspender) + README con el comando exacto
+TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 -- --root /ros/datasets/demonstrations_real_v8_xarm5_2026-11-27.zarr --epoch 400 --batch_size 64 --num_workers 6 --prefetch_factor 2 --max_rss_gb 12 --save_every 5 --eval_every 5 --plot_freq 0 --val_ratio 0.1 --action_representation relative_ee --color_jitter
+TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --resume   # o --monitor-only / --show
+tmux attach -t train_v8                                                                               # Ctrl-b d sale sin detener nada
+
+# 50. Estado de un entrenamiento de un vistazo (o --json para agentes)
+docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/training_monitor.py --run-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400 --once --tz-offset "$(date +%z)"
 ```
 
 ---
