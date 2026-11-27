@@ -1,7 +1,7 @@
 {
   "source": "demonstrations_real_v8_droid.zarr",
   "destination": "demonstrations_real_v8_xarm5.zarr",
-  "timestamp": 1795718317.357103,
+  "timestamp": 1795758894.570055,
   "orientation_mode": "arm_plane",
   "pitch_limits_rad": [
     -1.48,

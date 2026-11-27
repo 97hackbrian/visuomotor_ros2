@@ -773,6 +773,13 @@ Durante las primeras evaluaciones en inferencia con un modelo entrenado con ~60 
         porque la mano avanza alta antes de bajar. El conversor solo marca más del 50 % fuera (25 demos), así que para
         la ablación "factibles" hay que usar el criterio físico (137 demos con ≤ 5 % fuera). Lección: medir el alcance
         del camino completo, no solo el del final.
+      - Revisión de entrenabilidad (2026-11-27): las métricas globales no mostraban etiquetas ruidosas. Revisando demo
+        por demo con la pose real de la cámara aparecieron 44 demos con la llegada (done) marcada mientras el TCP aún se
+        movía hasta 30 cm (aproximación lenta tomada por quietud). Se corrigió sin regrabar: el armado v3 recorta el done
+        a ≤ 3 cm de la pose final. También corrigió una conclusión mía: los tramos inalcanzables no están "casi todos al
+        comienzo" (por tercios: 10/26/21 %). Y una hoja de contactos con las 230 vistas finales evitó excluir por error
+        la primera tanda: lo que fallaba ahí era la etiqueta de orientación v1, no la vista. Lección: antes de descartar o
+        corregir datos, mirarlos.
       - `make_v8_cells.py` comprueba que el robot llega a la vista final (25–30 cm, cámara hacia abajo, 4
         orientaciones): las celdas 1–6 y 8 al 100 %; la 7 y la 9 fallan solo en una esquina (herramienta hacia el
         centro).

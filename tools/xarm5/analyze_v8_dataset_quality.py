@@ -427,8 +427,9 @@ def main(argv=None) -> int:
           f"training set, {int(feas.min())}–{int(feas.max())} within the robot's reach.",
           f"* Reach: {summary['within_reach_in_training']} of {len(kept)} demonstrations stay within the bridge reach "
           f"(≤ {100 * a.max_reach_violation_fraction:.0f} % of frames beyond it); {summary['with_frames_beyond_straight_elbow']} "
-          f"have frames beyond the straight elbow (physically unreachable), mostly the start of the approach (the hand "
-          f"moves forward high before descending). The converter flags only {summary['reach_flagged_in_training']} "
+          f"have frames beyond the straight elbow (physically unreachable): while approaching high and at the final pose of "
+          f"far or side cells with the camera rotated (by phase in `trainability_review.json`). The converter flags only "
+          f"{summary['reach_flagged_in_training']} "
           f"(> 50 % of the frames outside); all are kept in the training set.", "",
           "![Diagnosis](fig1_data_quality_diagnosis.png)", "", "![Trajectories](fig2_trajectories_base_frame.png)", "",
           "![Curation](fig3_curation_audit.png)", "", "![Coverage](fig5_coverage_cells_orientations.png)", ""]

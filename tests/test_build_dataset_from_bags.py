@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "xarm5"))
 sys.path.insert(0, str(ROOT / "visuomotor_data_collection"))
 
-from build_dataset_from_bags import build_episode, main  # noqa: E402
+from build_dataset_from_bags import build_episode, main, trim_done_to_radius  # noqa: E402
 
 
 class BuildEpisodeTest(unittest.TestCase):
@@ -81,6 +81,34 @@ class RequireDroidTest(unittest.TestCase):
         out = zarr.open_group(str(self.dst), mode="r")
         self.assertEqual(list(out.group_keys()), [])
         self.assertEqual(out.attrs["skipped"], {"episode_0": "descartada", "episode_1": "sin trayectoria de DROID"})
+
+
+
+class TrimDoneTest(unittest.TestCase):
+    """Versión 3 (2026-11-27): el done nunca incluye frames a más de 3 cm de la pose final; solo se recorta."""
+
+    def _traj(self):
+        x = np.r_[np.linspace(0, 0.30, 60), 0.30 + np.linspace(0, 0.05, 40), np.full(40, 0.35)]   # llega lento al final
+        return np.c_[x, np.zeros_like(x), np.zeros_like(x)]
+
+    def test_trims_slow_approach_inside_done(self):
+        xyz = self._traj()
+        done = np.zeros(len(xyz), bool)
+        done[60:] = True                                   # done "del recolector": incluye 5 cm de aproximación lenta
+        out, cut = trim_done_to_radius(done, xyz, 0.03, 10)
+        d = np.linalg.norm(xyz[out] - xyz[-10:].mean(0), axis=1)
+        self.assertGreater(cut, 0)
+        self.assertLessEqual(d.max(), 0.03 + 1e-9)
+        self.assertTrue(out[-1] and out[np.argmax(out):].all())   # sigue siendo un bloque contiguo al final
+
+    def test_never_extends_and_noop_when_still(self):
+        xyz = self._traj()
+        done = np.zeros(len(xyz), bool)
+        done[-20:] = True                                  # ya dentro de 3 cm: no cambia ni se alarga
+        out, cut = trim_done_to_radius(done, xyz, 0.03, 10)
+        self.assertEqual(cut, 0)
+        self.assertTrue((out == done).all())
+        self.assertTrue((trim_done_to_radius(done, xyz, 0.0, 10)[0] == done).all())   # radio 0: sin recorte
 
 
 if __name__ == "__main__":

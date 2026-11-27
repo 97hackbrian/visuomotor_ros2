@@ -33,6 +33,9 @@ RAW=${1:-demonstrations_real_v8}
 REF=${2:-demonstrations_real_v7_xarm5_v2}
 OUT=${RAW}_xarm5
 V=experiments/v8_validation/$RAW
+# Llegada mínima aceptada (frames): desde la versión 3 del armado el done se recorta a 3 cm de la pose final, y algunas
+# demos quedan con 1-2 s de llegada (el piso de 40 frames venía de la simulación). V8_MIN_DONE_FRAMES=<n> lo cambia.
+MIN_DONE=${V8_MIN_DONE_FRAMES:-15}
 WORK=datasets/_work_$RAW
 [ -d "datasets/$RAW.zarr" ] || { echo "ERROR: no existe datasets/$RAW.zarr"; exit 1; }
 [ -d "datasets/$REF.zarr" ] || { echo "ERROR: no existe la referencia datasets/$REF.zarr"; exit 1; }
@@ -93,7 +96,7 @@ run "python3 tools/xarm5/convert_vio_dataset_to_xarm5.py --src $WORK/${RAW}_droi
 tail -1 "$V/convert.log" | cut -c1-250
 echo "== 6/7 Verificación contra datasets/$REF.zarr"
 if ! run "python3 tools/xarm5/verify_training_dataset.py --dataset $WORK/$OUT.zarr --reference datasets/$REF.zarr \
-     --require-pose-source droid_rgbd --forward --out $V/verify.json" > "$V/verify.log" 2>&1; then
+     --require-pose-source droid_rgbd --min-done-frames $MIN_DONE --forward --out $V/verify.json" > "$V/verify.log" 2>&1; then
   grep -A20 "^PROBLEMAS" "$V/verify.log" || tail -5 "$V/verify.log"
   echo "NO se reemplaza datasets/$OUT.zarr: el nuevo queda en $WORK para revisarlo"
   exit 1

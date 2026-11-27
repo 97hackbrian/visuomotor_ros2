@@ -171,7 +171,7 @@ La regla literal del repo ("nunca sobrescribir ni borrar un dataset; cada correc
 - **Ruido que quita el filtro:** 0,9 mm (v7: 8,8). Llegada en movimiento: 11,9 % (v7: 21 %).
 - **Altura final del TCP:** p5–p95 de 0,305 a 0,365 m, IQR 2,2 cm (v7: 9,7 cm).
 - **Hallazgo principal, el alcance:**
-  - El 21 % de los frames pasa el alcance del puente y el 15 % pasa el codo recto, es decir, es inalcanzable. Lo hacen 80 de 230 demos, casi todo al comienzo de la aproximación: la mano avanza ALTA antes de bajar.
+  - El 21 % de los frames pasa el alcance del puente y el 15 % pasa el codo recto, es decir, es inalcanzable. Lo hacen 80 de 230 demos. Corrección del 2026-11-27 (§9): no es "casi todo al comienzo". Por fase, quedan fuera el 10 % de los frames del primer tercio, el 26 % del medio y el 21 % del último. La mano avanza alta antes de bajar y, en las celdas lejanas o laterales con la cámara girada, el final mismo queda fuera.
   - v7, con la misma extrínseca y los mismos límites: 3,3 % y 0,8 %.
   - Solo 12 finales quedan fuera de la caja.
   - El conversor marca una demo solo si más del 50 % de sus frames está fuera, así que marca solo 25.
@@ -180,3 +180,29 @@ La regla literal del repo ("nunca sobrescribir ni borrar un dataset; cada correc
 - **Herramientas:**
   - `tools/xarm5/analyze_v8_dataset_quality.py`: versión v8 de la auditoría de v7 (figuras 1–3 y 5). Compara odometría en vivo, DROID y DROID filtrado, y pone v7 y v8 en los mismos ejes.
   - `analyze_vio_dataset_quality.py --raw-diagnostics`: corre también sobre el armado con DROID. Se arregló el informe cuando no hay discontinuidades.
+
+## 9. Revisión de entrenabilidad (2026-11-27, pedido del usuario)
+
+**Datos para entrenar:** `datasets/demonstrations_real_v8_xarm5_2026-11-27.zarr`, copia congelada y de solo lectura del armado versión 3.
+- La de ayer (`_2026-11-26`, versión 2, con las etiquetas de llegada sin corregir) quedó superada. Nunca se usó para entrenar; borrarla requiere el pedido del usuario.
+
+**Revisión demo por demo** (`tools/xarm5/review_v8_trainability.py`):
+- Usa la pose REAL de la cámara al final: la pose de inicio (ArUco + IMU) compuesta con DROID.
+- Salidas en `datasets/evaluations_real_v8_xarm5/`: `trainability_review.json` y figuras 6–7 (README, sección "Trainability review").
+
+| Control | Resultado |
+|---|---|
+| Destino | En 215 de 220 demos el eje óptico final cae en la celda asignada (±3 cm). Las otras 5 se pasan 3–5 cm del borde. Mediana: 4,8 cm del centro de la celda. Las etiquetas de celda y la cadena inicio + DROID son coherentes. |
+| Altura final | De 26 a 32 cm sobre la mesa (p5–p95), como pide el protocolo. |
+| Hojas arriba | Error mediano de 3,9° (p90: 17°). El peor caso es +45°, con 13° de mediana: la mano gira de menos. Los 6 desvíos grandes son de la primera tanda (programa v1). |
+| Vistas finales | En las 230 (hoja de contactos, figura 6) la herramienta sale entera, centrada y con las hojas arriba, incluida la primera tanda. O sea, en v1 lo que no coincide es la etiqueta de orientación, y esa etiqueta no entra al entrenamiento. Por eso NO hay que excluir esas demos. |
+| Llegada (done) | En el armado v2, en 44 demos el TCP se movía más de 3 cm dentro del done (33 con la llegada del recolector; peor caso 30 cm). El armado v3 (`trim_done_to_radius`) recorta el comienzo del done para dejar solo los frames a ≤ 3 cm de la pose final de la cámara; nunca lo alarga. Quedó con ≤ 4,1 cm en el TCP (p90 3,0) y llegada en movimiento del 6,5 % (antes 11,9 %). Hay 23 demos con 1–2 s de llegada (mínimo 0,9 s); `make_v8_training_set.sh` verifica con `V8_MIN_DONE_FRAMES` = 15. Solo cambió la columna done de esas 44 demos; el resto es idéntico bit a bit. |
+| Imágenes | Ninguna borrosa. Son más nítidas que las de v7: 134 frente a 106 al final, y 142 frente a 99 en el frame más rápido. Brillo parejo. |
+| Giro a 180° | 35 demos: 24 terminan en +177° y 11 en −177°. Son dos grupos en el estado; el robot llega a ambos. |
+| Cuaternión | La acción relativa es inmune al signo (`rotations.py:121` normaliza el delta a qw ≥ 0). 15 demos a 180° cruzan la frontera del hemisferio 'home' en el ESTADO (1–2 veces cada una). Solo afecta a la entrada; mejora futura del modelo: una representación continua de la rotación. |
+| Alcance del final | 187 de 228 finales son alcanzables y 27 están más allá del codo recto. 6 combinaciones tienen menos de 2 finales alcanzables: celda 4 a 180°; celda 7 a +90° y a 180°; celda 8 a 180°; celda 9 a −90° y a 180°. Más débiles: 6·−90, 7·−90, 7·−45, 8·−90 y 9·−45, con 2 cada una. |
+
+**Veredicto:**
+- **Se puede entrenar.** Con la llegada corregida no hace falta regrabar para empezar.
+- **Regrabar sirve solo si esas 6 combinaciones deben funcionar en el robot.** Habría que hacerlas con un final alcanzable (en diagonal, desde más cerca del robot, como ya sugiere la guía), sumando las 3 demos a 180° que DROID rechazó: unas 25–30 demos.
+- **Cuántas demos hacen falta** no se puede saber antes de entrenar. Hay que entrenar y comparar con la mitad de los datos.

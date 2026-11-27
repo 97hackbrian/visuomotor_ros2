@@ -22,13 +22,13 @@
   },
   "done": {
     "floor_frames": 40,
-    "frames_per_episode_min": 40,
-    "frames_per_episode_median": 52.0,
-    "frames_per_episode_max": 319,
-    "episodes_at_floor_only": 1,
+    "frames_per_episode_min": 18,
+    "frames_per_episode_median": 51.0,
+    "frames_per_episode_max": 301,
+    "episodes_at_floor_only": 2,
     "static_speed_threshold_m_s": 0.02,
-    "moving_fraction": 0.1189798114043415,
-    "episodes_over_25pct_moving": 38
+    "moving_fraction": 0.06473183510271611,
+    "episodes_over_25pct_moving": 37
   },
   "final_marker_distance": null,
   "episodes_detail": [
@@ -93,8 +93,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 319,
-      "done_moving_fraction": 0.02821316614420063,
+      "done_frames": 301,
+      "done_moving_fraction": 0.016611295681063124,
       "final_marker_distance_m": null
     },
     {
@@ -119,8 +119,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 114,
-      "done_moving_fraction": 0.043859649122807015,
+      "done_frames": 100,
+      "done_moving_fraction": 0.04,
       "final_marker_distance_m": null
     },
     {
@@ -249,8 +249,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 105,
-      "done_moving_fraction": 0.01904761904761905,
+      "done_frames": 86,
+      "done_moving_fraction": 0.0,
       "final_marker_distance_m": null
     },
     {
@@ -275,8 +275,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 87,
-      "done_moving_fraction": 0.05747126436781609,
+      "done_frames": 77,
+      "done_moving_fraction": 0.05194805194805195,
       "final_marker_distance_m": null
     },
     {
@@ -457,8 +457,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 143,
-      "done_moving_fraction": 0.006993006993006993,
+      "done_frames": 86,
+      "done_moving_fraction": 0.0,
       "final_marker_distance_m": null
     },
     {
@@ -548,8 +548,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.7872340425531915,
+      "done_frames": 26,
+      "done_moving_fraction": 0.8461538461538461,
       "final_marker_distance_m": null
     },
     {
@@ -652,8 +652,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 49,
-      "done_moving_fraction": 0.9591836734693877,
+      "done_frames": 27,
+      "done_moving_fraction": 0.9259259259259259,
       "final_marker_distance_m": null
     },
     {
@@ -782,8 +782,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 95,
-      "done_moving_fraction": 0.5368421052631579,
+      "done_frames": 42,
+      "done_moving_fraction": 0.3333333333333333,
       "final_marker_distance_m": null
     },
     {
@@ -977,7 +977,7 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 104,
+      "done_frames": 93,
       "done_moving_fraction": 0.0,
       "final_marker_distance_m": null
     },
@@ -1120,8 +1120,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 83,
-      "done_moving_fraction": 0.5542168674698795,
+      "done_frames": 49,
+      "done_moving_fraction": 0.3877551020408163,
       "final_marker_distance_m": null
     },
     {
@@ -1159,8 +1159,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.5,
+      "done_frames": 40,
+      "done_moving_fraction": 0.475,
       "final_marker_distance_m": null
     },
     {
@@ -1211,8 +1211,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 117,
-      "done_moving_fraction": 0.5555555555555556,
+      "done_frames": 42,
+      "done_moving_fraction": 0.5,
       "final_marker_distance_m": null
     },
     {
@@ -1237,8 +1237,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 57,
-      "done_moving_fraction": 0.017543859649122806,
+      "done_frames": 49,
+      "done_moving_fraction": 0.0,
       "final_marker_distance_m": null
     },
     {
@@ -1315,8 +1315,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 56,
-      "done_moving_fraction": 0.8214285714285714,
+      "done_frames": 26,
+      "done_moving_fraction": 0.9230769230769231,
       "final_marker_distance_m": null
     },
     {
@@ -1328,8 +1328,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 154,
-      "done_moving_fraction": 0.8181818181818182,
+      "done_frames": 43,
+      "done_moving_fraction": 0.3488372093023256,
       "final_marker_distance_m": null
     },
     {
@@ -1692,8 +1692,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 126,
-      "done_moving_fraction": 0.031746031746031744,
+      "done_frames": 111,
+      "done_moving_fraction": 0.036036036036036036,
       "final_marker_distance_m": null
     },
     {
@@ -1718,8 +1718,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 95,
-      "done_moving_fraction": 0.5894736842105263,
+      "done_frames": 48,
+      "done_moving_fraction": 0.1875,
       "final_marker_distance_m": null
     },
     {
@@ -1887,8 +1887,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.3829787234042553,
+      "done_frames": 37,
+      "done_moving_fraction": 0.32432432432432434,
       "final_marker_distance_m": null
     },
     {
@@ -1900,8 +1900,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.9583333333333334,
+      "done_frames": 31,
+      "done_moving_fraction": 0.9354838709677419,
       "final_marker_distance_m": null
     },
     {
@@ -1913,8 +1913,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.9148936170212766,
+      "done_frames": 29,
+      "done_moving_fraction": 0.8620689655172413,
       "final_marker_distance_m": null
     },
     {
@@ -1965,8 +1965,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 198,
-      "done_moving_fraction": 0.8484848484848485,
+      "done_frames": 39,
+      "done_moving_fraction": 0.3076923076923077,
       "final_marker_distance_m": null
     },
     {
@@ -1991,8 +1991,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.9375,
+      "done_frames": 25,
+      "done_moving_fraction": 0.88,
       "final_marker_distance_m": null
     },
     {
@@ -2017,7 +2017,7 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
+      "done_frames": 26,
       "done_moving_fraction": 1.0,
       "final_marker_distance_m": null
     },
@@ -2043,8 +2043,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 66,
-      "done_moving_fraction": 0.9848484848484849,
+      "done_frames": 24,
+      "done_moving_fraction": 0.9583333333333334,
       "final_marker_distance_m": null
     },
     {
@@ -2277,8 +2277,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 253,
-      "done_moving_fraction": 0.03162055335968379,
+      "done_frames": 144,
+      "done_moving_fraction": 0.020833333333333332,
       "final_marker_distance_m": null
     },
     {
@@ -2316,8 +2316,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.48936170212765956,
+      "done_frames": 35,
+      "done_moving_fraction": 0.6571428571428571,
       "final_marker_distance_m": null
     },
     {
@@ -2329,8 +2329,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 101,
-      "done_moving_fraction": 0.039603960396039604,
+      "done_frames": 100,
+      "done_moving_fraction": 0.04,
       "final_marker_distance_m": null
     },
     {
@@ -2355,8 +2355,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.7708333333333334,
+      "done_frames": 29,
+      "done_moving_fraction": 0.6206896551724138,
       "final_marker_distance_m": null
     },
     {
@@ -2420,8 +2420,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.9361702127659575,
+      "done_frames": 27,
+      "done_moving_fraction": 0.8888888888888888,
       "final_marker_distance_m": null
     },
     {
@@ -2446,8 +2446,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.851063829787234,
+      "done_frames": 23,
+      "done_moving_fraction": 0.6956521739130435,
       "final_marker_distance_m": null
     },
     {
@@ -2511,8 +2511,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.4375,
+      "done_frames": 39,
+      "done_moving_fraction": 0.5128205128205128,
       "final_marker_distance_m": null
     },
     {
@@ -2654,8 +2654,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.375,
+      "done_frames": 47,
+      "done_moving_fraction": 0.3617021276595745,
       "final_marker_distance_m": null
     },
     {
@@ -2771,8 +2771,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 69,
-      "done_moving_fraction": 0.07246376811594203,
+      "done_frames": 59,
+      "done_moving_fraction": 0.06779661016949153,
       "final_marker_distance_m": null
     },
     {
@@ -2784,8 +2784,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.40425531914893614,
+      "done_frames": 46,
+      "done_moving_fraction": 0.391304347826087,
       "final_marker_distance_m": null
     },
     {
@@ -2797,8 +2797,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 128,
-      "done_moving_fraction": 0.7265625,
+      "done_frames": 49,
+      "done_moving_fraction": 0.2857142857142857,
       "final_marker_distance_m": null
     },
     {
@@ -2810,7 +2810,7 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 56,
+      "done_frames": 19,
       "done_moving_fraction": 1.0,
       "final_marker_distance_m": null
     },
@@ -2823,8 +2823,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 49,
-      "done_moving_fraction": 0.9591836734693877,
+      "done_frames": 24,
+      "done_moving_fraction": 0.9166666666666666,
       "final_marker_distance_m": null
     },
     {
@@ -2849,8 +2849,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.9361702127659575,
+      "done_frames": 28,
+      "done_moving_fraction": 0.8928571428571429,
       "final_marker_distance_m": null
     },
     {
@@ -2914,8 +2914,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.5319148936170213,
+      "done_frames": 38,
+      "done_moving_fraction": 0.42105263157894735,
       "final_marker_distance_m": null
     },
     {
@@ -2940,8 +2940,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.3191489361702128,
+      "done_frames": 45,
+      "done_moving_fraction": 0.28888888888888886,
       "final_marker_distance_m": null
     },
     {
@@ -2966,8 +2966,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
-      "done_moving_fraction": 0.6595744680851063,
+      "done_frames": 33,
+      "done_moving_fraction": 0.5151515151515151,
       "final_marker_distance_m": null
     },
     {
@@ -2979,7 +2979,7 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 47,
+      "done_frames": 18,
       "done_moving_fraction": 1.0,
       "final_marker_distance_m": null
     },
@@ -2992,8 +2992,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 46,
-      "done_moving_fraction": 0.5869565217391305,
+      "done_frames": 36,
+      "done_moving_fraction": 0.4722222222222222,
       "final_marker_distance_m": null
     },
     {
@@ -3005,8 +3005,8 @@
       "duplicate_images": 0,
       "jumps": 0,
       "discontinuities": 0,
-      "done_frames": 48,
-      "done_moving_fraction": 0.7916666666666666,
+      "done_frames": 26,
+      "done_moving_fraction": 0.6153846153846154,
       "final_marker_distance_m": null
     },
     {

@@ -1,7 +1,7 @@
 {
   "raw_dataset": "demonstrations_real_v8.zarr",
   "droid_dataset": "demonstrations_real_v8_droid.zarr",
-  "train_dataset": "demonstrations_real_v8_xarm5.zarr",
+  "train_dataset": "demonstrations_real_v8_xarm5_2026-11-27.zarr",
   "reference_dataset": "demonstrations_real_v7_xarm5_v2.zarr",
   "demonstrations_raw": 252,
   "status_counts": {

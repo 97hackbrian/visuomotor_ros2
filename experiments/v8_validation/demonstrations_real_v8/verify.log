@@ -10,7 +10,7 @@ Arreglos extra (el cargador de entrenamiento los ignora): ['image_stamp', 'inlie
 episodes                                                      230                                 76
 frames                                                      95429                              23731
 duration_s_p5_50_95                     [12.8225, 20.35, 30.9975]           [12.225, 15.275, 19.775]
-done_frames_min_p50                                      [40, 52]                           [40, 40]
+done_frames_min_p50                                      [18, 51]                           [40, 40]
 episodes_with_bad_done                                          0                                  0
 gripper_max_abs                                               0.0                                0.0
 quat_norm_max_dev                                             0.0                                0.0
@@ -30,7 +30,7 @@ quaternion_hemisphere                                        home               
 orientation_mode                                        arm_plane                          arm_plane
 tcp_to_camera_xyz_m                  [0.06293, -0.01626, 0.01849]                    [0.0, 0.0, 0.0]
 start_poses                    experiments/v8_validation/demonstr                               None
-paso de entrenamiento (GPU)    {'loss': 1.3019, 'grad_norm': 5.135, 'finite': True, 'gpu_peak_gb': 0.66}
+paso de entrenamiento (GPU)    {'loss': 1.0972, 'grad_norm': 4.136, 'finite': True, 'gpu_peak_gb': 0.66}
 
 Sin problemas de estructura, convenciones, física ni entrenamiento.
 VEREDICTO: LISTO para entrenar (consistente con la referencia)

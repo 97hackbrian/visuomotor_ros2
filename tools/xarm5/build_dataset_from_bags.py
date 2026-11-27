@@ -16,7 +16,8 @@ Por episodio:
    D435i medido con el robot, validado dejando una corrida fuera).
 4. **Interpolación:** a los sellos de los frames del episodio (posición lineal, rotación SLERP).
 5. **Done:** el tramo final quieto según DROID (``detect_hold_start``) si dura al menos ``--min-hold-s``; si no, se
-   conserva el del recolector (queda registrado).
+   conserva el del recolector (queda registrado). En los dos casos se recorta su comienzo para que no incluya frames
+   a más de ``--done-radius-m`` (3 cm) de la pose final (versión 3, ``trim_done_to_radius``).
 6. **Escritura:** episodio nuevo, con el mismo formato que el recolector (``state`` y ``action`` con coordenadas
    relativas). Imágenes, sellos y el resto se copian tal cual; los atributos se conservan y se agrega la
    trazabilidad. NUNCA sobrescribe: ``--dst`` no debe existir.
@@ -46,7 +47,8 @@ sys.path.insert(0, str(REPO / "visuomotor_data_collection"))
 
 from visuomotor_data_collection.vo_episode_logic import detect_hold_start  # noqa: E402
 
-BUILD_VERSION = 2   # 2: referencia en la ventana quieta medida (no la del giróscopo, que borraba movimiento)
+BUILD_VERSION = 3   # 2: referencia en la ventana quieta medida (no la del giróscopo, que borraba movimiento)
+                    # 3: el done nunca incluye frames a más de --done-radius-m de la pose final (2026-11-27)
 
 
 def episode_keys(g):
@@ -56,6 +58,28 @@ def episode_keys(g):
 def load_tum(path: Path):
     tum = np.loadtxt(path, ndmin=2)
     return tum[:, 0], tum[:, 1:4], tum[:, 4:8]                    # t, xyz, quat xyzw
+
+
+def trim_done_to_radius(done, xyz, radius_m: float, n_final: int):
+    """(Versión 3, 2026-11-27) El tramo done (llegada) nunca incluye frames a más de ``radius_m`` de la pose final
+    (media de los últimos ``n_final`` frames): solo RECORTA el comienzo del bloque done final, nunca lo alarga.
+
+    Motivo: en 44 de 230 demos el TCP se movía más de 3 cm dentro del done (peor caso 30 cm), sobre todo cuando la
+    llegada venía del recolector (aproximación lenta tomada por quietud). Con esas etiquetas la red aprende a decir
+    "llegué" antes de llegar. Devuelve (done corregido, frames recortados)."""
+    done = np.asarray(done, dtype=bool).copy()
+    xyz = np.asarray(xyz, dtype=np.float64)
+    if not done.any() or radius_m <= 0 or len(xyz) == 0:
+        return done, 0
+    i_done = len(done)                                     # comienzo del bloque done contiguo al final
+    while i_done > 0 and done[i_done - 1]:
+        i_done -= 1
+    d = np.linalg.norm(xyz - xyz[-max(1, n_final):].mean(0), axis=1)
+    far = np.where(d > radius_m)[0]
+    i_new = max(i_done, int(far[-1]) + 1 if len(far) else 0)
+    out = np.zeros(len(done), dtype=bool)
+    out[i_new:] = True
+    return out, int(i_new - i_done)
 
 
 def build_episode(ts, t_d, p_d, q_d, T_link_opt, depth_scale: float, init_s: float, ref_end_after_start_s: float):
@@ -122,6 +146,9 @@ def main(argv=None) -> int:
     ap.add_argument("--min-hold-s", type=float, default=2.0)
     ap.add_argument("--static-speed", type=float, default=0.02)
     ap.add_argument("--static-window-s", type=float, default=0.5)
+    ap.add_argument("--done-radius-m", type=float, default=0.03,
+                    help="el done no incluye frames a más de esto de la pose final (0 = sin recorte)")
+    ap.add_argument("--done-final-window-s", type=float, default=0.5, help="ventana final que define la pose final")
     ap.add_argument("--episodes", default="", help="solo estos (coma), p. ej. episode_41,episode_55")
     ap.add_argument("--allow-missing-droid", action="store_true",
                     help="omitir (en vez de detenerse) las demos no descartadas sin trayectoria de DROID")
@@ -183,6 +210,7 @@ def main(argv=None) -> int:
             done_src = "droid"
         else:
             done, done_src = done_old, "collector"
+        done, n_cut = trim_done_to_radius(done, xyz, a.done_radius_m, int(round(a.done_final_window_s * rate)))
         state = np.zeros_like(st, dtype=np.float32)
         state[:, 0:3], state[:, 3:7], state[:, 7] = xyz, q, st[:, 7]
         action = np.zeros((len(ts), act.shape[1]), dtype=np.float32)
@@ -201,6 +229,7 @@ def main(argv=None) -> int:
         new_at.update({"pose_source": "droid_rgbd", "build_version": BUILD_VERSION, "droid_tum": str(tum.relative_to(REPO)),
                        "depth_scale": a.depth_scale, "start_reference": info, "done_source_build": done_src,
                        "done_frames": int(done.sum()), "done_frames_collector": int(done_old.sum()),
+                       "done_radius_m": a.done_radius_m, "done_trimmed_frames": n_cut,
                        "validation_verdict": v, "validation_reasons": verdicts.get(k, {}).get("reasons", ""),
                        "relative_coordinates": True, "pose_frame": "camera_link relativa a la referencia de inicio"})
         ep.attrs.update(new_at)
