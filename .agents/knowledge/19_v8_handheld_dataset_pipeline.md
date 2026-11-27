@@ -184,7 +184,7 @@ La regla literal del repo ("nunca sobrescribir ni borrar un dataset; cada correc
 ## 9. Revisión de entrenabilidad (2026-11-27, pedido del usuario)
 
 **Datos para entrenar:** `datasets/demonstrations_real_v8_xarm5_2026-11-27.zarr`, copia congelada y de solo lectura del armado versión 3.
-- La de ayer (`_2026-11-26`, versión 2, con las etiquetas de llegada sin corregir) quedó superada. Nunca se usó para entrenar; borrarla requiere el pedido del usuario.
+- La de ayer (`_2026-11-26`, versión 2, con las etiquetas de llegada sin corregir) quedó superada y **se borró el 2026-11-27 a pedido del usuario** (15 GB). Ningún `training_meta.json` la usaba. Queda como registro su informe `datasets/demonstrations_real_v8_xarm5_2026-11-26_conversion_report.json`.
 
 **Revisión demo por demo** (`tools/xarm5/review_v8_trainability.py`):
 - Usa la pose REAL de la cámara al final: la pose de inicio (ArUco + IMU) compuesta con DROID.
