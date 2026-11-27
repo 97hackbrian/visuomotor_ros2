@@ -5,6 +5,11 @@ description: Protocolo operativo para recolección experta de demostraciones rea
 
 # Skill: RealSense VIO & UMI Handheld Data Collection (v1.5)
 
+> [!TIP]
+> **Para grabar demos v8 a mano (o regrabarlas) usar la skill `v8-handheld-demo-collection`**: es el procedimiento
+> que funcionó el 2026-11-25/26 (sesión en tmux con voz y meta, programa de celdas × orientaciones, bag crudo, DROID,
+> armado y congelado). Esta skill queda como fondo general.
+
 Esta habilidad proporciona el procedimiento estandarizado para capturar demostraciones expertas a mano alzada en hardware real mediante Odometría Visual-Inercial (VIO) con cámaras Intel RealSense (D435i / D415) y RTAB-Map sobre ROS 2 Jazzy, bajo el estándar **UMI** (*Universal Manipulation Interface*, Stanford / TRI).
 
 ---

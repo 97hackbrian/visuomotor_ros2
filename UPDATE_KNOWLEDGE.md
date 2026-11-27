@@ -1,7 +1,7 @@
 ---
 name: update-knowledge
 description: Protocolo estandarizado para que cualquier agente de IA (Antigravity, Cursor, Claude Code, Windsurf, Copilot) extraiga los aprendizajes, audite el código línea a línea, revise commits y nutra de forma aditiva la base de conocimientos (.agents/knowledge/), context.md, AGENTS.md y las skills especializadas.
-version: 2.2.0
+version: 3.0.0
 compatibility:
   - Antigravity CLI & IDE
   - Cursor
@@ -36,6 +36,15 @@ flowchart TD
 ---
 
 ## 2. Pasos de Ejecución Obligatorios
+
+### Paso 0: Estado vivo `.agents/STATE.md` (siempre primero, ≤ 5 min; v3.0, 2026-11-27)
+> [!IMPORTANT]
+> El contexto de un agente se compacta o se pierde en sesiones largas, y el resumen automático omite comandos, cifras y
+> decisiones. Antes que nada, reescribir `.agents/STATE.md` (≤ ~150 líneas): qué corre ahora (carpeta, tmux, cómo
+> pararlo y reanudarlo, hora estimada de fin), datasets y modelos oficiales, pendientes en orden, reglas vigentes del
+> usuario (copiando lo durable de la memoria privada del agente) e instrucciones aún sin cumplir. Commit y push en el
+> host. En Claude Code, el hook `SessionStart` de `.claude/settings.json` lo vuelve a cargar tras cada compactación.
+> Detalle: `.agents/skills/update-knowledge/SKILL.md`.
 
 ### Paso 1: Auditoría Previa Línea por Línea del Código
 > [!IMPORTANT]
@@ -73,6 +82,13 @@ La carpeta `.agents/knowledge/` es la **memoria a largo plazo persistente**. El 
   * `09_comparative_benchmarking_and_precision_metrics.md`: Modelo cinemático TCP (79 mm), panel 2x3 con escala logarítmica y smart zoom.
   * `10_sim_to_real_finetuning_and_residual_policies.md`: Co-Fine-Tuning 20/80, LoRA visual, residuales ResiP/TRANSIC.
   * `11_isaac_sim_headless_acceleration.md`: Real-Time 2.0 (RTPT), DLSS Performance, Eco Mode, deprecación de frameSkipCount.
+  * `12_training_convergence_and_stopping_criteria.md` a `14_historical_convergence_and_noise_floor.md`: convergencia, parada y ruido.
+  * `15_visual_odometry_rtabmap_realsense.md`: RTAB-Map y RealSense (sin certificar; medición contra referencia).
+  * `16_xarm5_real_hardware_bringup.md`: xArm5 real (puente, seguridad, alcance, cámara en la brida, ensayos).
+  * `17_real_vio_dataset_curation_and_relative_actions.md`: curación de v7, acciones `relative_ee`.
+  * `18_vio_estimator_selection_droid_slam.md`: DROID-SLAM elegido contra el robot.
+  * `19_v8_handheld_dataset_pipeline.md`: v8 a mano (recolección, DROID, armado, conversión, métricas, revisión).
+  * `20_v8_training.md`: entrenamiento con v8 (configuración, razones, monitoreo, selección de época).
 
 ### Paso 4: Sincronización de `context.md` y `AGENTS.md`
 * **`context.md`:** Actualizar la sección de **Lecciones Aprendidas y Troubleshooting** con los nuevos casos resueltos, y actualizar el **Roadmap y Estado Actual**.
@@ -85,9 +101,12 @@ Actualizar las habilidades permanentes en `.agents/skills/`:
 * `headless-experimentation-workflow/SKILL.md` (v1.0)
 * `diffusion-policy-expert/SKILL.md` (v1.1)
 * `scientific-latex-reporting/SKILL.md` (v1.0)
-* `update-knowledge/SKILL.md` (v2.1)
+* `update-knowledge/SKILL.md` (v3.0: paso 0 de estado vivo)
+* `v8-handheld-demo-collection/SKILL.md` (v1.0: recolección a mano con la D435i que funcionó el 2026-11-25/26)
+* `realsense-vio-data-collection/SKILL.md`, `droid-slam-offline-vio/SKILL.md`
 
 ### Paso 6: Protocolo Interactivo de Aprendizaje (`/learn`)
+* Si el usuario lo pide explícitamente, se aplica directo. Si no:
 * Toda modificación de habilidades o reglas operativas debe plasmarse primero en un artefacto interactivo `learning_proposal.md` con metadatos `RequestFeedback: true`.
 * Clasificar rigurosamente: Reglas (`AGENTS.md`) vs Habilidades (`.agents/skills/`) vs Conocimiento (`.agents/knowledge/`).
 * Aplicar los cambios únicamente tras la aprobación explícita del usuario (Proceed).

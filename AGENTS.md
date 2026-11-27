@@ -4,6 +4,8 @@ Este documento es el contrato maestro de operación y guía arquitectónica para
 
 Cualquier agente que inicie una sesión en este proyecto **DEBE leer este documento primero** y adherirse a sus directivas de manera estricta.
 
+**Estado vivo:** después de este documento, leer `.agents/STATE.md` (qué corre ahora, datasets y modelos oficiales, pendientes y reglas vigentes del usuario). Se actualiza antes que nada al cerrar un hito o si el contexto se acerca al límite (skill `update-knowledge`, paso 0).
+
 ---
 
 ## 1. Misión del Proyecto y Topología Arquitectónica
@@ -508,6 +510,7 @@ docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/xarm5/analyze_v8_datas
 ## 8. Contrato de Mantenimiento Continuo (Agent Handoff)
 
 Al concluir cada sesión de desarrollo donde se hayan tomado decisiones arquitectónicas, solucionado bugs o actualizado datasets/pesos:
+0. El agente activo DEBE reescribir primero `.agents/STATE.md` (estado vivo, ≤ ~150 líneas) y subirlo: es lo que retoma el trabajo si el contexto se pierde.
 1. El agente activo DEBE auditar el código fuente línea por línea para certificar su estado funcional real.
 2. El agente activo DEBE actualizar `context.md` y este archivo `AGENTS.md`.
 3. El agente activo DEBE nutrir de forma aditiva la base de conocimiento modular en `.agents/knowledge/` (consultando los diffs reales de los commits).

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.agents/STATE.md\"; [ -f \"$f\" ] && { printf '== .agents/STATE.md (estado vivo del repo, cargado por el hook SessionStart de .claude/settings.json) ==\\n'; cat \"$f\"; } 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
