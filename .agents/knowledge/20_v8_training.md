@@ -187,4 +187,35 @@ contra 21,3 mm en v7, porque las trayectorias de DROID son suaves (0,9 mm de rui
   - En lazo cerrado la imagen se actualiza y corrige el rumbo. Eso lo miden la reproducción offline y el robot,
     no este promedio.
 
-*(se sigue completando: meseta, época elegida y por qué)*
+**Meseta desde la época 65:** ADE 10,2 mm, ADE ejecutado 6,1 mm, FDE 17,7 mm, rotación 1,72° y F1 del done
+0,74–0,75, con el LR al ~92 %.
+- **Se deja terminar hasta la 400** (decisión explicada al usuario el 2026-11-27).
+- En v7, la fase de bajada del LR (épocas 50 → 200) dejó la trayectoria casi igual (−3 % en FDE), pero subió el F1
+  del done de 0,614 a 0,698. Ese F1 es justo lo que falló en el robot.
+- Después bajó: 0,665 en la época 300.
+
+**Reproducción offline de la ruta de la Jetson en la época 75** (`tools/xarm5/replay_policy_offline.py`, carpeta
+`replay_e75/`):
+- Parámetros de `jetson_policy_params.yaml` y auto-stop 0,60 × 5.
+- Teacher forcing sobre los 23 episodios de validación; tardó 4,6 min con el entrenamiento corriendo.
+- Error de comando: 10,3 mm de media (p95 20,0) y 1,79° de rotación.
+- Auto-stop: se detiene en 20 de 23 episodios, con 3 paradas prematuras (> 1 s antes) y 16,7 mm de mediana entre la
+  parada y la meta.
+
+El total esconde dos grupos:
+
+| Episodios de validación | Se detiene | Prematuras (> 1 s) | Parada → meta (mediana) |
+|---|---|---|---|
+| Dentro del alcance (18; celdas 1–7 y 9) | **18/18** | 1 (`episode_127`, celda 6: −2,6 s, 62 mm) | 17,0 mm |
+| Marcados fuera del alcance (5; celdas 6, 8 y 9) | 2/5: no paran `episode_27`, `episode_47` ni `episode_157` | 2: las dos paradas que hubo | 43,0 mm |
+
+- **Los fallos del auto-stop se concentran en las demos que terminan fuera del alcance del brazo.** Son las celdas
+  que el robot no puede completar igual.
+- **En las alcanzables, el auto-stop ya funciona en la época 75**, aunque todavía peor que en v7 (100 %, 0
+  prematuras, ~8 mm en 8 episodios).
+- **Barrido de umbral × paciencia** (los 23 episodios): subir la paciencia a 10 baja las prematuras a 2 y la
+  distancia parada → meta a 11–13 mm, con 0,35–0,55 s de demora. Con umbral 0,8, la tasa de parada cae a 0,78–0,87.
+- **Pendiente:** calibrarlo al final, con el checkpoint elegido y sobre los episodios dentro del alcance
+  (`--episodes` con la lista).
+
+*(se sigue completando: época elegida y por qué)*

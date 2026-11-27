@@ -48,6 +48,10 @@
   - Estado de un vistazo: `docker exec -u 1000 -w /ros visuomotor_ros2 python3 tools/training_monitor.py --run-dir visuomotor_core/outputs/train_real_v8x5_relative_ee_e400 --once --tz-offset "$(date +%z)"`.
   - Parar limpio: `touch visuomotor_core/outputs/train_real_v8x5_relative_ee_e400/STOP`. Reanudar:
     `TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --resume`.
+  - Hasta la época 75: meseta en la validación (FDE 17,7 mm, F1 del done 0,75). La política usa la imagen: la
+    ablación sube el FDE un 65 %. Reproducción de la ruta de la Jetson con la época 75: en las 18 demos de
+    validación dentro del alcance, el auto-stop para 18/18 (1 prematura); los fallos se concentran en las 5 que
+    terminan fuera del alcance.
   - La última época no tiene por qué ser la mejor: en v7 las métricas se estancaron hacia la época 230 y el F1 del
     done bajó después. La época se elige con el protocolo de `.agents/knowledge/20_v8_training.md` §5.
   - Gráficas, refrescadas en cada evaluación:
