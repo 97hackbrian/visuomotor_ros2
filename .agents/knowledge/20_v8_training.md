@@ -218,4 +218,35 @@ El total esconde dos grupos:
 - **Pendiente:** calibrarlo al final, con el checkpoint elegido y sobre los episodios dentro del alcance
   (`--episodes` con la lista).
 
+**Épocas 100–200** (LR del coseno de 8,5e-5 a 5,0e-5; 0,184 s por paso). Validación, en mm salvo la rotación y el F1:
+
+| Época | ADE | ADE ejecutado | FDE | Rotación | F1 del done |
+|---|---|---|---|---|---|
+| 100 | 10,07 | 6,04 | 17,55 | 1,70° | 0,754 |
+| 125 | 9,99 | 5,98 | 17,44 | 1,71° | **0,761** |
+| 150 | 9,97 | 5,96 | 17,43 | 1,69° | 0,745 |
+| 175 | 9,92 | 5,93 | 17,34 | 1,68° | 0,754 |
+| 200 | 9,92 | 5,93 | **17,31** | 1,67° | 0,743 |
+
+Líneas base, iguales en todas las épocas: velocidad constante 5,7 / 2,3 / 13,0 mm (ADE / ejecutado / FDE) y quedarse
+quieto 14,8 / 8,5 mm (ADE / ejecutado).
+
+- **Meseta:** en 100 épocas, el FDE baja 0,24 mm (−1,4 %) y la rotación 0,03°. En el robot no se notaría.
+- **F1 del done:** máximo de 0,761 en la época 125; desde la 135 baja despacio, hasta 0,743 en la 200. Con 23
+  episodios de validación, 0,02 puede ser ruido: decide la reproducción offline con el auto-stop, no esta cifra.
+- **Memoriza:** la pérdida de denoising de validación sube sin parar desde la época 10: 0,0127, 0,0162 en la 50,
+  0,0240 en la 100 y 0,0435 en la 200. La de entrenamiento baja a 0,003.
+  - En el split de entrenamiento: FDE 3,0 mm y F1 0,98. En validación: 17,3 mm y 0,74.
+  - Las métricas de muestreo de validación no empeoran, así que todavía no daña el comportamiento. Pero las épocas
+    extra ya no generalizan mejor: sobre todo ajustan las 207 demos de entrenamiento.
+  - Por eso la pérdida de denoising de validación no sirve para elegir la época (§5).
+- **Contra la velocidad constante:** pierde en los tres promedios, y así fue desde el inicio.
+  - Las trayectorias de v8 (DROID, bajadas lentas) son suaves, y a mitad del movimiento la velocidad constante
+    acierta casi gratis. En v7 la política sí le ganaba en FDE (18,5 frente a 21,3 mm).
+  - Lo que la velocidad constante no puede hacer es arrancar desde el reposo hacia la herramienta ni detenerse. Eso
+    es lo que mide la selección (§5): la ablación de imagen desde el reposo y la reproducción con el auto-stop.
+- **Candidatas:** ya no solo las últimas épocas. Entran también la 125–135 (máximo del F1) y las de menor FDE.
+- **Al terminar:** una espera en segundo plano corre `tools/diagnose_policy_baselines.py` sobre las épocas 100–400,
+  cada 25, en `baseline_diagnostics_e100-400/` (con su `.log`).
+
 *(se sigue completando: época elegida y por qué)*

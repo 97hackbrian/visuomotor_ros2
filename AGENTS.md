@@ -333,7 +333,7 @@ El nodo de inferencia implementa dos capas independientes de detención:
       - 207 demos de entrenamiento y 23 de validación, partidas por episodio.
       - 400 épocas, a pedido del usuario: 530 800 pasos, 5,4 veces los de la corrida de v7.
       - Misma receta que el modelo que funcionó (`relative_ee`, EMA, `color_jitter`), con checkpoint y evaluación cada 5 épocas.
-      - Fin estimado: 2026-11-28, 15–16 h (hora local).
+      - Fin estimado: 2026-11-28, hacia las 13 h (hora local).
     - *Criterio:* la época se elige por comportamiento (validación contra la velocidad constante, F1 del done, ablación de imagen, reproducción offline y auto-stop), no por la última época ni por la pérdida. En v7 las métricas se estancaron hacia la época 230.
     - *Herramientas:*
       - `tools/train_with_monitor.sh`: entrenamiento desacoplado, sesión tmux con monitor, log y bloqueo de suspensión, `README.md` con el comando, y `--resume`.

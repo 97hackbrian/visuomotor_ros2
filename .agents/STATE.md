@@ -15,10 +15,13 @@
 
 - **Entrenamiento de DP con v8** (`train_real_v8x5_relative_ee_e400`):
   - empezó el 2026-11-27 a las 09:24 (−03); los logs van en UTC (12:24);
-  - va a 0,178 s por paso (3 min 57 s por época, 48 s por evaluación) y debería terminar el **2026-11-28 hacia las 12:45**;
+  - va a 0,184 s por paso (4 min 04 s por época, 50 s por evaluación) y debería terminar el **2026-11-28 hacia las 13:15**;
   - se mira con `tmux attach -t train_v8` (ventanas `monitor`, `log` y `sin_suspender`). `Ctrl-b d` sale sin detener
     nada. Si la sesión se cerró: `TRAIN_TMUX_SESSION=train_v8 tools/train_with_monitor.sh train_real_v8x5_relative_ee_e400 --monitor-only`;
-  - la suspensión del equipo queda bloqueada mientras corre (`systemd-inhibit`).
+  - la suspensión del equipo queda bloqueada mientras corre (`systemd-inhibit`);
+  - al terminar, una espera en segundo plano del agente corre `tools/diagnose_policy_baselines.py` con las épocas
+    100–400 (cada 25) en `<corrida>/baseline_diagnostics_e100-400/` (+ `.log`). Si esa sesión se perdió, lanzarlo a
+    mano (AGENTS §7, comando 19).
 - **Cámara y recolector:** cerrados desde el 2026-11-26.
 
 ## 2. Datasets (niveles de AGENTS §2.3)
@@ -52,6 +55,11 @@
     ablación sube el FDE un 65 %. Reproducción de la ruta de la Jetson con la época 75: en las 18 demos de
     validación dentro del alcance, el auto-stop para 18/18 (1 prematura); los fallos se concentran en las 5 que
     terminan fuera del alcance.
+  - Épocas 100–200: meseta (FDE 17,5 → 17,3 mm). F1 del done: máximo 0,761 en la 125 y 0,743 en la 200 (con 23
+    demos de validación puede ser ruido). La pérdida de denoising de validación sube desde la época 10 (0,013 →
+    0,044) y en el split de entrenamiento el FDE es 3,0 mm: memoriza, aunque el muestreo de validación no empeora.
+    Sigue perdiendo con la velocidad constante en los promedios (FDE 13,0 mm), como desde el inicio. Candidatas: la
+    125–135 y las de menor FDE.
   - La última época no tiene por qué ser la mejor: en v7 las métricas se estancaron hacia la época 230 y el F1 del
     done bajó después. La época se elige con el protocolo de `.agents/knowledge/20_v8_training.md` §5.
   - Gráficas, refrescadas en cada evaluación:
